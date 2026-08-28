@@ -1,6 +1,7 @@
 // 情绪打卡（蓝皮书 mood_checkins 表）：本地优先（MMKV）+ 云同步
 // 数据源用途：画像情绪信号（打卡 emoji 趋势 + 语音转写消极词加权）
 import { create } from 'zustand';
+import * as FileSystem from 'expo-file-system';
 import { MMKV } from 'react-native-mmkv';
 import { useSettingsStore } from './settingsStore';
 import { localDateStr } from './reminderStore';
@@ -85,7 +86,6 @@ export const useMoodStore = create<MoodState>((set, get) => ({
         // 语音转 base64 随打卡上传（≤1 分钟 m4a，体积可接受）
         let voiceBase64: string | undefined;
         if (c.voiceUri) {
-          const { FileSystem } = await import('expo-file-system');
           voiceBase64 = await FileSystem.readAsStringAsync(c.voiceUri, { encoding: FileSystem.EncodingType.Base64 });
         }
         const res = await fetch(`${webApiUrl.replace(/\/+$/, '')}/api/mood`, {
