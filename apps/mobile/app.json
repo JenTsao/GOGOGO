@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "高考副驾驶",
+    "slug": "gaokao-copilot",
+    "scheme": "gaokao",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gaokao.copilot"
+    },
+    "android": {
+      "package": "com.gaokao.copilot"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -1,0 +1,15 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; font-family: -apple-system, 'PingFang SC', system-ui, sans-serif; background: #f5f6f8; color: #1a1a1a; }
+.shell { display: flex; min-height: 100vh; }
+.sidebar { width: 220px; background: #111; color: #fff; padding: 24px 16px; display: flex; flex-direction: column; gap: 4px; }
+.logo { font-size: 18px; font-weight: 800; margin-bottom: 24px; padding-left: 8px; }
+.nav-item { display: block; padding: 12px; border-radius: 10px; color: #ccc; text-decoration: none; font-size: 15px; }
+.nav-item:hover { background: #222; color: #fff; }
+.main { flex: 1; padding: 32px; }
+.page-title { font-size: 24px; font-weight: 800; margin: 0 0 20px; }
+.panel { background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 20px; }
+.placeholder { color: #999; line-height: 1.7; }
+.btn { background: #111; color: #fff; border: none; padding: 10px 16px; border-radius: 10px; font-size: 14px; cursor: pointer; }
+.btn-ghost { background: #eee; color: #333; }
+.split { display: flex; gap: 20px; }
+.split > .panel { flex: 1; }

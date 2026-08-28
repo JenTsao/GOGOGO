@@ -1,0 +1,25 @@
+# Supabase 本地配置（开发用，可选）
+# 线上使用 Supabase Cloud 免费计划，此文件用于本地 supabase start 调试
+
+project_id = "gaokao-copilot"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["exp://localhost:19000"]
+
+[storage]
+enabled = true
