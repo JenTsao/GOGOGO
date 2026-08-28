@@ -3,7 +3,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 
 // Tab 4：我的（配置与调度）
 export default function ProfileScreen() {
-  const { deepseekKey, weatherKey, weatherCity, targetUniversity, update } = useSettingsStore();
+  const { deepseekKey, weatherKey, weatherCity, targetUniversity, githubRepo, githubBranch, update } = useSettingsStore();
 
   return (
     <ScrollView style={styles.container}>
@@ -50,6 +50,30 @@ export default function ProfileScreen() {
         placeholderTextColor="#999"
         value={targetUniversity}
         onChangeText={(v) => update({ targetUniversity: v })}
+      />
+
+      <Text style={styles.sectionTitle}>📓 知识库（Obsidian）</Text>
+
+      <Text style={styles.label}>GitHub 仓库（格式 owner/repo，需公开）</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="your-name/your-vault"
+        placeholderTextColor="#999"
+        value={githubRepo}
+        onChangeText={(v) => update({ githubRepo: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <Text style={styles.label}>分支（默认 main）</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="main"
+        placeholderTextColor="#999"
+        value={githubBranch}
+        onChangeText={(v) => update({ githubBranch: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
       />
 
       <Text style={styles.sectionTitle}>📅 自定义日期提醒</Text>

@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useState } from 'react';
 import { useAiStore } from '@/store/aiStore';
+import { CodeSandbox } from '@/components/CodeSandbox';
+import { KnowledgeView } from '@/components/KnowledgeView';
 
 // Tab 2：弹药库（工具与知识）
 // 顶部切换：[💻 代码沙盒] | [📓 知识库]
@@ -28,13 +30,9 @@ export default function ArsenalScreen() {
 
       <View style={styles.body}>
         {tab === 'code' ? (
-          <Text style={styles.placeholder}>
-            Monaco 编辑器 + Pyodide 运行 + 强制熔断（5 秒无响应杀进程）。Phase 2 集成。
-          </Text>
+          <CodeSandbox />
         ) : (
-          <Text style={styles.placeholder}>
-            按需从 GitHub 拉取目录树，点击单篇下载 Markdown，渲染支持 LaTeX / 代码高亮 / [[双链]]。Phase 2 集成。
-          </Text>
+          <KnowledgeView />
         )}
 
         {/* 业务入口：生成错题本 / 编译输出 */}
@@ -60,7 +58,6 @@ const styles = StyleSheet.create({
   tabText: { color: '#555', fontWeight: '600' },
   tabTextActive: { color: '#fff' },
   body: { flex: 1, padding: 16 },
-  placeholder: { color: '#999', fontSize: 15, lineHeight: 24 },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginTop: 24, marginBottom: 8 },
   actionBtn: {
     backgroundColor: '#fff',

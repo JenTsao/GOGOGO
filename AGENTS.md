@@ -49,12 +49,13 @@ pnpm lint         # 全 workspace 类型检查
 | `GITHUB_REPO` / `GITHUB_BRANCH` / `GITHUB_TOKEN` | web 服务端 | 知识工坊读取 Obsidian 仓库 |
 | DeepSeek / OpenWeather Key | mobile MMKV | 用户在「我的」Tab 自填 |
 
-## 当前进度（Phase 1 已完成）
+## 当前进度（Phase 1 完成，Phase 2 进行中）
 
 - ✅ Monorepo（pnpm workspace）+ Supabase schema + CI
 - ✅ 移动端 4 Tab；驾驶舱：倒计时 / 自动定位天气（expo-location，坐标优先、配置城市兜底）/ 今日三件事 + 后备箱（MMKV 持久化）；全屏心流计时器（会话记录持久化）
 - ✅ 管理台知识工坊：文件树预览 + Monaco 只读编辑器
-- ⏳ Phase 2：Pyodide 沙盒、Markdown 渲染知识库、DeepSeek 对话（L1-L3）、凌晨备课流水线、pgvector 语义检索
+- ✅ 弹药库：代码沙盒（WebView 内 Monaco + Pyodide，5 秒无响应熔断，片段 MMKV 保存）+ 知识库（GitHub 目录树按需下载，react-native-markdown-display 渲染，[[双链]] 暂渲染为加粗）
+- ⏳ Phase 2 剩余：DeepSeek 对话（L1-L3）、凌晨备课流水线、pgvector 语义检索
 - ⏳ Phase 3：L4 工具调度（6 大工具 + 确认卡片）、编译输出（PDF/Anki）、画像系统、后台唤醒
 
 ## 代码风格

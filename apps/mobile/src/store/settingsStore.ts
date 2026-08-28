@@ -7,17 +7,28 @@ export interface Settings {
   weatherKey: string;
   weatherCity: string;
   targetUniversity: string;
+  githubRepo: string; // Obsidian 仓库，格式 owner/repo（知识库用）
+  githubBranch: string;
 }
 
 const SETTINGS_KEY = 'settings';
 
+const DEFAULTS: Settings = {
+  deepseekKey: '',
+  weatherKey: '',
+  weatherCity: '',
+  targetUniversity: '',
+  githubRepo: '',
+  githubBranch: 'main',
+};
+
 function loadSettings(): Settings {
   const raw = storage.getString(SETTINGS_KEY);
-  if (!raw) return { deepseekKey: '', weatherKey: '', weatherCity: '', targetUniversity: '' };
+  if (!raw) return { ...DEFAULTS };
   try {
-    return { deepseekKey: '', weatherKey: '', weatherCity: '', targetUniversity: '', ...JSON.parse(raw) };
+    return { ...DEFAULTS, ...JSON.parse(raw) };
   } catch {
-    return { deepseekKey: '', weatherKey: '', weatherCity: '', targetUniversity: '' };
+    return { ...DEFAULTS };
   }
 }
 
@@ -29,7 +40,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   ...loadSettings(),
   update: (patch) => {
     set(patch);
-    const { deepseekKey, weatherKey, weatherCity, targetUniversity } = get();
-    storage.set(SETTINGS_KEY, JSON.stringify({ deepseekKey, weatherKey, weatherCity, targetUniversity }));
+    const { update: _fn, ...rest } = get() as SettingsState & { update: unknown };
+    storage.set(SETTINGS_KEY, JSON.stringify(rest));
   },
 }));

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #111; font-family: -apple-system, 'PingFang SC', system-ui, sans-serif; }
+  #bar { height: 30px; display: flex; align-items: center; padding: 0 10px; background: #1b1b1b; color: #888; font-size: 12px; }
+  #bar .ok { color: #4caf50; } #bar .err { color: #f44336; }
+  #editor { height: calc(100% - 30px); }
+</style>
+</head>
+<body>
+<div id="bar"><span id="status">⏳ 编辑器 / Pyodide 加载中…</span></div>
+<div id="editor"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs/loader.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+<script>
+  // RN 桥：所有状态经 JSON postMessage 上报；熔断计时由 RN 侧管理
+  var send = function (msg) {
+    if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+  };
+  var setStatus = function (text, cls) {
+    var el = document.getElementById('status');
+    el.textContent = text;
+    el.className = cls || '';
+  };
+
+  var editor = null;
+  var pyodide = null;
+  var pyReady = false;
+  var running = false;
+
+  // Monaco（Python 语法高亮）
+  require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs' } });
+  require(['vs/editor/editor.main'], function () {
+    editor = monaco.editor.create(document.getElementById('editor'), {
+      value: 'print("Hello, Gaokao!")\n',
+      language: 'python',
+      theme: 'vs-dark',
+      fontSize: 14,
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      automaticLayout: true,
+      tabSize: 4
+    });
+    send({ type: 'editor-ready' });
+  });
+
+  // Pyodide 运行时
+  loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/' })
+    .then(function (py) {
+      pyodide = py;
+      pyodide.setStdout({ batched: function (s) { send({ type: 'log', text: s }); } });
+      pyodide.setStderr({ batched: function (s) { send({ type: 'log', text: s }); } });
+      pyReady = true;
+      setStatus('● 就绪（Python 运行时已加载）', 'ok');
+      send({ type: 'py-ready' });
+    })
+    .catch(function (e) {
+      setStatus('Pyodide 加载失败', 'err');
+      send({ type: 'error', text: String(e) });
+    });
+
+  async function runCode() {
+    if (!pyReady) { send({ type: 'log', text: 'Pyodide 尚未加载完成，请稍候' }); send({ type: 'done' }); return; }
+    running = true;
+    try {
+      await pyodide.runPythonAsync(editor.getValue());
+    } catch (err) {
+      // 异常文本走 stderr 风格输出，交由 RN 控制台着色
+      send({ type: 'log', text: String(err) });
+    }
+    running = false;
+    send({ type: 'done' });
+  }
+
+  window.addEventListener('message', function (e) {
+    var m;
+    try { m = JSON.parse(e.data); } catch (err) { return; }
+    if (m.type === 'run') runCode();
+    if (m.type === 'code' && editor) editor.setValue(m.code || '');
+    if (m.type === 'export' && editor) send({ type: 'code-value', code: editor.getValue() });
+  });
+
+  send({ type: 'ready' });
+</script>
+</body>
+</html>
