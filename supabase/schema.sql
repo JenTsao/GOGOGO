@@ -14,6 +14,7 @@ create extension if not exists vector;
 -- profiles: 用户配置与稳定画像
 create table if not exists public.profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
+  access_key text unique, -- 设备访问密钥（get_daily_by_key / 管理台 x-access-key 反查归属）
   target_university text,
   target_score int,
   learning_style jsonb default '{}'::jsonb,
@@ -161,23 +162,9 @@ end $$;
 
 -- ============================================================
 -- 触发器：profiles 随 auth.users 自动创建
+-- （正文在文末「Supabase Auth 登录」段落：handle_new_user + ensure_access_key，
+--   此处旧版无 access_key 的定义已并入该处，避免 create or replace 双定义）
 -- ============================================================
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
-begin
-  insert into public.profiles (user_id) values (new.id)
-  on conflict (user_id) do nothing;
-  return new;
-end;
-$$;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
 
 -- ============================================================
 -- 语义检索：向量匹配函数 + 索引

@@ -66,8 +66,8 @@ export default function ProfileScreen() {
     const content = reminderText.trim();
     const raw = reminderDate.trim();
     if (!content || !raw) return;
-    // MM-DD 先补当年年份，再按完整日期校验（手输 09-10 这类月-日格式是高频用法）
-    const full = /^\d{1,2}-\d{1,2}$/.test(raw) ? `${new Date().getFullYear()}-${raw}` : raw;
+    // MM-DD 先补「日历正在浏览的年份」再按完整日期校验（翻到 2027 年输 01-05 应落 2027 年，而非当前年）
+    const full = /^\d{1,2}-\d{1,2}$/.test(raw) ? `${viewYear}-${raw}` : raw;
     const m = full.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     if (!m) return;
     // 用构造函数解析并检查月份回读，拦截 02-31 之类溢出日期（Date 会静默滚进下月）
@@ -104,6 +104,15 @@ export default function ProfileScreen() {
       }
     } else {
       parts.push('⚠️ 未配置 Supabase / 访问密钥，跳过备课预取');
+    }
+    // 提醒云同步（与错题同走管理台代理）：拉云端差集合并 + 全量镜像上传
+    if (s.webApiUrl && s.accessKey) {
+      try {
+        await useReminderStore.getState().sync(s.webApiUrl, s.accessKey);
+        parts.push(`✅ 提醒已云同步（${useReminderStore.getState().reminders.length} 条，多设备一致）`);
+      } catch {
+        parts.push('❌ 提醒云同步失败（本地数据不受影响，下次重试）');
+      }
     }
     if (/^[\w.-]+\/[\w.-]+$/.test(s.githubRepo.trim())) {
       try {

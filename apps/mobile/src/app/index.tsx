@@ -41,7 +41,14 @@ export default function CockpitScreen() {
   }, []);
   const todayStr = localDateStr(today);
 
-  const examDate = useMemo(() => new Date('2026-06-07T09:00:00'), []);
+  // 信仰级倒计时：滚动到最近一次未来高考（6 月 7 日 09:00 开考；已过开考时刻自动 +1 年，避免考后永远显示 0）
+  const examDate = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    return now.getTime() >= new Date(y, 5, 7, 9, 0, 0).getTime()
+      ? new Date(y + 1, 5, 7, 9, 0, 0)
+      : new Date(y, 5, 7, 9, 0, 0);
+  }, []);
   const msLeft = Math.max(0, examDate.getTime() - today.getTime());
   const daysLeft = Math.ceil(msLeft / 86400000);
   // 精确模式：X天X小时X分（蓝皮书：点击倒计时切换）
@@ -98,9 +105,12 @@ export default function CockpitScreen() {
     useFocusStore.getState().syncSessions();
     useMoodStore.getState().load();
     useMoodStore.getState().syncAll();
-    // 错题 syncAll 需显式传管理台地址与密钥（接口签名与 moodStore 不同）
+    // 错题 syncAll 需显式传管理台地址与密钥（接口签名与 moodStore 不同）；提醒云同步同走管理台代理
     const { webApiUrl, accessKey } = useSettingsStore.getState();
-    if (webApiUrl && accessKey) void useMistakeStore.getState().syncAll(webApiUrl, accessKey);
+    if (webApiUrl && accessKey) {
+      void useMistakeStore.getState().syncAll(webApiUrl, accessKey);
+      void useReminderStore.getState().sync(webApiUrl, accessKey);
+    }
   }, []);
 
   // 自动定位：启动时请求前台权限，取当前坐标（失败静默，回退到配置城市）
