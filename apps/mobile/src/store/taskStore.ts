@@ -1,9 +1,6 @@
 import { create } from 'zustand';
-import { MMKV } from 'react-native-mmkv';
 import { useSettingsStore } from './settingsStore';
-
-// 本地缓存：会话、离线笔记、任务快照
-export const storage = new MMKV({ id: 'gaokao-store' });
+import { storage } from './storage';
 
 export type TaskStatus = 'backlog' | 'top3' | 'done';
 
@@ -54,7 +51,7 @@ function addTombstone(content: string, status: string) {
   storage.set(TOMBSTONES_KEY, JSON.stringify(list));
 }
 
-// 与 reminderStore.localDateStr 同逻辑；此处内联避免循环依赖（reminderStore 依赖本模块的 storage）
+// 与 reminderStore.localDateStr 同逻辑；此处内联避免 store 模块间新增耦合
 function localDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { storage } from './taskStore';
+import { storage } from './storage';
 
 // 自定义日期提醒（蓝皮书 reminders 表的本地版；Phase 3 同步云端，AI setReminder 工具写入此 store）
 export interface Reminder {

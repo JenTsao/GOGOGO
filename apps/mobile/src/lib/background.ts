@@ -4,7 +4,7 @@
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager'; // defineTask 在 TaskManager 包中，BackgroundFetch 只负责注册执行
 import * as Notifications from 'expo-notifications';
-import { storage } from '@/store/taskStore';
+import { storage } from '@/store/storage';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useFocusStore } from '@/store/focusStore';

@@ -293,3 +293,57 @@ as $$
   limit 1
 $$;
 grant execute on function public.get_weekly_by_key(text) to anon, authenticated;
+
+-- ============================================================
+-- Supabase Auth 登录（多设备一致）
+-- 登录 = 身份引导层：注册自动建档并生成 access_key，多设备登录同一账号
+-- → 同一 access_key → 既有全部同步链路（tasks/timer/mistakes/mood/daily/weekly）自动收敛
+-- ============================================================
+create extension if not exists pgcrypto;
+
+-- 新用户注册自动建档 + 生成 access_key（旧版手动 update profiles 的方式保留可用）
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (user_id, access_key)
+  values (new.id, encode(gen_random_bytes(16), 'hex'))
+  on conflict (user_id) do nothing;
+  return new;
+end;
+$$;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- 登录后调用：确保 profiles 行存在且 access_key 非空（兼容 Auth 上线前的手工建档用户），返回 access_key
+create or replace function public.ensure_access_key()
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  k text;
+begin
+  if auth.uid() is null then
+    return null;
+  end if;
+  insert into public.profiles (user_id, access_key)
+  values (auth.uid(), encode(gen_random_bytes(16), 'hex'))
+  on conflict (user_id) do nothing;
+  select access_key into k from public.profiles where user_id = auth.uid();
+  if k is null then
+    update public.profiles
+    set access_key = encode(gen_random_bytes(16), 'hex'), updated_at = now()
+    where user_id = auth.uid()
+    returning access_key into k;
+  end if;
+  return k;
+end;
+$$;
+grant execute on function public.ensure_access_key() to authenticated;

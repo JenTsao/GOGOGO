@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { storage } from './taskStore';
+import { storage } from './storage';
 
 // 用户配置（Tab 4 我的）：持久化到 MMKV
 export interface Settings {

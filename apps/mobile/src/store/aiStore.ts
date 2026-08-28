@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { chatWithLlm, ChatMessage, ToolCall, imageTextContent } from '@/lib/llm';
+import { chatWithLlm, ChatMessage, imageTextContent } from '@/lib/llm';
 import { TOOL_SCHEMAS, WRITE_TOOLS, executeTool, describeToolCall, AiToolName } from '@/lib/aiTools';
 import { useSettingsStore } from './settingsStore';
 
@@ -104,23 +104,25 @@ export const useAiStore = create<AiState>((set, get) => ({
       );
 
       if (reply.toolCalls.length > 0) {
-        const call: ToolCall = reply.toolCalls[0]; // 一次处理一个，保持确认流程简单
-        const summary = reply.content || `好的，我来${describeToolCall(call.name, call.args)}。`;
-        if (WRITE_TOOLS.has(call.name)) {
-          // 写操作：挂待确认卡片，等用户点确认
-          get().pushMessage({
-            role: 'assistant',
-            content: summary,
-            toolCall: { id: call.id, name: call.name as AiToolName, args: call.args, state: 'pending' },
-          });
-          get().setStatus('listening');
-        } else {
-          // 读操作：直接执行并上屏结果
-          get().pushMessage({ role: 'assistant', content: summary });
-          const result = await executeTool(call.name, call.args);
-          get().pushMessage({ role: 'assistant', content: result.text });
-          get().setStatus(result.ok ? 'done' : 'error');
+        // 模型可能一次返回多个工具调用（如同时加任务+设提醒）：读操作依次执行，写操作各挂一张确认卡片
+        if (reply.content) get().pushMessage({ role: 'assistant', content: reply.content });
+        let pending = 0;
+        let lastOk = true;
+        for (const call of reply.toolCalls) {
+          if (WRITE_TOOLS.has(call.name)) {
+            pending++;
+            get().pushMessage({
+              role: 'assistant',
+              content: `好的，我来${describeToolCall(call.name, call.args)}。`,
+              toolCall: { id: call.id, name: call.name as AiToolName, args: call.args, state: 'pending' },
+            });
+          } else {
+            const result = await executeTool(call.name, call.args);
+            get().pushMessage({ role: 'assistant', content: result.text });
+            if (!result.ok) lastOk = false;
+          }
         }
+        get().setStatus(pending > 0 ? 'listening' : lastOk ? 'done' : 'error');
         return;
       }
 

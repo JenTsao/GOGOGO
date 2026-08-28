@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useAuthStore } from '@/store/authStore';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
 import { LLM_PRESETS } from '@/lib/llm';
 import { fetchDaily } from '@/lib/cloud';
@@ -17,6 +18,14 @@ export default function ProfileScreen() {
     supabaseUrl, supabaseAnonKey, accessKey, tavilyKey, webApiUrl, update,
   } = useSettingsStore();
   const { reminders, addReminder, removeReminder } = useReminderStore();
+
+  // 账号登录（多设备一致）：会话恢复 + 变更订阅在 store 内幂等处理
+  const { email: authEmail, busy: authBusy, error: authError, init, signIn, signUp, signOut } = useAuthStore();
+  const [authEmailInput, setAuthEmailInput] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  useEffect(() => {
+    void init();
+  }, [init]);
 
   // 切换预设自动填充默认 baseUrl / 模型；custom 不清空（保留用户已填的自定义配置）
   const pickPreset = (key: string) => {
@@ -271,10 +280,10 @@ export default function ProfileScreen() {
         autoCorrect={false}
       />
 
-      <Text style={styles.label}>访问密钥（与 profiles.access_key 一致）</Text>
+      <Text style={styles.label}>访问密钥（登录后自动填充；也可手动填）</Text>
       <TextInput
         style={styles.input}
-        placeholder="你的随机密钥"
+        placeholder="登录后自动对齐，或手动粘贴"
         placeholderTextColor="#999"
         value={accessKey}
         onChangeText={(v) => update({ accessKey: v })}
@@ -282,6 +291,55 @@ export default function ProfileScreen() {
         autoCorrect={false}
         secureTextEntry
       />
+
+      <Text style={styles.sectionTitle}>🔐 账号登录（多设备一致）</Text>
+      {authEmail ? (
+        <>
+          <Text style={styles.placeholder}>已登录：{authEmail}（数据经访问密钥自动同步到本账号）</Text>
+          <TouchableOpacity style={styles.button} onPress={() => void signOut()} disabled={authBusy}>
+            <Text style={styles.buttonText}>退出登录</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <Text style={styles.placeholder}>登录后自动生成并回填访问密钥，换设备登录同一账号即数据收敛</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="邮箱"
+            placeholderTextColor="#999"
+            value={authEmailInput}
+            onChangeText={setAuthEmailInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="密码（至少 6 位）"
+            placeholderTextColor="#999"
+            value={authPassword}
+            onChangeText={setAuthPassword}
+            secureTextEntry
+          />
+          {authError && <Text style={styles.placeholder}>{authError}</Text>}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity
+              style={[styles.button, { flex: 1 }]}
+              onPress={() => void signIn(authEmailInput, authPassword)}
+              disabled={authBusy}
+            >
+              <Text style={styles.buttonText}>{authBusy ? '处理中…' : '登录'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, { flex: 1, backgroundColor: '#555' }]}
+              onPress={() => void signUp(authEmailInput, authPassword)}
+              disabled={authBusy}
+            >
+              <Text style={styles.buttonText}>注册</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
 
       <Text style={styles.sectionTitle}>🔍 联网搜索（Tavily）</Text>
       <Text style={styles.label}>Tavily API Key（AI 的 searchWeb 工具）</Text>

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { storage } from './taskStore';
+import { storage } from './storage';
 
 // 代码沙盒片段（MMKV 持久化；Phase 3 同步云端）
 export interface Snippet {

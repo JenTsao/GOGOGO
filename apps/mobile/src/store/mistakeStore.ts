@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { storage } from './taskStore';
+import { storage } from './storage';
 import * as FileSystem from 'expo-file-system';
 
 // 错题本：本地优先（MMKV 快照，离线可用），云端经管理台 /api/mistakes 异步同步
@@ -171,11 +171,23 @@ export const useMistakeStore = create<MistakeState>((set, get) => ({
     if (res.ok) {
       const data = (await res.json()) as { mistakes?: CloudMistake[] };
       const local = get().mistakes;
-      const knownCloudIds = new Set(local.map((m) => m.cloudId).filter(Boolean));
+      const knownById = new Map(local.filter((m) => m.cloudId).map((m) => [m.cloudId as string, m]));
       const remote = data.mistakes ?? [];
       const additions: Mistake[] = [];
+      const fieldUpdates = new Map<string, Partial<Mistake>>();
       for (const c of remote) {
-        if (knownCloudIds.has(c.id)) continue;
+        const known = knownById.get(c.id);
+        if (known) {
+          // 他端更新的转写/摘要/重做结果单向回填：本地缺才补（与回填阶段「本地补云端」对称，避免双端互相覆盖）
+          const patch: Partial<Mistake> = {};
+          if (!known.transcript && c.transcript) patch.transcript = c.transcript;
+          if (!known.summary && c.summary) patch.summary = c.summary;
+          if (!known.correct && c.is_mastered !== null && c.is_mastered !== undefined) {
+            patch.correct = c.is_mastered ? 'right' : 'wrong';
+          }
+          if (Object.keys(patch).length > 0) fieldUpdates.set(known.id, patch);
+          continue;
+        }
         const imgUrl = c.image_urls?.[0];
         if (!imgUrl) continue;
         // 图片下载到本地（离线可看）；失败则直接用云端 URL
@@ -198,10 +210,17 @@ export const useMistakeStore = create<MistakeState>((set, get) => ({
         });
         pulled++;
       }
+      // 先应用字段回填，再合入新增条目（不能基于旧快照合并，否则会覆盖回填结果）
+      let current = local;
+      if (fieldUpdates.size > 0) {
+        current = current.map((m) => (fieldUpdates.has(m.id) ? { ...m, ...fieldUpdates.get(m.id)! } : m));
+      }
       if (additions.length > 0) {
-        const merged = [...additions, ...local].slice(0, 200);
-        persist(merged);
-        set({ mistakes: merged });
+        current = [...additions, ...current].slice(0, 200);
+      }
+      if (current !== local) {
+        persist(current);
+        set({ mistakes: current });
       }
     }
   } catch {

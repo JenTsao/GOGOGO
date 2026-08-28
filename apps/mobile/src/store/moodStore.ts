@@ -106,3 +106,6 @@ export const useMoodStore = create<MoodState>((set, get) => ({
     }
   },
 }));
+
+// 模块加载即恢复本地打卡：不能等驾驶舱挂载才 load，其他入口（AI 画像、后台任务）先读 store 会拿到空数据
+useMoodStore.getState().load();

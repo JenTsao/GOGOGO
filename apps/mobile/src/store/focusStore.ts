@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { storage } from './taskStore';
+import { storage } from './storage';
 import { useSettingsStore } from './settingsStore';
 
 // 专注模型（心流）计时器状态；会话记录持久化 + 云端追加并集同步（timer_sessions）

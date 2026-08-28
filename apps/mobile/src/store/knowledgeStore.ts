@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { storage } from './taskStore';
+import { storage } from './storage';
 
 // 知识库：按需下载的 Markdown 内容缓存（MMKV 持久化，离线可读）
 const KEY = 'knowledge-cache';
