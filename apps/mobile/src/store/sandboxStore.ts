@@ -30,10 +30,18 @@ interface SandboxState {
 export const useSandboxStore = create<SandboxState>((set, get) => ({
   snippets: load(),
   save: (name, code) => {
-    const next = [
-      { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: name.trim() || '未命名片段', code },
-      ...get().snippets,
-    ].slice(0, 50);
+    const trimmed = name.trim() || '未命名片段';
+    const snippets = get().snippets;
+    // 同名覆盖而非堆叠：重复保存同一片段不会刷屏
+    const existing = snippets.findIndex((s) => s.name === trimmed);
+    const snippet: Snippet = {
+      id: existing >= 0 ? snippets[existing].id : `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: trimmed,
+      code,
+    };
+    const next = existing >= 0
+      ? [snippet, ...snippets.filter((s) => s.id !== snippet.id)]
+      : [snippet, ...snippets].slice(0, 50);
     storage.set(KEY, JSON.stringify(next));
     set({ snippets: next });
   },

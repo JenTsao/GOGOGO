@@ -15,11 +15,18 @@
     },
     "android": {
       "package": "com.gaokao.copilot",
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED"
+      ]
     },
     "plugins": [
       "expo-router",
-      ["expo-location", { "locationWhenInUsePermission": "用于自动获取当前位置并显示当地天气" }]
+      ["expo-location", { "locationWhenInUsePermission": "用于自动获取当前位置并显示当地天气" }],
+      ["expo-background-fetch"],
+      ["expo-notifications", { "mode": "expo" }]
     ],
     "experiments": {
       "typedRoutes": true

@@ -63,7 +63,10 @@ pnpm lint         # 全 workspace 类型检查
 - ✅ 语义检索中心：`/api/knowledge/sync`（内容哈希增量向量化）+ `/api/search`（关键词 ilike + pgvector rpc match\_notes 混合检索），schema.sql 已补 match\_notes + hnsw 索引
 - ✅ 驾驶舱消费 daily_learning：知识点翻转卡 + 每日一题（显示答案 / AI讲题，复用 aiStore.ask）；移动端经 `get_daily_by_key` RPC 免登录读取（profiles.access_key 设备密钥，security definer，不放宽 RLS）
 - ✅ L4 工具调度：`src/lib/aiTools.ts` 6 大工具 schema + 执行器（addTask/setReminder 写操作走确认卡片 aiStore.confirmToolCall；searchWeb/queryStats/exportNote/correctCode 直读直返）；LLM 层支持 OpenAI 兼容 tool_calls
-- ⏳ Phase 3 剩余：编译输出（PDF/Anki）、画像系统（雷达图 + 横向对标）、后台唤醒（expo-background-fetch）
+- ✅ 编译与输出：`/compile` 资源池勾选 → 纯文本大纲 / Anki TSV（## 标题=正面）/ PDF（浏览器打印视图 A4），历史最近 10 次 localStorage；纯客户端文本变换零新增依赖，.apkg 与错题源待错题本实装
+- ✅ 画像系统：仪表盘 react-native-svg 五维雷达（专注投入/深度/坚持天数/任务执行/知识积累）+ 近 7 天专注柱状 + Tavily 横向对标（目标大学分数线）；学科正确率维度待错题本实装
+- ✅ 后台唤醒：`src/lib/background.ts` expo-background-fetch（15 分钟级）+ expo-notifications（当日提醒去重通知）+ 每日备课内容预取 MMKV（驾驶舱云失败时兜底）；Expo Go 下 Android 不支持 background fetch，需构建版
+- ⏳ Phase 3 全部完成；错题本（mistakes 表 + 拍照错题 + 学科正确率）为未规划的增强项，可作为 Phase 3.5
 
 ## LLM 适配层
 

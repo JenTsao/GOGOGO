@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
 import { useAiStore } from '@/store/aiStore';
 import { fetchDaily, DailyLearning } from '@/lib/cloud';
+import { readDailyCache } from '@/lib/background';
 
 // Tab 1：驾驶舱（时间线与当下）——布局严格按蓝皮书顺序：
 // 日期天气 → 信仰级倒计时 → 今日提醒横幅 → 每日知识点 → 每日一题 → 今日三件事 → 专注启动器
@@ -142,7 +143,16 @@ export default function CockpitScreen() {
         }
       })
       .catch(() => {
-        if (!cancelled) setDailyState('error');
+        if (!cancelled) {
+          // 云读取失败 → 优先用后台唤醒预取的当日缓存兜底
+          const cached = readDailyCache();
+          if (cached) {
+            setDaily(cached);
+            setDailyState('ok');
+          } else {
+            setDailyState('error');
+          }
+        }
       });
     return () => {
       cancelled = true;

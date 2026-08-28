@@ -1,24 +1,307 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
 // 菜单3：编译与输出（武器库）
-// 左侧资源池勾选，右侧编译设置生成 PDF / Anki / 大纲；历史记录
+// 资源池勾选笔记 → 三种产物：复习 PDF（浏览器打印，A4 排版）/ Anki 导入包（TSV）/ 纯文本大纲
+// 设计取舍：纯客户端文本变换，零新增依赖；PDF 用浏览器打印（服务端嵌 CJK 字体体积过大）；
+// .apkg 需打包 SQLite，先用 Anki 官方支持的 TSV 导入格式。错题/代码片段接入待错题本实装。
+interface TreeEntry {
+  path: string;
+  type: 'blob' | 'tree';
+}
+
+interface CompileJob {
+  id: string;
+  type: 'pdf' | 'anki' | 'outline';
+  name: string;
+  createdAt: string;
+  files: number;
+  content: string;
+}
+
+const HISTORY_KEY = 'compile-history';
+const MAX_FILES = 20;
+
+function loadHistory(): CompileJob[] {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]') as CompileJob[];
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(jobs: CompileJob[]) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(jobs.slice(0, 10)));
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// 极简 Markdown → HTML（标题/代码块/引用/段落；公式与表格交由原样文本）
+function mdToHtml(md: string): string {
+  const lines = md.split('\n');
+  const out: string[] = [];
+  let inCode = false;
+  for (const line of lines) {
+    if (line.trim().startsWith('```')) {
+      out.push(inCode ? '</code></pre>' : '<pre><code>');
+      inCode = !inCode;
+      continue;
+    }
+    if (inCode) {
+      out.push(escapeHtml(line));
+      continue;
+    }
+    const h = /^(#{1,4})\s+(.*)$/.exec(line);
+    if (h) {
+      out.push(`<h${h[1].length}>${escapeHtml(h[2])}</h${h[1].length}>`);
+      continue;
+    }
+    if (/^>\s?/.test(line)) {
+      out.push(`<blockquote>${escapeHtml(line.replace(/^>\s?/, ''))}</blockquote>`);
+      continue;
+    }
+    if (/^\s*[-*]\s+/.test(line)) {
+      out.push(`<li>${escapeHtml(line.replace(/^\s*[-*]\s+/, ''))}</li>`);
+      continue;
+    }
+    if (line.trim() === '') {
+      out.push('');
+    } else {
+      out.push(`<p>${escapeHtml(line)}</p>`);
+    }
+  }
+  return out.join('\n');
+}
+
+// 大纲：压缩为标题层级 + 关键行
+function toOutline(docs: { path: string; content: string }[]): string {
+  const parts: string[] = ['高考复习大纲', `生成时间：${new Date().toLocaleString('zh-CN')}`, ''];
+  for (const doc of docs) {
+    parts.push(`═══ ${doc.path} ═══`);
+    for (const line of doc.content.split('\n')) {
+      if (/^#{1,4}\s/.test(line)) parts.push(line);
+      else if (line.trim().startsWith('[') && line.includes(']')) parts.push(`  ${line.trim()}`);
+    }
+    parts.push('');
+  }
+  return parts.join('\n');
+}
+
+// Anki TSV：## 标题为正面，标题下内容为背面（Anki 导入：字段分隔符 Tab，允许 HTML）
+function toAnki(docs: { path: string; content: string }[]): string {
+  const rows: string[] = ['#separator:tab', '#html:true'];
+  for (const doc of docs) {
+    const sections = doc.content.split(/\n(?=#{2,3}\s)/);
+    for (const sec of sections) {
+      const lines = sec.split('\n');
+      const head = /^#{2,3}\s+(.*)$/.exec(lines[0] ?? '');
+      if (!head) continue;
+      const back = lines.slice(1).join('\n').trim();
+      if (!back) continue;
+      const front = escapeHtml(head[1]);
+      rows.push(`${front}\t${escapeHtml(back).replace(/\n/g, '<br>')}`);
+    }
+  }
+  return rows.join('\n');
+}
+
+// 打印 HTML：A4 排版，浏览器「打印 → 另存为 PDF」
+function toPrintHtml(docs: { path: string; content: string }[]): string {
+  const body = docs
+    .map((d) => `<section><h1>${escapeHtml(d.path)}</h1>${mdToHtml(d.content)}</section>`)
+    .join('');
+  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>复习资料</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 11pt; line-height: 1.7; color: #222; }
+  section { page-break-before: always; }
+  section:first-of-type { page-break-before: auto; }
+  h1 { font-size: 15pt; border-bottom: 2px solid #333; padding-bottom: 4px; }
+  h2 { font-size: 13pt; } h3 { font-size: 12pt; }
+  pre { background: #f5f5f5; padding: 8px; border-radius: 4px; font-size: 9.5pt; white-space: pre-wrap; }
+  blockquote { border-left: 3px solid #bbb; margin-left: 0; padding-left: 10px; color: #555; }
+</style></head><body>${body}</body></html>`;
+}
+
 export default function CompilePage() {
+  const [entries, setEntries] = useState<TreeEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [type, setType] = useState<'pdf' | 'anki' | 'outline'>('outline');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [history, setHistory] = useState<CompileJob[]>([]);
+
+  useEffect(() => {
+    setHistory(loadHistory());
+    fetch('/api/github/tree')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) throw new Error(data.error);
+        setEntries((data.entries as TreeEntry[]) ?? []);
+      })
+      .catch((e) => setError((e as Error).message));
+  }, []);
+
+  const toggle = (path: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
+  const download = (name: string, content: string, mime: string) => {
+    const url = URL.createObjectURL(new Blob([content], { type: mime }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const compile = async () => {
+    const paths = [...selected];
+    if (paths.length === 0) {
+      setMessage('请先在左侧资源池勾选笔记');
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const docs: { path: string; content: string }[] = [];
+      for (const path of paths.slice(0, MAX_FILES)) {
+        const res = await fetch(`/api/github/raw?path=${encodeURIComponent(path)}`);
+        docs.push({ path, content: res.ok ? await res.text() : '' });
+      }
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
+      const job: CompileJob = {
+        id: `${Date.now()}`,
+        type,
+        name: `复习${type === 'pdf' ? '资料' : type === 'anki' ? '卡片' : '大纲'}-${stamp}`,
+        createdAt: new Date().toLocaleString('zh-CN'),
+        files: docs.length,
+        content: '',
+      };
+
+      if (type === 'outline') {
+        job.content = toOutline(docs);
+        download(`${job.name}.txt`, job.content, 'text/plain;charset=utf-8');
+      } else if (type === 'anki') {
+        job.content = toAnki(docs);
+        download(`${job.name}-anki.txt`, job.content, 'text/plain;charset=utf-8');
+        setMessage(`✅ 已下载 TSV。Anki 导入：文件 → 导入 → 选择该文件（字段分隔符 Tab，允许 HTML）。共 ${docs.length} 篇笔记。`);
+      } else {
+        // PDF：打开 A4 打印视图，浏览器「打印 → 另存为 PDF」
+        const w = window.open('', '_blank');
+        if (!w) throw new Error('弹窗被拦截，请允许弹窗后重试');
+        w.document.write(toPrintHtml(docs));
+        w.document.close();
+        job.content = toOutline(docs); // 历史存大纲摘要，可重新打开打印
+        setMessage('✅ 已打开打印视图：Ctrl/Cmd + P → 「另存为 PDF」即可导出 A4 文件。');
+      }
+
+      const next = [job, ...history].slice(0, 10);
+      saveHistory(next);
+      setHistory(next);
+      setSelected(new Set());
+    } catch (e) {
+      setMessage(`编译失败：${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const redownload = (job: CompileJob) => {
+    if (job.type === 'pdf') {
+      // 打印型产物历史仅存摘要，重新下载时提示重编译
+      download(`${job.name}-摘要.txt`, job.content, 'text/plain;charset=utf-8');
+      return;
+    }
+    download(`${job.name}.txt`, job.content, 'text/plain;charset=utf-8');
+  };
+
   return (
     <div>
       <h1 className="page-title">编译与输出</h1>
+
       <div className="split">
-        <div className="panel">
-          <strong>资源池</strong>
-          <p className="placeholder">勾选任意笔记、错题、代码片段作为编译素材。</p>
+        <div className="panel" style={{ maxWidth: 360 }}>
+          <strong>资源池（{entries.length} 篇笔记）</strong>
+          {error && <p className="placeholder">⚠️ {error}</p>}
+          {!error && entries.length === 0 && <p className="placeholder">加载中或仓库无 Markdown 笔记</p>}
+          <div style={{ marginTop: 8, maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {entries.map((e) => (
+              <label key={e.path} style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', fontSize: 14 }}>
+                <input type="checkbox" checked={selected.has(e.path)} onChange={() => toggle(e.path)} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📄 {e.path}</span>
+              </label>
+            ))}
+          </div>
+          <p className="placeholder" style={{ marginTop: 8 }}>已选 {selected.size} 篇（单次最多 {MAX_FILES}）· 错题/代码片段待错题本实装后加入</p>
         </div>
+
         <div className="panel">
           <strong>编译设置</strong>
-          <p className="placeholder">
-            一键生成 📄 复习 PDF（A4 排版）、📱 Anki 卡片包 (.apkg) 或 📋 纯文本大纲。Phase 3 后台编译任务实现。
-          </p>
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
+            {(
+              [
+                ['outline', '📋 纯文本大纲', '标题层级 + 要点，.txt'],
+                ['anki', '📱 Anki 卡片包', 'TSV 导入格式（## 标题=正面，内容=背面）'],
+                ['pdf', '📄 复习 PDF（A4）', '打开打印视图 → 另存为 PDF'],
+              ] as const
+            ).map(([v, label, hint]) => (
+              <label key={v} style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+                <input type="radio" checked={type === v} onChange={() => setType(v)} />
+                <span>
+                  <strong>{label}</strong>
+                  <span className="placeholder"> — {hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <button className="btn" style={{ marginTop: 14 }} onClick={compile} disabled={busy}>
+            {busy ? '编译中…' : '⚙️ 一键编译'}
+          </button>
+          {message && <p className="placeholder" style={{ marginTop: 10 }}>{message}</p>}
         </div>
       </div>
+
       <div className="panel">
-        <strong>历史记录</strong>
-        <p className="placeholder">底部显示最近 10 次编译产物（knowledge_compilations 表），支持重新下载。</p>
+        <strong>历史记录（最近 10 次）</strong>
+        {history.length === 0 && <p className="placeholder">暂无编译产物</p>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+          {history.map((job) => (
+            <div
+              key={job.id}
+              style={{ border: '1px solid #eee', borderRadius: 10, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
+              <span style={{ fontSize: 14 }}>
+                {job.type === 'pdf' ? '📄' : job.type === 'anki' ? '📱' : '📋'} {job.name}
+                <span className="placeholder"> · {job.files} 篇 · {job.createdAt}</span>
+              </span>
+              <button className="btn btn-ghost" onClick={() => redownload(job)}>
+                重新下载
+              </button>
+            </div>
+          ))}
+        </div>
+        {history.length > 0 && (
+          <button
+            className="btn btn-ghost"
+            style={{ marginTop: 10 }}
+            onClick={() => {
+              saveHistory([]);
+              setHistory([]);
+            }}
+          >
+            清空历史
+          </button>
+        )}
       </div>
     </div>
   );
