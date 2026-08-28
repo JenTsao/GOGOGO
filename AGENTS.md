@@ -92,6 +92,7 @@ APK 打包：GitHub Actions「Build APK」workflow（手动 dispatch 或推送 `
 - ✅ mistakes 双向同步：`/api/mistakes` GET（全量 200 条含 transcript/summary/is_mastered）+ POST 携带 transcript/summary + PATCH 支持三字段回写；mistakeStore.syncAll = 推（未同步上传）→ 拉（云端差集 downloadAsync 落文档目录离线可用，cloudId=c.id）→ 回填（本地有云端无的转写/摘要/重做结果逐条 PATCH）；schema 已补 mistakes.transcript/summary 列
 - ✅ 横向对标数值化：settingsStore.targetScore（目标总分 0–750，「我的」输入）+ dashboard runBenchmark——Tavily answer/results.content 提取「XXX分」（480–700 可信区间滤年份/页码噪声）取最低估 ≈ 最低录取线，与目标分算差距（≥20 分联动 dangerSubject 给专项建议）；诚实标注：解析为启发式，省份/批次差异需人工核对来源
 - ✅ correctCode 实时读取：sandbox.html onDidChangeModelContent 防抖 400ms 上报 editor-change → CodeSandbox 写 sandboxStore.liveCode（不持久化）→ aiTools.correctCode 优先实时内容、回退 snippets[0]，代码以 markdown 代码块注入对话
+- ✅ Obsidian 向量化 Cron：`/api/cron/knowledge`（每日 04:10 北京时间，CRON_SECRET Bearer）——同步核心抽至 `lib/knowledgeSync.ts`（syncKnowledge(limit)，手动按钮与 cron 共用）；每轮 30 篇哈希增量，笔记多时数天收敛全量
 - ⏳ 可继续增强：Supabase Auth 正式登录（多设备一致）
 
 ## LLM 适配层

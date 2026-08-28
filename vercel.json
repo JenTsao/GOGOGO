@@ -5,6 +5,10 @@
       "schedule": "0 20 * * *"
     },
     {
+      "path": "/api/cron/knowledge",
+      "schedule": "10 20 * * *"
+    },
+    {
       "path": "/api/cron/weekly",
       "schedule": "30 20 * * 0"
     }
