@@ -1,0 +1,53 @@
+name: Build APK
+
+# 打包 Android APK：expo prebuild（CNG 生成 android 工程）→ gradle assembleRelease → artifact
+# 签名说明：prebuild 模板的 release 构建默认用 debug keystore 签名，产出可直接侧载安装的 APK；
+# 正式上架 Google Play 时需自备 keystore 并通过 secrets 注入 signingConfig
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  apk:
+    name: Android APK（release）
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # 自动读取根 package.json 的 packageManager 字段
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖（仅 mobile 及其依赖）
+        run: pnpm install --filter @gk/mobile... --no-frozen-lockfile
+
+      - name: 生成 android 工程（CNG prebuild，不提交进仓库）
+        working-directory: apps/mobile
+        run: npx expo prebuild -p android --no-install --clean
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17 # RN 0.74 / AGP 8.x 要求 JDK 17
+          cache: gradle # prebuild 之后运行，wrapper 已存在可参与缓存 key
+
+      - name: 接受 Android SDK 许可（runner 预装 SDK）
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: gradle 打包 release APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: 上传 APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gaokao-copilot-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+          if-no-files-found: error

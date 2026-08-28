@@ -22,3 +22,5 @@ supabase/.temp/
 # Native
 *.orig.*
 .DS_Store
+# CNG：android 工程由 CI expo prebuild 动态生成，不提交（build-apk.yml）
+apps/mobile/android/

@@ -22,6 +22,7 @@ apps/
     src/lib/            # supabase.ts / github.ts
 supabase/    # schema.sql（10 张表 + pgvector + RLS 全部 user_id = auth.uid()）
 .github/workflows/ci.yml  # CI：安装/类型检查/构建全部在 GitHub Actions 完成
+.github/workflows/build-apk.yml  # APK 打包：expo prebuild（CNG）→ gradle assembleRelease → artifact（手动触发或 push v* tag）
 ```
 
 ## 硬性约束（必须遵守）
@@ -40,6 +41,8 @@ pnpm dev:web
 pnpm build:web
 pnpm lint         # 全 workspace 类型检查
 ```
+
+APK 打包：GitHub Actions「Build APK」workflow（手动 dispatch 或推送 `v*` tag 触发），产物在 Actions artifact 下载（debug keystore 签名，可直接侧载）；`apps/mobile/android/` 为 CNG 动态生成目录，已 gitignore，勿手动提交。
 
 ## 环境变量
 
