@@ -20,6 +20,9 @@ export interface Settings {
   sttBaseUrl: string; // 语音转写（留空回退 LLM baseUrl；DeepSeek 无 ASR 需单独配）
   sttApiKey: string;
   sttModel: string; // whisper-1 / whisper-large-v3（Groq）/ SenseVoice 等
+  visionBaseUrl: string; // 视觉模型（错题图片识别）：默认智谱，OpenAI 兼容
+  visionApiKey: string;
+  visionModel: string; // GLM-4.6V-Flash（免费额度）
 }
 
 const SETTINGS_KEY = 'settings';
@@ -42,6 +45,9 @@ const DEFAULTS: Settings = {
   sttBaseUrl: '',
   sttApiKey: '',
   sttModel: 'whisper-1',
+  visionBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+  visionApiKey: '',
+  visionModel: 'glm-4.6v-flash',
 };
 
 function loadSettings(): Settings {

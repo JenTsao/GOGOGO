@@ -56,7 +56,7 @@ pnpm lint         # 全 workspace 类型检查
 
 - ✅ Monorepo（pnpm workspace）+ Supabase schema + CI
 - ✅ 移动端 4 Tab；驾驶舱：倒计时 / 自动定位天气（expo-location，坐标优先、配置城市兜底）/ 今日三件事 + 后备箱（MMKV 持久化）；全屏心流计时器（会话记录持久化）
-- ✅ 管理台知识工坊：文件树预览 + Monaco 只读编辑器
+- ✅ 管理台知识工坊：文件树（勾选多选）+ Monaco 可编辑保存（contents API 提交，Ctrl/Cmd+S）+ AI 精炼工具栏（合并精炼 / Mermaid 知识图谱，mermaid 动态渲染）+ 版本快照回滚（obsidian_metadata.version_history，需 OWNER_USER_ID）+ 拖拽传图自动压缩 WebP 上传 assets/
 - ✅ 弹药库：代码沙盒（WebView 内 Monaco + Pyodide，5 秒无响应熔断，片段 MMKV 保存，同名覆盖）+ 知识库（GitHub 目录树按需下载，react-native-markdown-display 渲染，[[双链]] 库内跳转，LaTeX 轻量 Unicode 化，frontmatter 剥离）
 - ✅ AI 悬浮球对话（L1-L3）：多供应商 OpenAI 兼容协议（DeepSeek/OpenAI/Kimi/GLM/自定义），BYOK 存 MMKV
 - ✅ 凌晨备课流水线：`/api/cron/daily`（vercel.json 每日 04:00 北京时间），service role 写 daily\_learning，幂等
@@ -69,8 +69,9 @@ pnpm lint         # 全 workspace 类型检查
 - ✅ 错题本（Phase 4）：弹药库第3子Tab `MistakeView`（拍照/相册 → image-manipulator 压缩 1080px/JPEG → 学科/标签/语音反思 expo-av → 本地 MMKV 优先）；云同步经管理台 `/api/mistakes` 代理（x-access-key 反查 profiles.access_key，service role 写 Storage `mistakes` 桶，无匿名写策略）；画像接入危险学科 + 卡壳词云（mistakeStore tags）；编译资源池 `/api/mistakes/pool`（OWNER 归属元数据）
 - ✅ 错题重做结果：detail 标记 ✅正确/❌仍错 → 雷达第 6 维「学科掌握」（重做正确率）；云端 `mistakes.is_mastered`（POST 携带 / PATCH 回写）
 - ✅ 知识库 [[双链]] 跳转：wikilink → `wiki:` 链接，onLinkPress 按精确路径/后缀/文件名三级解析跳转，未命中提示
-- ✅ 语音转文字 + 错题 AI 讲解：`src/lib/stt.ts`（OpenAI 兼容 /audio/transcriptions，中文锁定；DeepSeek 无 ASR，settingsStore 提供 sttBaseUrl/sttApiKey/sttModel 独立配置，留空回退 LLM 配置）；转写结果存 mistake.transcript（AI 讲解上下文 + 仪表盘情绪信号：countNegativeWords 消极词扫描「搞不懂即时加权」）；MistakeView 详情页 🤖 AI 讲解 = aiStore.ask + open 唤起悬浮球（局限：多模态未接，AI 看不到图片）
-- ⏳ 可继续增强：Supabase Auth 正式登录（多设备一致）、错题图片多模态识别（gpt-4o-mini/glm-4v 视觉讲解）
+- ✅ 语音转文字 + 错题 AI 讲解：`src/lib/stt.ts`（OpenAI 兼容 /audio/transcriptions，中文锁定；DeepSeek 无 ASR，settingsStore 提供 sttBaseUrl/sttApiKey/sttModel 独立配置，留空回退 LLM 配置）；转写结果存 mistake.transcript（AI 讲解上下文 + 仪表盘情绪信号：countNegativeWords 消极词扫描「搞不懂即时加权」）；MistakeView 详情页 🤖 AI 讲解入口（优先视觉读图，未配置回退文本）
+- ✅ 视觉讲解：GLM-4.6V-Flash 接入（settingsStore visionBaseUrl/visionApiKey/visionModel，默认智谱 OpenAI 兼容）；llm.ts 支持 OpenAI 视觉 content 数组（ChatContentPart + imageTextContent）；aiStore.askVision（不传工具，历史文本照带）；MistakeView AI 讲解优先读图（本地图 → base64 data URL），未配 Key 回退文本讲解
+- ⏳ 可继续增强：Supabase Auth 正式登录（多设备一致）
 
 ## LLM 适配层
 

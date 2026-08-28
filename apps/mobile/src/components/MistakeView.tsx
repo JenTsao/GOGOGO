@@ -45,7 +45,7 @@ async function persistAudio(tempUri: string): Promise<string> {
 
 export function MistakeView() {
   const { mistakes, addMistake, removeMistake, syncAll, markCorrect, setTranscript } = useMistakeStore();
-  const { webApiUrl, accessKey, llmBaseUrl, llmApiKey, sttBaseUrl, sttApiKey, sttModel } = useSettingsStore();
+  const { webApiUrl, accessKey, llmBaseUrl, llmApiKey, sttBaseUrl, sttApiKey, sttModel, visionApiKey } = useSettingsStore();
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -79,18 +79,32 @@ export function MistakeView() {
     }
   };
 
-  // 错题 AI 讲解：学科/卡壳标签/语音反思转写/重做结果 组装上下文，唤起悬浮球对话
-  // 局限：当前多模态未接入，AI 看不到错题图片，讲解质量依赖转写与标签
-  const askAi = (m: Mistake) => {
+  // 错题 AI 讲解：优先走视觉模型直接读图（GLM-4.6V-Flash），未配置视觉时回退文本讲解
+  const askAi = async (m: Mistake) => {
     const parts = [`学科：${m.subject}`];
     if (m.tags.length > 0) parts.push(`卡壳点：${m.tags.join('、')}`);
     if (m.transcript) parts.push(`我的语音反思：${m.transcript}`);
     if (m.correct) parts.push(`重做结果：${m.correct === 'right' ? '重做已能做对' : '重做仍然做错'}`);
+    const prompt = `我在一道${m.subject}错题上卡住了，请讲解这道题的解题思路、常见陷阱，并给 2 个针对性练习方向。信息如下：\n${parts.join('\n')}`;
     const ai = useAiStore.getState();
+    const { visionApiKey } = useSettingsStore.getState();
+
+    // 视觉路径：本地图片 → base64 data URL → GLM-4.6V-Flash 直接识别题面与作答
+    if (visionApiKey && m.imageUri) {
+      try {
+        const b64 = await FileSystem.readAsStringAsync(m.imageUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        ai.open();
+        await ai.askVision(prompt, `data:image/jpeg;base64,${b64}`);
+        return;
+      } catch {
+        // 读图失败回退文本讲解
+      }
+    }
+
     ai.open();
-    ai.ask(
-      `我在一道${m.subject}错题上卡住了，请讲解这类题的解题思路、常见陷阱，并给 2 个针对性练习方向。信息如下：\n${parts.join('\n')}\n（注：你看不到错题图片本身，请基于以上信息与该学科常见题型讲解）`
-    );
+    ai.ask(`${prompt}\n（注：你看不到错题图片本身，请基于以上信息与该学科常见题型讲解）`);
   };
 
   const unsynced = mistakes.filter((m) => !m.synced).length;
@@ -279,7 +293,13 @@ export function MistakeView() {
               )}
               <TouchableOpacity style={styles.aiBtn} onPress={() => askAi(detail)}>
                 <Text style={styles.aiBtnText}>🤖 AI 讲解这道错题</Text>
-                <Text style={styles.aiHint}>{detail.transcript ? '基于转写反思 + 卡壳标签' : '建议先语音转文字，讲解更精准'}</Text>
+                <Text style={styles.aiHint}>
+                  {detail.imageUri && visionApiKey
+                    ? '直接识别错题图片（GLM-4.6V-Flash 视觉）'
+                    : detail.transcript
+                      ? '基于转写反思 + 卡壳标签'
+                      : '建议先语音转文字，讲解更精准'}
+                </Text>
               </TouchableOpacity>
 
               <Text style={styles.fieldLabel}>重做结果（喂画像「学科掌握」维度）</Text>

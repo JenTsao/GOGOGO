@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { chatWithLlm, ChatMessage, ToolCall } from '@/lib/llm';
+import { chatWithLlm, ChatMessage, ToolCall, imageTextContent } from '@/lib/llm';
 import { TOOL_SCHEMAS, WRITE_TOOLS, executeTool, describeToolCall, AiToolName } from '@/lib/aiTools';
 import { useSettingsStore } from './settingsStore';
 
@@ -66,6 +66,8 @@ interface AiState {
   pushMessage: (m: AiMessage) => void;
   // 真实对话入口（L1-L4）：识别工具意图；写操作挂确认卡片，读操作直接执行
   ask: (content: string) => Promise<void>;
+  // 视觉对话（错题图片讲解）：走独立视觉模型（GLM-4.6V-Flash 等），不传工具（视觉模型多不支持 function calling）
+  askVision: (prompt: string, imageDataUrl: string) => Promise<void>;
   // 确认卡片：执行 / 取消
   confirmToolCall: (callId: string) => Promise<void>;
   cancelToolCall: (callId: string) => void;
@@ -127,6 +129,31 @@ export const useAiStore = create<AiState>((set, get) => ({
       get().setStatus('done');
     } catch (e) {
       get().pushMessage({ role: 'assistant', content: `请求失败：${(e as Error).message}` });
+      get().setStatus('error');
+    }
+  },
+  // 视觉对话：错题图片直接喂给视觉模型（GLM-4.6V-Flash），讲解上屏悬浮球
+  askVision: async (prompt, imageDataUrl) => {
+    get().pushMessage({ role: 'user', content: `${prompt}\n📷（已附错题图片）` });
+    get().setStatus('thinking');
+    const { visionBaseUrl, visionApiKey, visionModel } = useSettingsStore.getState();
+    try {
+      // 文本历史照常携带（最近 6 条），最后一条 user 为「图片+文字」视觉消息
+      const history: ChatMessage[] = get()
+        .messages.slice(-7, -1)
+        .map((m) => ({ role: m.role, content: m.content }));
+      const reply = await chatWithLlm(
+        { baseUrl: visionBaseUrl, apiKey: visionApiKey, model: visionModel },
+        [
+          { role: 'system', content: '你是「高考副驾驶」。用户发来一张错题图片，请：先读出题目关键条件，再给出分步解题过程，指出图中可见的作答错误（如有），最后给 1-2 个同类练习方向。回答简洁清晰，用中文。' },
+          ...history,
+          { role: 'user', content: imageTextContent(prompt, imageDataUrl) },
+        ]
+      );
+      get().pushMessage({ role: 'assistant', content: reply.content });
+      get().setStatus('done');
+    } catch (e) {
+      get().pushMessage({ role: 'assistant', content: `视觉讲解失败：${(e as Error).message}` });
       get().setStatus('error');
     }
   },

@@ -13,9 +13,22 @@ export const LLM_PRESETS: Record<string, LlmPreset> = {
   custom: { label: '自定义', baseUrl: '', model: '' },
 };
 
+// OpenAI 兼容视觉消息片段（GLM-4.6V-Flash / gpt-4o 系列均支持该格式）
+export type ChatContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | ChatContentPart[];
+}
+
+// 组装「图片 + 文字」视觉消息（dataUrl = data:image/jpeg;base64,... 或公网图片 URL）
+export function imageTextContent(text: string, imageUrl: string): ChatContentPart[] {
+  return [
+    { type: 'image_url', image_url: { url: imageUrl } },
+    { type: 'text', text },
+  ];
 }
 
 // OpenAI 兼容工具定义（L4 调度用；主流供应商均支持）

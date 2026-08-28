@@ -13,6 +13,7 @@ export default function ProfileScreen() {
     weatherKey, weatherCity, targetUniversity, githubRepo, githubBranch,
     llmProvider, llmBaseUrl, llmModel, llmApiKey,
     sttBaseUrl, sttApiKey, sttModel,
+    visionBaseUrl, visionApiKey, visionModel,
     supabaseUrl, supabaseAnonKey, accessKey, tavilyKey, webApiUrl, update,
   } = useSettingsStore();
   const { reminders, addReminder, removeReminder } = useReminderStore();
@@ -185,6 +186,43 @@ export default function ProfileScreen() {
         placeholderTextColor="#999"
         value={sttModel}
         onChangeText={(v) => update({ sttModel: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <Text style={styles.sectionTitle}>👁️ 视觉模型（错题图片识别，GLM-4.6V-Flash）</Text>
+      <Text style={styles.placeholder}>智谱视觉模型（有免费额度），OpenAI 兼容协议。配置 Key 后「AI 讲解错题」会直接读图：识别题面、指出作答错误。</Text>
+
+      <Text style={styles.label}>视觉 Base URL</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="https://open.bigmodel.cn/api/paas/v4"
+        placeholderTextColor="#999"
+        value={visionBaseUrl}
+        onChangeText={(v) => update({ visionBaseUrl: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <Text style={styles.label}>视觉 API Key</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="智谱开放平台 API Key"
+        placeholderTextColor="#999"
+        value={visionApiKey}
+        onChangeText={(v) => update({ visionApiKey: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+      />
+
+      <Text style={styles.label}>视觉模型名</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="glm-4.6v-flash"
+        placeholderTextColor="#999"
+        value={visionModel}
+        onChangeText={(v) => update({ visionModel: v })}
         autoCapitalize="none"
         autoCorrect={false}
       />
