@@ -12,11 +12,10 @@ export interface SttConfig {
 export async function transcribeAudio(uri: string, cfg: SttConfig): Promise<string> {
   if (!cfg.baseUrl || !cfg.apiKey) throw new Error('未配置语音转写服务（需 OpenAI/Groq 等支持 ASR 的供应商）');
   const formData = new FormData();
-  formData.append('file', {
-    uri,
-    name: 'audio.m4a',
-    type: 'audio/mp4',
-  } as unknown as FormData.Value);
+  // RN 运行时的 FormData 支持传 { uri } 形状直接引用本地文件，但 lib.dom 类型不含此形状；
+  // 断言为 Blob 以通过类型检查（运行时走 RN 原生上传路径）
+  const audioPart = { uri, name: 'audio.m4a', type: 'audio/mp4' } as unknown as Blob;
+  formData.append('file', audioPart, 'audio.m4a');
   formData.append('model', cfg.model || 'whisper-1');
   formData.append('language', 'zh'); // 高考场景锁定中文，减少误识别
 
