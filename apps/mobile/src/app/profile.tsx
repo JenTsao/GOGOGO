@@ -1,9 +1,29 @@
-import { View, Text, StyleSheet, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity } from 'react-native';
+import { useState } from 'react';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useReminderStore, localDateStr } from '@/store/reminderStore';
 
 // Tab 4：我的（配置与调度）
 export default function ProfileScreen() {
   const { deepseekKey, weatherKey, weatherCity, targetUniversity, githubRepo, githubBranch, update } = useSettingsStore();
+  const { reminders, addReminder, removeReminder } = useReminderStore();
+
+  const [reminderDate, setReminderDate] = useState('');
+  const [reminderText, setReminderText] = useState('');
+
+  // 日期允许两种输入：MM-DD（当年）或 YYYY-MM-DD
+  const submitReminder = () => {
+    const content = reminderText.trim();
+    const raw = reminderDate.trim();
+    if (!content || !/^\d{2,4}-\d{1,2}-\d{1,2}$/.test(raw)) return;
+    const full = raw.length === 10 ? raw : `${new Date().getFullYear()}-${raw}`;
+    // 归一化为本地日期串，保证驾驶舱横幅能按日匹配
+    const d = new Date(full);
+    if (Number.isNaN(d.getTime())) return;
+    addReminder(localDateStr(d), content);
+    setReminderDate('');
+    setReminderText('');
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -77,7 +97,43 @@ export default function ProfileScreen() {
       />
 
       <Text style={styles.sectionTitle}>📅 自定义日期提醒</Text>
-      <Text style={styles.placeholder}>点击日期添加提醒，红点标记。Phase 3 实现。</Text>
+      <Text style={styles.label}>日期（MM-DD 或 YYYY-MM-DD，当日显示在驾驶舱横幅）</Text>
+      <View style={styles.reminderRow}>
+        <TextInput
+          style={[styles.input, styles.reminderDateInput]}
+          placeholder="09-10"
+          placeholderTextColor="#999"
+          value={reminderDate}
+          onChangeText={setReminderDate}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="提醒内容，如：收物理作业"
+          placeholderTextColor="#999"
+          value={reminderText}
+          onChangeText={setReminderText}
+          onSubmitEditing={submitReminder}
+        />
+      </View>
+      <TouchableOpacity style={styles.reminderAddBtn} onPress={submitReminder}>
+        <Text style={styles.reminderAddText}>添加提醒</Text>
+      </TouchableOpacity>
+      {reminders
+        .slice()
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((r) => (
+          <View key={r.id} style={styles.reminderItem}>
+            <Text style={styles.reminderItemText}>
+              {r.date} · {r.content}
+            </Text>
+            <TouchableOpacity onPress={() => removeReminder(r.id)}>
+              <Text style={styles.reminderDelete}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+      <Text style={styles.placeholder}>日历红点视图 Phase 3 实现。</Text>
 
       <Text style={styles.sectionTitle}>🔄 手动同步</Text>
       <Text style={styles.placeholder}>拉取云端最新画像与 Obsidian 目录。Phase 3 接入 Supabase。</Text>
@@ -99,4 +155,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   placeholder: { color: '#999', fontSize: 14, lineHeight: 22, marginTop: 4 },
+  reminderRow: { flexDirection: 'row', gap: 8 },
+  reminderDateInput: { width: 110 },
+  reminderAddBtn: { backgroundColor: '#111', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginTop: 10 },
+  reminderAddText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  reminderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginTop: 8,
+  },
+  reminderItemText: { fontSize: 14, color: '#333', flex: 1 },
+  reminderDelete: { color: '#999', fontSize: 16, paddingHorizontal: 8 },
 });

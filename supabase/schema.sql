@@ -175,3 +175,28 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- ============================================================
+-- 语义检索：向量匹配函数 + 索引
+-- service_role 调用（绕过 RLS），security definer 内显式过滤 owner
+-- ============================================================
+create or replace function public.match_notes(
+  query_embedding vector(1536),
+  owner uuid,
+  match_count int default 5
+)
+returns table (note_id uuid, file_path text, similarity float)
+language sql stable
+security definer set search_path = public
+as $$
+  select e.note_id, m.file_path, 1 - (e.embedding <=> query_embedding) as similarity
+  from public.knowledge_embeddings e
+  join public.obsidian_metadata m on m.id = e.note_id
+  where e.user_id = owner
+    and e.note_id is not null
+  order by e.embedding <=> query_embedding
+  limit match_count;
+$$;
+
+create index if not exists idx_knowledge_embeddings_vec
+  on public.knowledge_embeddings using hnsw (embedding vector_cosine_ops);
