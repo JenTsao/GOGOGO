@@ -7,6 +7,7 @@ import * as Notifications from 'expo-notifications';
 import { storage } from '@/store/taskStore';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useFocusStore } from '@/store/focusStore';
 import { fetchDaily, DailyLearning } from '@/lib/cloud';
 
 export const BACKGROUND_TASK = 'gaokao-background-sync';
@@ -15,12 +16,16 @@ const NOTIFIED_KEY = 'notified-reminders';
 export const DAILY_CACHE_KEY = 'daily-cache';
 
 // 前台通知展示配置（App 处于前台时也弹横幅，避免错过当日提醒）
+// 心流进行中抑制横幅与声音（DND 联动，见 focusStore.suppressNotifications）
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async () => {
+    const suppress = useFocusStore.getState().suppressNotifications;
+    return {
+      shouldShowAlert: !suppress,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+    };
+  },
 });
 
 function notifiedIds(): string[] {

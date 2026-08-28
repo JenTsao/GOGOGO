@@ -13,6 +13,9 @@ interface FocusState {
   running: boolean;
   seconds: number;
   sessions: FocusSession[];
+  // 心流进行中 → 通知 handler 抑制横幅/声音（内存态，退出即失效，符合「当下屏蔽」语义）
+  suppressNotifications: boolean;
+  setSuppressNotifications: (v: boolean) => void;
   start: () => void;
   stop: () => void;
   tick: () => void;
@@ -38,6 +41,8 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   running: false,
   seconds: 0,
   sessions: loadSessions(),
+  suppressNotifications: false,
+  setSuppressNotifications: (v) => set({ suppressNotifications: v }),
   start: () => set({ running: true }),
   stop: () => {
     const { seconds, sessions } = get();

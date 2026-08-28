@@ -1,6 +1,7 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform } from 'react-native';
 import { useEffect, useMemo, useState } from 'react';
 import * as Location from 'expo-location';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { useTaskStore } from '@/store/taskStore';
 import { useFocusStore } from '@/store/focusStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -189,11 +190,25 @@ export default function CockpitScreen() {
   const enterFlow = () => {
     useFocusStore.getState().reset();
     start();
+    // 通知抑制开关：前台横幅/声音由 notification handler 读取此标志屏蔽
+    useFocusStore.getState().setSuppressNotifications(true);
     setInFlow(true);
   };
   const exitFlow = () => {
     stop();
+    useFocusStore.getState().setSuppressNotifications(false);
     setInFlow(false);
+  };
+
+  // 系统级免打扰：跳转 Android 勿扰设置（其他 App 的通知只有系统 DND 能挡，App 层无法代办）
+  const openZenMode = async () => {
+    if (Platform.OS !== 'android') return;
+    try {
+      await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.ZEN_MODE_SETTINGS);
+    } catch {
+      // 部分rom无此入口时退回应用设置
+      await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.APPLICATION_SETTINGS);
+    }
   };
 
   return (
@@ -381,11 +396,16 @@ export default function CockpitScreen() {
         </View>
       </ScrollView>
 
-      {/* 全屏心流模式：黑底倒计时，强制屏蔽打扰 */}
+      {/* 全屏心流模式：黑底倒计时 + 本应用通知静默 + 系统免打扰深链 */}
       <Modal visible={inFlow} animationType="fade" onRequestClose={exitFlow}>
         <View style={styles.flow}>
-          <Text style={styles.flowHint}>心流进行中 · 请勿打扰</Text>
+          <Text style={styles.flowHint}>心流进行中 · 本应用通知已静默</Text>
           <Text style={styles.flowTimer}>{fmt(seconds)}</Text>
+          {Platform.OS === 'android' && (
+            <TouchableOpacity style={styles.zenBtn} onPress={openZenMode}>
+              <Text style={styles.zenBtnText}>🔕 开启系统免打扰（拦截其他应用）</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.flowStop} onPress={exitFlow}>
             <Text style={styles.flowStopText}>结束心流</Text>
           </TouchableOpacity>
@@ -482,4 +502,6 @@ const styles = StyleSheet.create({
   flowTimer: { color: '#fff', fontSize: 72, fontWeight: '200', marginVertical: 32, fontVariant: ['tabular-nums'] },
   flowStop: { borderWidth: 1, borderColor: '#444', borderRadius: 24, paddingHorizontal: 32, paddingVertical: 12 },
   flowStopText: { color: '#888', fontSize: 15 },
+  zenBtn: { marginTop: 28, borderWidth: 1, borderColor: '#333', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
+  zenBtnText: { color: '#aaa', fontSize: 13 },
 });

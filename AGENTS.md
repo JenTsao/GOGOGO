@@ -93,6 +93,7 @@ APK 打包：GitHub Actions「Build APK」workflow（手动 dispatch 或推送 `
 - ✅ 横向对标数值化：settingsStore.targetScore（目标总分 0–750，「我的」输入）+ dashboard runBenchmark——Tavily answer/results.content 提取「XXX分」（480–700 可信区间滤年份/页码噪声）取最低估 ≈ 最低录取线，与目标分算差距（≥20 分联动 dangerSubject 给专项建议）；诚实标注：解析为启发式，省份/批次差异需人工核对来源
 - ✅ correctCode 实时读取：sandbox.html onDidChangeModelContent 防抖 400ms 上报 editor-change → CodeSandbox 写 sandboxStore.liveCode（不持久化）→ aiTools.correctCode 优先实时内容、回退 snippets[0]，代码以 markdown 代码块注入对话
 - ✅ Obsidian 向量化 Cron：`/api/cron/knowledge`（每日 04:10 北京时间，CRON_SECRET Bearer）——同步核心抽至 `lib/knowledgeSync.ts`（syncKnowledge(limit)，手动按钮与 cron 共用）；每轮 30 篇哈希增量，笔记多时数天收敛全量
+- ✅ DND 屏蔽：focusStore.suppressNotifications（内存态）→ background.ts 通知 handler 心流期间抑制横幅/声音（App 自身通知真屏蔽）；心流界面 Android 深链 ZEN_MODE_SETTINGS（expo-intent-launcher，其他 App 的通知需系统 DND，App 层无法代办，诚实引导）
 - ⏳ 可继续增强：Supabase Auth 正式登录（多设备一致）
 
 ## LLM 适配层
