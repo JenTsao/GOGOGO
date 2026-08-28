@@ -17,13 +17,16 @@ apps/
     src/store/       # zustand：taskStore / focusStore / settingsStore / aiStore（MMKV 持久化）
     assets/grok-ball/  # AI 球资产（HTML 内联引擎）
   web/       # Next.js 14 (App Router) 管理台
-    src/app/workshop/   # 知识工坊：GitHub 文件树 + Monaco 只读编辑器
-    src/app/api/github/ # Route Handler 代理 GitHub API（token 仅服务端）
-    src/lib/            # supabase.ts / github.ts
+    src/app/workshop/   # 知识工坊：GitHub 文件树 + Monaco 编辑（保存回写 / Ctrl+S / 拖拽传图 WebP / 版本回滚 / AI 精炼工具栏）
+    src/app/search/     # 语义检索中心：混合检索 + 层级标签树（重命名/合并/删除/批量关联）
+    src/app/compile/    # 编译与输出：大纲 / 真 .apkg（sql.js）/ PDF 打印视图（错题图片内嵌）
+    src/app/api/github/ # Route Handler：tree/raw/save/image/versions（token 仅服务端）
+    src/app/api/        # workshop/refine（合并精炼+Mermaid）tags（标签管理）compile/apkg cron/daily knowledge/sync search mistakes
+    src/lib/            # supabaseAdmin / github（含 commitMarkdown/commitBinary/rawUrl）/ llm / apkg（Anki SQLite 构建器）
 supabase/    # schema.sql（10 张表 + pgvector + RLS 全部 user_id = auth.uid()）
 .npmrc       # node-linker=hoisted（Expo+pnpm 官方推荐，否则 RN gradle 插件路径解析为 null）
 .github/workflows/ci.yml  # CI：安装/类型检查/构建全部在 GitHub Actions 完成
-.github/workflows/build-apk.yml  # APK 打包：expo prebuild（CNG）→ gradle assembleRelease → artifact（手动触发或 push v* tag）
+.github/workflows/build-apk.yml  # APK 打包：expo prebuild（CNG）→ gradle assembleRelease → artifact（每次推送 main 且涉及 mobile 自动触发，或 push v* tag）
 ```
 
 ## 硬性约束（必须遵守）
@@ -64,10 +67,11 @@ APK 打包：GitHub Actions「Build APK」workflow（手动 dispatch 或推送 `
 - ✅ 弹药库：代码沙盒（WebView 内 Monaco + Pyodide，5 秒无响应熔断，片段 MMKV 保存，同名覆盖）+ 知识库（GitHub 目录树按需下载，react-native-markdown-display 渲染，[[双链]] 库内跳转，LaTeX 轻量 Unicode 化，frontmatter 剥离）
 - ✅ AI 悬浮球对话（L1-L3）：多供应商 OpenAI 兼容协议（DeepSeek/OpenAI/Kimi/GLM/自定义），BYOK 存 MMKV
 - ✅ 凌晨备课流水线：`/api/cron/daily`（vercel.json 每日 04:00 北京时间），service role 写 daily\_learning，幂等
-- ✅ 语义检索中心：`/api/knowledge/sync`（内容哈希增量向量化）+ `/api/search`（关键词 ilike + pgvector rpc match\_notes 混合检索），schema.sql 已补 match\_notes + hnsw 索引
+- ✅ 语义检索中心：`/api/knowledge/sync`（内容哈希增量向量化 + extractTags 提取 #行内/frontmatter 标签存 obsidian_metadata.tags，GIN 索引）+ `/api/search`（关键词 ilike + pgvector rpc match_notes 混合检索），schema.sql 已补 match_notes + hnsw 索引
+- ✅ 层级标签树管理：`/api/tags` GET（树聚合 + byPath 映射）/ POST（rename/merge/delete 子层级跟随重写数组，assign 批量关联笔记）；search 页左栏树 UI（点击筛选、勾选结果批量加标签）
 - ✅ 驾驶舱消费 daily_learning：知识点翻转卡 + 每日一题（显示答案 / AI讲题，复用 aiStore.ask）；移动端经 `get_daily_by_key` RPC 免登录读取（profiles.access_key 设备密钥，security definer，不放宽 RLS）
 - ✅ L4 工具调度：`src/lib/aiTools.ts` 6 大工具 schema + 执行器（addTask/setReminder 写操作走确认卡片 aiStore.confirmToolCall；searchWeb/queryStats/exportNote/correctCode 直读直返）；LLM 层支持 OpenAI 兼容 tool_calls
-- ✅ 编译与输出：`/compile` 资源池勾选 → 纯文本大纲 / Anki TSV（## 标题=正面）/ PDF（浏览器打印视图 A4），历史最近 10 次 localStorage；纯客户端文本变换零新增依赖，.apkg 与错题源待错题本实装
+- ✅ 编译与输出：`/compile` 资源池勾选（笔记+错题）→ 纯文本大纲 / **真 .apkg**（`lib/apkg.ts` sql.js wasm 构建 SQLite schema ver 11 + jszip，guid=内容哈希去重，失败自动降级 TSV，依赖 serverComponentsExternalPackages）/ PDF（浏览器打印视图 A4，错题照片 `<img>` 内嵌；Anki 背面同样嵌图），历史最近 10 次 localStorage
 - ✅ 画像系统：仪表盘 react-native-svg 六维雷达（专注投入/深度/坚持天数/任务执行/知识积累/学科掌握）+ 近 7 天专注柱状 + 心流热力 + 完成率折线 + Tavily 横向对标（目标大学分数线）
 - ✅ 后台唤醒：`src/lib/background.ts` expo-background-fetch（15 分钟级）+ expo-notifications（当日提醒去重通知）+ 每日备课内容预取 MMKV（驾驶舱云失败时兜底）；Expo Go 下 Android 不支持 background fetch，需构建版
 - ✅ 错题本（Phase 4）：弹药库第3子Tab `MistakeView`（拍照/相册 → image-manipulator 压缩 1080px/JPEG → 学科/标签/语音反思 expo-av → 本地 MMKV 优先）；云同步经管理台 `/api/mistakes` 代理（x-access-key 反查 profiles.access_key，service role 写 Storage `mistakes` 桶，无匿名写策略）；画像接入危险学科 + 卡壳词云（mistakeStore tags）；编译资源池 `/api/mistakes/pool`（OWNER 归属元数据）

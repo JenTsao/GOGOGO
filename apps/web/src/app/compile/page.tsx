@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react';
 
 // 菜单3：编译与输出（武器库）
-// 资源池勾选笔记/错题 → 三种产物：复习 PDF（浏览器打印，A4 排版）/ Anki 导入包（TSV）/ 纯文本大纲
-// 设计取舍：纯客户端文本变换，零新增依赖；PDF 用浏览器打印（服务端嵌 CJK 字体体积过大）；
-// .apkg 需打包 SQLite，先用 Anki 官方支持的 TSV 导入格式；代码片段资源待接入。
+// 资源池勾选笔记/错题 → 三种产物：复习 PDF（浏览器打印，A4 排版）/ Anki 卡片包（真 .apkg，服务端 sql.js 构建）/ 纯文本大纲
+// 设计取舍：PDF 用浏览器打印（服务端嵌 CJK 字体体积过大）；.apkg 由 /api/compile/apkg 服务端构建，失败自动降级 TSV
 interface TreeEntry {
   path: string;
   type: 'blob' | 'tree';
@@ -47,7 +46,7 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// 极简 Markdown → HTML（标题/代码块/引用/段落；公式与表格交由原样文本）
+// 极简 Markdown → HTML（标题/图片/代码块/引用/段落；公式与表格交由原样文本）
 function mdToHtml(md: string): string {
   const lines = md.split('\n');
   const out: string[] = [];
@@ -65,6 +64,12 @@ function mdToHtml(md: string): string {
     const h = /^(#{1,4})\s+(.*)$/.exec(line);
     if (h) {
       out.push(`<h${h[1].length}>${escapeHtml(h[2])}</h${h[1].length}>`);
+      continue;
+    }
+    // 图片（错题照片等）：A4 打印视图直接内嵌
+    const img = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/.exec(line.trim());
+    if (img) {
+      out.push(`<img src="${escapeHtml(img[2])}" alt="${escapeHtml(img[1])}" style="max-width:100%;border:1px solid #eee;border-radius:4px">`);
       continue;
     }
     if (/^>\s?/.test(line)) {
@@ -98,20 +103,41 @@ function toOutline(docs: { path: string; content: string }[]): string {
   return parts.join('\n');
 }
 
-// Anki TSV：## 标题为正面，标题下内容为背面（Anki 导入：字段分隔符 Tab，允许 HTML）
-function toAnki(docs: { path: string; content: string }[]): string {
-  const rows: string[] = ['#separator:tab', '#html:true'];
+// Anki 卡片解析：## 标题为正面，标题下内容为背面（服务端 buildApkg 用）
+function parseAnkiCards(docs: { path: string; content: string }[]): { front: string; back: string; tags: string[] }[] {
+  const cards: { front: string; back: string; tags: string[] }[] = [];
   for (const doc of docs) {
     const sections = doc.content.split(/\n(?=#{2,3}\s)/);
+    // 错题卡片的标签从文档头「卡壳标签：#a #b」提取
+    const docTags = /^卡壳标签：(.+)$/m.exec(doc.content)?.[1]?.match(/#([^\s#]+)/g)?.map((t) => t.slice(1)) ?? [];
     for (const sec of sections) {
       const lines = sec.split('\n');
       const head = /^#{2,3}\s+(.*)$/.exec(lines[0] ?? '');
       if (!head) continue;
-      const back = lines.slice(1).join('\n').trim();
+      // 图片行转 <img>（.apkg 字段允许 HTML），其余转义
+      const back = lines
+        .slice(1)
+        .join('\n')
+        .trim()
+        .split('\n')
+        .map((l) => {
+          const img = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/.exec(l.trim());
+          if (img) return `<img src="${img[2]}" style="max-width:100%">`;
+          return escapeHtml(l);
+        })
+        .join('<br>');
       if (!back) continue;
-      const front = escapeHtml(head[1]);
-      rows.push(`${front}\t${escapeHtml(back).replace(/\n/g, '<br>')}`);
+      cards.push({ front: escapeHtml(head[1]), back, tags: docTags });
     }
+  }
+  return cards;
+}
+
+// Anki TSV 降级产物（.apkg 服务失败时）：格式同 parseAnkiCards 的字段约定
+function toAnki(docs: { path: string; content: string }[]): string {
+  const rows: string[] = ['#separator:tab', '#html:true'];
+  for (const card of parseAnkiCards(docs)) {
+    rows.push(`${card.front}\t${card.back}`);
   }
   return rows.join('\n');
 }
@@ -180,6 +206,19 @@ export default function CompilePage() {
     URL.revokeObjectURL(url);
   };
 
+  // base64 → 二进制下载（.apkg）
+  const downloadBase64 = (name: string, b64: string, mime: string) => {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const compile = async () => {
     const paths = [...selected];
     if (paths.length === 0) {
@@ -200,7 +239,8 @@ export default function CompilePage() {
               content: [
                 `学科：${m.subject}`,
                 `卡壳标签：${m.tags.map((t) => `#${t}`).join(' ') || '无'}`,
-                `错题图片：${m.image_urls[0] ?? '无'}`,
+                // Markdown 图片：PDF 打印视图内嵌、Anki 背面显示照片
+                m.image_urls[0] ? `![错题照片](${m.image_urls[0]})` : '无图片',
               ].join('\n'),
             });
           }
@@ -223,9 +263,25 @@ export default function CompilePage() {
         job.content = toOutline(docs);
         download(`${job.name}.txt`, job.content, 'text/plain;charset=utf-8');
       } else if (type === 'anki') {
-        job.content = toAnki(docs);
-        download(`${job.name}-anki.txt`, job.content, 'text/plain;charset=utf-8');
-        setMessage(`✅ 已下载 TSV。Anki 导入：文件 → 导入 → 选择该文件（字段分隔符 Tab，允许 HTML）。共 ${docs.length} 篇笔记。`);
+        const cards = parseAnkiCards(docs);
+        if (cards.length === 0) throw new Error('没有解析出卡片：需要笔记里有 ## 标题 + 内容');
+        job.content = toAnki(docs); // 历史记录存 TSV，可重新下载导入
+        try {
+          // 真 .apkg：服务端 sql.js 构建 SQLite 集合
+          const r = await fetch('/api/compile/apkg', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deckName: '高考复习', cards }),
+          });
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.error ?? `HTTP ${r.status}`);
+          downloadBase64(`${job.name}.apkg`, data.base64, 'application/octet-stream');
+          setMessage(`✅ 已下载 ${data.deckName}.apkg（${data.count} 张卡片），Anki 双击导入即可。`);
+        } catch (apkgErr) {
+          // 降级：TSV 是 Anki 官方导入格式，功能等价
+          download(`${job.name}-anki.txt`, toAnki(docs), 'text/plain;charset=utf-8');
+          setMessage(`⚠️ .apkg 构建失败（${(apkgErr as Error).message}），已降级下载 TSV：Anki「文件→导入」选择该文件。`);
+        }
       } else {
         // PDF：打开 A4 打印视图，浏览器「打印 → 另存为 PDF」
         const w = window.open('', '_blank');

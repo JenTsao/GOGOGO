@@ -6,7 +6,17 @@ name: Build APK
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags: ['v*']
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/build-apk.yml'
+      - '.npmrc'
+
+# 密集推送时取消排队中的旧构建，只打包最新提交（省并发额度与排队时间）
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   apk:
@@ -31,18 +41,25 @@ jobs:
         working-directory: apps/mobile
         run: npx expo prebuild -p android --no-install --clean
 
+      - name: 调优 gradle 构建（runner 4 核 16G：加大 JVM、并行、启用 build cache）
+        working-directory: apps/mobile/android
+        run: |
+          sed -i 's/^org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g/' gradle.properties
+          grep -q '^org.gradle.parallel' gradle.properties || echo 'org.gradle.parallel=true' >> gradle.properties
+          grep -q '^org.gradle.caching' gradle.properties || echo 'org.gradle.caching=true' >> gradle.properties
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17 # RN 0.74 / AGP 8.x 要求 JDK 17
-          cache: gradle # prebuild 之后运行，wrapper 已存在可参与缓存 key
+          cache: gradle # 缓存 ~/.gradle：依赖包 + build cache 产物（配合 org.gradle.caching 二次构建任务级 FROM-CACHE）
 
       - name: 接受 Android SDK 许可（runner 预装 SDK）
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - name: gradle 打包 release APK
         working-directory: apps/mobile/android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --build-cache --stacktrace
 
       - name: 上传 APK artifact
         uses: actions/upload-artifact@v4
