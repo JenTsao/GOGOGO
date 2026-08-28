@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const hits = new Map<string, Hit>();
 
     // 1) 关键词检索（路径匹配；RLS 由 service role 绕过，显式 user_id 过滤）
-    const { data: kwRows } = await supabaseAdmin
+    const { data: kwRows } = await supabaseAdmin()
       .from('obsidian_metadata')
       .select('id, file_path')
       .eq('user_id', owner)

@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const today = sh.toISOString().slice(0, 10);
 
     // 幂等：当天已生成则跳过
-    const { data: exist } = await supabaseAdmin
+    const { data: exist } = await supabaseAdmin()
       .from('daily_learning')
       .select('id')
       .eq('user_id', owner)
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     const in3days = new Date(sh.getTime() + 3 * 86400000).toISOString().slice(0, 10);
     const weekAgo = new Date(sh.getTime() - 7 * 86400000).toISOString();
     const [tasks, mistakes, reminders] = await Promise.all([
-      supabaseAdmin
+      supabaseAdmin()
         .from('tasks')
         .select('content, subject, date')
         .eq('user_id', owner)
@@ -42,13 +42,13 @@ export async function GET(req: NextRequest) {
         .gte('date', yesterday)
         .lte('date', today)
         .limit(20),
-      supabaseAdmin
+      supabaseAdmin()
         .from('mistakes')
         .select('subject, tags')
         .eq('user_id', owner)
         .gte('created_at', weekAgo)
         .limit(20),
-      supabaseAdmin
+      supabaseAdmin()
         .from('reminders')
         .select('content, date')
         .eq('user_id', owner)

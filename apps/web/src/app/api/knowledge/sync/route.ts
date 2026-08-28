@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     const limit = Math.min(Number(req.nextUrl.searchParams.get('limit')) || 10, 30);
 
     // 既有元数据（增量依据：content_hash）
-    const { data: metas } = await supabaseAdmin
+    const { data: metas } = await supabaseAdmin()
       .from('obsidian_metadata')
       .select('id, file_path, content_hash')
       .eq('user_id', owner);
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       }
 
       // upsert 元数据，取回 note_id
-      const { data: meta, error: metaErr } = await supabaseAdmin
+      const { data: meta, error: metaErr } = await supabaseAdmin()
         .from('obsidian_metadata')
         .upsert(
           { user_id: owner, file_path: entry.path, content_hash: hash },
