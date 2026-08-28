@@ -37,7 +37,6 @@ export function AiOrb() {
           ref={webviewRef}
           source={BALL_HTML}
           style={styles.orb}
-          transparent
           originWhitelist={['*']}
           onMessage={(e) => {
             let msg: { type: string };
