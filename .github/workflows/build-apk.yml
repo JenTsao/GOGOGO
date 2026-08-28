@@ -47,8 +47,15 @@ jobs:
           # SDK 51 / RN 0.74 官方配套 Gradle 8.6；wrapper 若生成更高版本则强制钉回（兼容 all/bin 两种分发后缀）
           sed -i 's#gradle-[0-9.]*-all.zip#gradle-8.6-all.zip#' gradle/wrapper/gradle-wrapper.properties
           sed -i 's#gradle-[0-9.]*-bin.zip#gradle-8.6-bin.zip#' gradle/wrapper/gradle-wrapper.properties
-          # expo-av 旧式 archiveClassifier 写法在 Gradle 8.7+ 报 unknown property 'classifier'，统一改新 API（8.6 下等价）
-          sed -i 's/\bclassifier\b/archiveClassifier/g' ../node_modules/expo-av/android/build.gradle
+          # expo-av 旧式 classifier 写法在 Gradle 8.7+ 报 unknown property，统一改 archiveClassifier（8.6 下等价）
+          # hoisted 布局下 pnpm 把依赖提升到仓库根 node_modules，用 find 兜底定位实际安装位置
+          AV_GRADLE="$(find "$GITHUB_WORKSPACE/node_modules" -maxdepth 3 -path '*/expo-av/android/build.gradle' 2>/dev/null | head -n1)"
+          if [ -n "$AV_GRADLE" ]; then
+            sed -i 's/\bclassifier\b/archiveClassifier/g' "$AV_GRADLE"
+            echo "patched: $AV_GRADLE"
+          else
+            echo "::warning::未找到 expo-av build.gradle，跳过 classifier patch"
+          fi
 
       - name: 调优 gradle 构建（runner 4 核 16G：加大 JVM、并行、启用 build cache）
         working-directory: apps/mobile/android
