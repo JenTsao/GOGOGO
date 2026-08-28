@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useKnowledgeStore } from '@/store/knowledgeStore';
 import { fetchRepoPaths, fetchRawFile } from '@/lib/github';
+import { C, R, cardShadow } from '@/theme';
 
 // 知识库：按需从 GitHub 拉取 Obsidian 目录树，点击单篇下载 Markdown 并渲染（缓存后离线可读）
 interface TreeNode {
@@ -50,11 +52,15 @@ function TreeItem({
   if (node.children.length > 0) {
     return (
       <View>
-        <TouchableOpacity style={[styles.row, { paddingLeft: 4 + depth * 12 }]} onPress={() => setOpen((v) => !v)}>
-          <Text style={styles.folder}>
-            {open ? '▾ ' : '▸ '}
-            {node.name}
-          </Text>
+        <TouchableOpacity
+          style={[styles.row, { paddingLeft: 4 + depth * 12 }]}
+          onPress={() => setOpen((v) => !v)}
+          activeOpacity={0.85}
+          accessibilityLabel={`${open ? '收起' : '展开'}文件夹 ${node.name}`}
+        >
+          <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={13} color={C.text3} />
+          <Ionicons name="folder" size={14} color={C.primary} />
+          <Text style={styles.folder}>{node.name}</Text>
         </TouchableOpacity>
         {open &&
           node.children.map((c) => (
@@ -67,8 +73,11 @@ function TreeItem({
     <TouchableOpacity
       style={[styles.row, { paddingLeft: 4 + depth * 12 }, selected === node.path && styles.rowActive]}
       onPress={() => onSelect(node.path)}
+      activeOpacity={0.85}
+      accessibilityLabel={`打开笔记 ${node.name}`}
     >
-      <Text style={[styles.file, selected === node.path && styles.fileActive]}>📄 {node.name}</Text>
+      <Ionicons name="document-text" size={14} color={selected === node.path ? C.primary : C.text3} />
+      <Text style={[styles.file, selected === node.path && styles.fileActive]}>{node.name}</Text>
     </TouchableOpacity>
   );
 }
@@ -232,7 +241,8 @@ export function KnowledgeView() {
 
   if (!repo) {
     return (
-      <View style={styles.empty}>
+      <View style={styles.emptyCard}>
+        <Ionicons name="library-outline" size={28} color={C.text3} />
         <Text style={styles.emptyText}>
           未配置笔记仓库。请到「我的」Tab 填写 GitHub 仓库（格式 owner/repo），知识库将按需拉取 Obsidian Markdown。
         </Text>
@@ -242,7 +252,12 @@ export function KnowledgeView() {
 
   return (
     <View style={styles.wrap}>
-      {error && <Text style={styles.errorText}>⚠️ {error}</Text>}
+      {error && (
+        <View style={styles.errorRow}>
+          <Ionicons name="warning" size={14} color={C.red} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
       {!error && paths === null && <Text style={styles.emptyText}>加载目录树中…</Text>}
       {!error && paths !== null && paths.length === 0 && <Text style={styles.emptyText}>仓库中没有 Markdown 笔记</Text>}
 
@@ -263,14 +278,22 @@ export function KnowledgeView() {
           {loading ? ' · 下载中…' : ''}
         </Text>
       )}
-      {wikiMiss && <Text style={styles.wikiMiss}>双链「{wikiMiss}」未找到对应笔记</Text>}
+      {wikiMiss && (
+        <View style={styles.wikiMissRow}>
+          <Ionicons name="link" size={12} color={C.red} />
+          <Text style={styles.wikiMiss}>双链「{wikiMiss}」未找到对应笔记</Text>
+        </View>
+      )}
       <ScrollView style={styles.reader} nestedScrollEnabled>
         {content !== null ? (
           <Markdown style={mdStyles} onLinkPress={handleLinkPress}>
             {renderContent(content)}
           </Markdown>
         ) : (
-          <Text style={styles.emptyText}>点击上方文件阅读（首次将下载并缓存）</Text>
+          <View style={styles.readerPlaceholder}>
+            <Ionicons name="book-outline" size={26} color={C.text3} />
+            <Text style={styles.emptyText}>点击上方文件阅读（首次将下载并缓存）</Text>
+          </View>
         )}
       </ScrollView>
     </View>
@@ -279,30 +302,61 @@ export function KnowledgeView() {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
-  empty: { flex: 1, justifyContent: 'center', padding: 20 },
-  emptyText: { color: '#999', fontSize: 14, lineHeight: 22 },
-  errorText: { color: '#c62828', fontSize: 13, marginBottom: 8 },
-  tree: { maxHeight: 220, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#eee', padding: 8 },
-  row: { paddingVertical: 6 },
-  rowActive: { backgroundColor: '#eef2ff', borderRadius: 8 },
-  folder: { fontSize: 14, fontWeight: '700', color: '#333' },
-  file: { fontSize: 14, color: '#555' },
-  fileActive: { color: '#111', fontWeight: '700' },
-  readerTitle: { marginTop: 10, marginBottom: 4, fontSize: 12, color: '#888' },
-  wikiMiss: { fontSize: 12, color: '#c62828', marginTop: 4 },
-  reader: { flex: 1, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#eee', padding: 12 },
+  emptyCard: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    padding: 24,
+    marginHorizontal: 16,
+    borderRadius: R.lg,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    borderStyle: 'dashed',
+    backgroundColor: C.card,
+  },
+  emptyText: { color: C.text3, fontSize: 14, lineHeight: 22, textAlign: 'center' },
+  errorRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
+  errorText: { color: C.red, fontSize: 13, flex: 1 },
+  tree: {
+    maxHeight: 220,
+    backgroundColor: C.card,
+    borderRadius: R.md,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 8,
+    ...cardShadow,
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7 },
+  rowActive: { backgroundColor: C.primarySoft, borderRadius: R.sm },
+  folder: { fontSize: 14, fontWeight: '700', color: C.text },
+  file: { fontSize: 14, color: C.text2, flex: 1 },
+  fileActive: { color: C.primary, fontWeight: '700' },
+  readerTitle: { marginTop: 12, marginBottom: 6, fontSize: 12, color: C.text3 },
+  wikiMissRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
+  wikiMiss: { fontSize: 12, color: C.red },
+  reader: {
+    flex: 1,
+    backgroundColor: C.card,
+    borderRadius: R.md,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 14,
+    ...cardShadow,
+  },
+  readerPlaceholder: { alignItems: 'center', gap: 10, paddingVertical: 40 },
 });
 
 const mdStyles = {
-  body: { color: '#333', fontSize: 15, lineHeight: 24 },
-  heading1: { fontSize: 22, fontWeight: '700' as const, marginVertical: 8, color: '#111' },
-  heading2: { fontSize: 19, fontWeight: '700' as const, marginVertical: 8, color: '#111' },
-  heading3: { fontSize: 16, fontWeight: '700' as const, marginVertical: 6, color: '#222' },
-  code_inline: { backgroundColor: '#f2f2f2', fontFamily: 'monospace', fontSize: 13, color: '#c7254e' },
-  fence: { backgroundColor: '#f6f8fa', borderRadius: 8, padding: 10, fontFamily: 'monospace', fontSize: 12, color: '#333' },
-  strong: { fontWeight: '700' as const, color: '#111' },
-  blockquote: { backgroundColor: '#fafafa', borderLeftWidth: 3, borderLeftColor: '#ccc', paddingLeft: 10, paddingVertical: 4 },
-  link: { color: '#1a73e8' },
-  bullet_list_icon: { color: '#888' },
-  hr: { backgroundColor: '#eee', height: 1, marginVertical: 10 },
+  body: { color: C.text, fontSize: 15, lineHeight: 24 },
+  heading1: { fontSize: 22, fontWeight: '700' as const, marginVertical: 8, color: C.text },
+  heading2: { fontSize: 19, fontWeight: '700' as const, marginVertical: 8, color: C.text },
+  heading3: { fontSize: 16, fontWeight: '700' as const, marginVertical: 6, color: C.text },
+  code_inline: { backgroundColor: C.primarySoft, fontFamily: 'monospace', fontSize: 13, color: C.primaryDeep },
+  fence: { backgroundColor: C.bg, borderRadius: 8, padding: 10, fontFamily: 'monospace', fontSize: 12, color: C.text },
+  strong: { fontWeight: '700' as const, color: C.text },
+  blockquote: { backgroundColor: C.bg, borderLeftWidth: 3, borderLeftColor: C.primary, paddingLeft: 10, paddingVertical: 4 },
+  link: { color: C.primary },
+  bullet_list_icon: { color: C.text3 },
+  hr: { backgroundColor: C.border, height: 1, marginVertical: 10 },
 };

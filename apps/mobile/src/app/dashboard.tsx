@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Linking } from 'react-native';
 import Svg, { Polygon, Polyline, Line, Circle, Text as SvgText } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import { Fragment, useMemo, useState } from 'react';
 import { useFocusStore } from '@/store/focusStore';
 import { useTaskStore } from '@/store/taskStore';
@@ -12,6 +13,7 @@ import { localDateStr } from '@/store/reminderStore';
 import { countNegativeWords } from '@/lib/stt';
 import { fetchWeekly, WeeklyReview } from '@/lib/cloud';
 import MoodCheckin from '@/components/MoodCheckin';
+import { C as CLR, R as RAD, cardShadow } from '@/theme';
 
 // Tab 3：仪表盘 —— 激进模式画像
 // 六维雷达基于可计算数据（专注/任务/知识积累 + 错题重做正确率的学科掌握）
@@ -21,13 +23,13 @@ interface RadarDim {
 }
 
 const SIZE = 220;
-const C = SIZE / 2;
-const R = 78;
+const CX = SIZE / 2;
+const RR = 78;
 
 function radarPoint(i: number, total: number, r: number): { x: number; y: number } {
   // 从正上方开始，顺时针分布
   const angle = (Math.PI * 2 * i) / total - Math.PI / 2;
-  return { x: C + r * Math.cos(angle), y: C + r * Math.sin(angle) };
+  return { x: CX + r * Math.cos(angle), y: CX + r * Math.sin(angle) };
 }
 
 function polygonPoints(scores: number[], r: number): string {
@@ -118,7 +120,7 @@ export default function DashboardScreen() {
     return days;
   }, [sessions]);
 
-  // 五维评分（上限 100）
+  // 六维评分（上限 100）
   const dims = useMemo<RadarDim[]>(() => {
     const week = dailyMinutes.slice(-7);
     const weekMin = week.reduce((s, d) => s + d.min, 0);
@@ -184,8 +186,9 @@ export default function DashboardScreen() {
     .filter(Boolean)
     .join(' ');
 
+  // 热力色阶（绿色 = 专注量，语义与主题 green 对齐）
   const heatColor = (min: number) =>
-    min <= 0 ? '#f0f1f3' : min < 10 ? '#cfe5d2' : min < 25 ? '#93c29c' : min < 45 ? '#4e9a5f' : '#1c5d2c';
+    min <= 0 ? '#EEEBF4' : min < 10 ? '#D5EBDD' : min < 25 ? '#9CD3AA' : min < 45 ? '#4E9A5F' : '#1C5D2C';
 
   // 横向对标数值化：Tavily 检索分数线 → 从摘要/正文提取可信分数 → 与目标总分计算差距
   const runBenchmark = async () => {
@@ -224,27 +227,27 @@ export default function DashboardScreen() {
 
       const out: string[] = [];
       if (estimate !== null) {
-        out.push(`🏫 检索到分数区间：${uniq[0]}–${uniq[uniq.length - 1]} 分（按最低估 ${estimate} 分计算）`);
+        out.push(`检索到分数区间：${uniq[0]}–${uniq[uniq.length - 1]} 分（按最低估 ${estimate} 分计算）`);
         if (targetScore !== null) {
           const gap = targetScore - estimate;
           if (gap >= 0) {
-            out.push(`🎯 目标 ${targetScore} 分 → 超出底线 ${gap} 分，保持节奏，向专业录取线冲刺`);
+            out.push(`目标 ${targetScore} 分 → 超出底线 ${gap} 分，保持节奏，向专业录取线冲刺`);
           } else {
-            out.push(`🎯 目标 ${targetScore} 分 → 🔥 差距 ${Math.abs(gap)} 分`);
+            out.push(`目标 ${targetScore} 分 → 差距 ${Math.abs(gap)} 分`);
             // 差距 ≥20 分时联动画像：指向错题最多的危险学科
             if (Math.abs(gap) >= 20 && dangerSubject) {
-              out.push(`📌 专项建议：优先补「${dangerSubject[0]}」（当前错题最多的学科，${dangerSubject[1]} 道）`);
+              out.push(`专项建议：优先补「${dangerSubject[0]}」（当前错题最多的学科，${dangerSubject[1]} 道）`);
             }
           }
         } else {
-          out.push('💡 在「我的」填写目标总分，即可自动计算差距与专项建议');
+          out.push('在「我的」填写目标总分，即可自动计算差距与专项建议');
         }
       } else {
         out.push('未能从检索结果解析出分数线数值（省份/批次差异大，请从以下来源确认你所在省份的线）');
       }
 
       setBenchmark(
-        `🔥 ${query}\n${out.join('\n')}\n\n${data.answer ? `摘要：${data.answer}\n\n` : ''}${lines.join('\n') || '无结果'}`
+        `检索：${query}\n${out.join('\n')}\n\n${data.answer ? `摘要：${data.answer}\n\n` : ''}${lines.join('\n') || '无结果'}`
       );
     } catch (e) {
       setBenchmark(`对标搜索失败：${(e as Error).message}`);
@@ -256,13 +259,13 @@ export default function DashboardScreen() {
 
   return (
     <>
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <MoodCheckin />
 
-      <Text style={styles.cardTitle}>📊 我的画像</Text>
+      <Text style={styles.cardTitle}>我的画像</Text>
       <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.8}
+        style={[styles.card, styles.profileCard]}
+        activeOpacity={0.85}
         onPress={() => {
           setDetailOpen(true);
           // 每次进入详情都刷新周复盘（周 Cron 每周一凌晨产出）
@@ -286,17 +289,23 @@ export default function DashboardScreen() {
           {moodTrail.map((e, i) => (
             <Text key={i} style={styles.moodTrailEmoji}>{e ?? '·'}</Text>
           ))}
-          <Text style={styles.moodTrailLabel}>← 近 7 天情绪</Text>
+          <Text style={styles.moodTrailLabel}>近 7 天情绪</Text>
         </View>
         {mistakes.length > 0 && dangerSubject && (
-          <Text style={styles.profileText}>
-            🔥 危险学科：<Text style={styles.weakness}>{dangerSubject[0]}</Text>
-            <Text style={styles.placeholder}>（{dangerSubject[1]} 道错题）</Text>
-          </Text>
+          <View style={styles.signalRow}>
+            <Ionicons name="flame" size={14} color={CLR.red} />
+            <Text style={styles.profileText}>
+              危险学科：<Text style={styles.weakness}>{dangerSubject[0]}</Text>
+              <Text style={styles.placeholder}>（{dangerSubject[1]} 道错题）</Text>
+            </Text>
+          </View>
         )}
         {moodTop3.length > 0 && (
           <>
-            <Text style={styles.profileText}>😤 情绪信号（语音反思 + 打卡备注中的消极词，即时加权）</Text>
+            <View style={styles.signalRow}>
+              <Ionicons name="pulse" size={14} color={CLR.orange} />
+              <Text style={styles.profileText}>情绪信号（语音反思 + 打卡备注中的消极词，即时加权）</Text>
+            </View>
             <View style={styles.cloudRow}>
               {moodTop3.map(([word, n]) => (
                 <View key={word} style={styles.cloudChip}>
@@ -312,11 +321,14 @@ export default function DashboardScreen() {
           <Text style={styles.placeholder}>先开始一次专注或创建任务，画像会随数据积累逐渐清晰</Text>
         ) : (
           <Text style={styles.profileText}>
-            💪 优势：<Text style={styles.strength}>{strength.label}</Text>　　⚠️ 待加强：
+            优势：<Text style={styles.strength}>{strength.label}</Text>　　待加强：
             <Text style={styles.weakness}>{weakness.label}</Text>
           </Text>
         )}
-        <Text style={styles.detailHint}>点击查看全屏画像与横向对标 ›</Text>
+        <View style={styles.detailHintRow}>
+          <Text style={styles.detailHint}>点击查看全屏画像与横向对标</Text>
+          <Ionicons name="chevron-forward" size={13} color={CLR.primary} />
+        </View>
       </TouchableOpacity>
 
       <Text style={styles.cardTitle}>能力雷达（100 分制）</Text>
@@ -326,23 +338,23 @@ export default function DashboardScreen() {
           {[25, 50, 75, 100].map((lv) => (
             <Polygon
               key={lv}
-              points={polygonPoints(new Array(dims.length).fill(lv), R)} // 网格边数必须与维度数一致，否则六边形数据会压进五边形网格扭曲
+              points={polygonPoints(new Array(dims.length).fill(lv), RR)} // 网格边数必须与维度数一致，否则六边形数据会压进五边形网格扭曲
               fill="none"
-              stroke="#e3e6eb"
+              stroke={CLR.border}
               strokeWidth={1}
             />
           ))}
           {/* 轴线与维度标签 */}
           {dims.map((d, i) => {
-            const p = radarPoint(i, dims.length, R);
-            const lp = radarPoint(i, dims.length, R + 22);
+            const p = radarPoint(i, dims.length, RR);
+            const lp = radarPoint(i, dims.length, RR + 22);
             return (
               <Fragment key={`ax-${i}`}>
-                <Line x1={C} y1={C} x2={p.x} y2={p.y} stroke="#e3e6eb" strokeWidth={1} />
+                <Line x1={CX} y1={CX} x2={p.x} y2={p.y} stroke={CLR.border} strokeWidth={1} />
                 <SvgText
                   x={lp.x}
                   y={lp.y}
-                  fill="#666"
+                  fill={CLR.text2}
                   fontSize={10}
                   textAnchor="middle"
                   alignmentBaseline="middle"
@@ -354,14 +366,14 @@ export default function DashboardScreen() {
           })}
           {/* 数据多边形 */}
           <Polygon
-            points={polygonPoints(dims.map((d) => d.score), R)}
-            fill="rgba(17,17,17,0.12)"
-            stroke="#111"
+            points={polygonPoints(dims.map((d) => d.score), RR)}
+            fill="rgba(124,58,237,0.18)"
+            stroke={CLR.primary}
             strokeWidth={2}
           />
           {dims.map((d, i) => {
-            const p = radarPoint(i, dims.length, (R * Math.max(0, Math.min(100, d.score))) / 100);
-            return <Circle key={`pt-${i}`} cx={p.x} cy={p.y} r={3} fill="#111" />;
+            const p = radarPoint(i, dims.length, (RR * Math.max(0, Math.min(100, d.score))) / 100);
+            return <Circle key={`pt-${i}`} cx={p.x} cy={p.y} r={3} fill={CLR.primary} />;
           })}
         </Svg>
         <Text style={styles.dimScores}>
@@ -391,9 +403,12 @@ export default function DashboardScreen() {
         ) : (
           <>
             {heat.peakMin > 0 && (
-              <Text style={styles.peakText}>
-                🌙 黄金时段：{heat.peak}:00–{(heat.peak + 1) % 24}:00（累计约 {Math.round(heat.peakMin)} 分钟）
-              </Text>
+              <View style={styles.peakRow}>
+                <Ionicons name="moon" size={13} color={CLR.green} />
+                <Text style={styles.peakText}>
+                  黄金时段：{heat.peak}:00–{(heat.peak + 1) % 24}:00（累计约 {Math.round(heat.peakMin)} 分钟）
+                </Text>
+              </View>
             )}
             <View style={styles.heatGrid}>
               {heat.grid.map((row, di) => (
@@ -435,25 +450,25 @@ export default function DashboardScreen() {
                 y1={ty(lv)}
                 x2={W - PAD}
                 y2={ty(lv)}
-                stroke="#e3e6eb"
+                stroke={CLR.border}
                 strokeWidth={1}
                 strokeDasharray="4 3"
               />
             ))}
-            <SvgText x={PAD - 4} y={ty(100) + 3} fill="#aaa" fontSize={9} textAnchor="end">
+            <SvgText x={PAD - 4} y={ty(100) + 3} fill={CLR.text3} fontSize={9} textAnchor="end">
               100%
             </SvgText>
-            <SvgText x={PAD - 4} y={ty(0) + 3} fill="#aaa" fontSize={9} textAnchor="end">
+            <SvgText x={PAD - 4} y={ty(0) + 3} fill={CLR.text3} fontSize={9} textAnchor="end">
               0%
             </SvgText>
             {trendPoints && (
-              <Polyline points={trendPoints} fill="none" stroke="#111" strokeWidth={2} strokeLinejoin="round" />
+              <Polyline points={trendPoints} fill="none" stroke={CLR.primary} strokeWidth={2} strokeLinejoin="round" />
             )}
             {trend.map((t, i) =>
-              t.rate === null ? null : <Circle key={i} cx={tx(i)} cy={ty(t.rate)} r={3} fill="#111" />
+              t.rate === null ? null : <Circle key={i} cx={tx(i)} cy={ty(t.rate)} r={3} fill={CLR.primary} />
             )}
             {trend.map((t, i) => (
-              <SvgText key={`xl-${i}`} x={tx(i)} y={H - 4} fill="#aaa" fontSize={9} textAnchor="middle">
+              <SvgText key={`xl-${i}`} x={tx(i)} y={H - 4} fill={CLR.text3} fontSize={9} textAnchor="middle">
                 {t.label}
               </SvgText>
             ))}
@@ -466,18 +481,21 @@ export default function DashboardScreen() {
 
       {/* 全屏画像详情（蓝皮书：点击画像卡进入，含分维解读与横向对标差距） */}
       <Modal visible={detailOpen} animationType="slide" onRequestClose={() => setDetailOpen(false)}>
-        <ScrollView style={styles.modalWrap}>
+        <ScrollView style={styles.modalWrap} contentContainerStyle={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>🧭 画像详情</Text>
-            <TouchableOpacity onPress={() => setDetailOpen(false)}>
-              <Text style={styles.modalClose}>✕ 关闭</Text>
+            <View style={styles.modalTitleRow}>
+              <Ionicons name="compass" size={20} color={CLR.primary} />
+              <Text style={styles.modalTitle}>画像详情</Text>
+            </View>
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setDetailOpen(false)}>
+              <Ionicons name="close" size={20} color={CLR.text2} />
             </TouchableOpacity>
           </View>
 
           {/* 本周复盘（周 Cron：全量数据 + Tavily 考纲/资讯 → LLM 教练复盘） */}
-          <Text style={styles.cardTitle}>🗓 本周复盘</Text>
+          <Text style={styles.cardTitle}>本周复盘</Text>
           <View style={styles.card}>
-            {weeklyState === 'loading' && <ActivityIndicator color="#1a4d8f" />}
+            {weeklyState === 'loading' && <ActivityIndicator color={CLR.primary} />}
             {weeklyState === 'error' && <Text style={styles.placeholder}>复盘拉取失败，稍后在画像页重试</Text>}
             {weeklyState === 'none' && (
               <Text style={styles.placeholder}>本周复盘还没生成（每周一凌晨自动产出，需在管理台配置 TAVILY_API_KEY 以获取考纲资讯）</Text>
@@ -486,11 +504,14 @@ export default function DashboardScreen() {
               <>
                 <Text style={styles.adviceText}>{weekly.content.summary}</Text>
                 {!!weekly.content.syllabusAlert && (
-                  <Text style={styles.syllabusAlert}>⚠️ 考纲警示：{weekly.content.syllabusAlert}</Text>
+                  <View style={styles.syllabusAlert}>
+                    <Ionicons name="warning" size={13} color={CLR.orange} />
+                    <Text style={styles.syllabusAlertText}>考纲警示：{weekly.content.syllabusAlert}</Text>
+                  </View>
                 )}
                 {weekly.content.risks.length > 0 && (
                   <>
-                    <Text style={styles.profileText}>⚠️ 薄弱点与下周权重建议</Text>
+                    <Text style={styles.profileText}>薄弱点与下周权重建议</Text>
                     {weekly.content.risks.map((r, i) => (
                       <Text key={i} style={styles.adviceText}>· {r}</Text>
                     ))}
@@ -498,7 +519,7 @@ export default function DashboardScreen() {
                 )}
                 {weekly.content.focusAdvice.length > 0 && (
                   <>
-                    <Text style={styles.profileText}>🎯 下周专注建议</Text>
+                    <Text style={styles.profileText}>下周专注建议</Text>
                     {weekly.content.focusAdvice.map((r, i) => (
                       <Text key={i} style={styles.adviceText}>· {r}</Text>
                     ))}
@@ -506,7 +527,7 @@ export default function DashboardScreen() {
                 )}
                 {weekly.content.news.length > 0 && (
                   <>
-                    <Text style={styles.profileText}>📰 本周高考资讯</Text>
+                    <Text style={styles.profileText}>本周高考资讯</Text>
                     {weekly.content.news.map((n) => (
                       <TouchableOpacity key={n.url} onPress={() => void Linking.openURL(n.url)}>
                         <Text style={styles.newsLink}>· {n.title}</Text>
@@ -520,14 +541,17 @@ export default function DashboardScreen() {
 
           <View style={styles.card}>
             {mistakes.length > 0 && dangerSubject && (
-              <Text style={styles.profileText}>
-                🔥 危险学科：<Text style={styles.weakness}>{dangerSubject[0]}</Text>
-                <Text style={styles.placeholder}>（{dangerSubject[1]} 道错题，重点盯防）</Text>
-              </Text>
+              <View style={styles.signalRow}>
+                <Ionicons name="flame" size={14} color={CLR.red} />
+                <Text style={styles.profileText}>
+                  危险学科：<Text style={styles.weakness}>{dangerSubject[0]}</Text>
+                  <Text style={styles.placeholder}>（{dangerSubject[1]} 道错题，重点盯防）</Text>
+                </Text>
+              </View>
             )}
             {mistakes.length > 0 && wordCloud.length > 0 ? (
               <>
-                <Text style={styles.profileText}>🩹 最近卡壳词云（错题标签 top5）</Text>
+                <Text style={styles.profileText}>最近卡壳词云（错题标签 top5）</Text>
                 <View style={styles.cloudRow}>
                   {wordCloud.map(([tag, n]) => (
                     <View key={tag} style={styles.cloudChip}>
@@ -543,7 +567,9 @@ export default function DashboardScreen() {
             )}
             {dims.map((d) => (
               <View key={d.label} style={styles.adviceRow}>
-                <Text style={styles.adviceScore}>{Math.round(d.score)}</Text>
+                <View style={styles.adviceScoreWrap}>
+                  <Text style={styles.adviceScore}>{Math.round(d.score)}</Text>
+                </View>
                 <View style={styles.adviceBody}>
                   <Text style={styles.adviceLabel}>{d.label}</Text>
                   <Text style={styles.adviceText}>{ADVICE[d.label]}</Text>
@@ -558,11 +584,14 @@ export default function DashboardScreen() {
           <Text style={styles.cardTitle}>横向对标</Text>
           <View style={[styles.card, styles.center]}>
             <Text style={styles.placeholder}>目标：{targetUniversity || '尚未在「我的」设定目标大学'}</Text>
-            <TouchableOpacity style={styles.benchBtn} onPress={runBenchmark} disabled={benchmarkBusy}>
+            <TouchableOpacity style={styles.benchBtn} onPress={runBenchmark} disabled={benchmarkBusy} activeOpacity={0.85}>
               {benchmarkBusy ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.benchBtnText}>🔥 搜索分数线差距</Text>
+                <>
+                  <Ionicons name="search" size={15} color="#fff" />
+                  <Text style={styles.benchBtnText}>搜索分数线差距</Text>
+                </>
               )}
             </TouchableOpacity>
             {!!benchmark && <Text style={styles.benchResult}>{benchmark}</Text>}
@@ -584,53 +613,92 @@ const ADVICE: Record<string, string> = {
 };
 
 const styles = StyleSheet.create({
-  syllabusAlert: { fontSize: 13, color: '#b45309', fontWeight: '700', marginTop: 6, lineHeight: 19 },
-  newsLink: { fontSize: 13, color: '#1a4d8f', textDecorationLine: 'underline', marginTop: 4, lineHeight: 19 },
+  container: { flex: 1, backgroundColor: CLR.bg },
+  content: { padding: 16, paddingBottom: 96 },
+  cardTitle: { fontSize: 17, fontWeight: '700', color: CLR.text, marginTop: 18, marginBottom: 8, letterSpacing: 0.3 },
+  card: { backgroundColor: CLR.card, borderRadius: RAD.lg, padding: 16, minHeight: 60, ...cardShadow },
+  profileCard: { borderWidth: 1, borderColor: CLR.border },
+  center: { alignItems: 'center' },
+  placeholder: { color: CLR.text3, fontSize: 13, lineHeight: 20, marginTop: 4 },
+  profileText: { fontSize: 15, lineHeight: 24, color: CLR.text, flex: 1 },
+  strength: { color: CLR.green, fontWeight: '700' },
+  weakness: { color: CLR.red, fontWeight: '700' },
+  dimScores: { fontSize: 11, color: CLR.text3, marginTop: 8, textAlign: 'center' },
+  signalRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   moodTrailRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 8 },
   moodTrailEmoji: { fontSize: 16 },
-  moodTrailLabel: { fontSize: 11, color: '#999', marginLeft: 6 },
-  container: { flex: 1, padding: 16, backgroundColor: '#fafafa' },
-  cardTitle: { fontSize: 18, fontWeight: '700', marginTop: 16, marginBottom: 8 },
-  card: { backgroundColor: '#fff', borderRadius: 12, padding: 16, minHeight: 60 },
-  center: { alignItems: 'center' },
-  placeholder: { color: '#999', fontSize: 13, lineHeight: 20, marginTop: 4 },
-  profileText: { fontSize: 15, lineHeight: 24, color: '#333' },
-  strength: { color: '#1c7d2c', fontWeight: '700' },
-  weakness: { color: '#c0392b', fontWeight: '700' },
-  dimScores: { fontSize: 11, color: '#888', marginTop: 4 },
+  moodTrailLabel: { fontSize: 11, color: CLR.text3, marginLeft: 6 },
+  detailHintRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 10 },
+  detailHint: { fontSize: 12, color: CLR.primary, fontWeight: '600' },
   barRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-end', height: 120 },
   barCol: { flex: 1, alignItems: 'center', height: 120 },
-  barTrack: { flex: 1, width: '60%', backgroundColor: '#f0f1f3', borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' },
-  barFill: { backgroundColor: '#111', borderRadius: 6 },
-  barMin: { fontSize: 10, color: '#666', marginTop: 2, minHeight: 14 },
-  barLabel: { fontSize: 10, color: '#aaa' },
-  benchBtn: { backgroundColor: '#111', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 18, marginTop: 10 },
-  benchBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  benchResult: { fontSize: 13, color: '#333', lineHeight: 21, marginTop: 10, alignSelf: 'stretch' },
-  detailHint: { fontSize: 12, color: '#1a73e8', marginTop: 8 },
-  // 心流热力图
-  peakText: { fontSize: 13, fontWeight: '600', color: '#1c5d2c', marginBottom: 10 },
+  barTrack: { flex: 1, width: '60%', backgroundColor: '#EEEBF4', borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' },
+  barFill: { backgroundColor: CLR.primary, borderRadius: 6 },
+  barMin: { fontSize: 10, color: CLR.text2, marginTop: 2, minHeight: 14, fontVariant: ['tabular-nums'] },
+  barLabel: { fontSize: 10, color: CLR.text3 },
+  benchBtn: {
+    backgroundColor: CLR.primary,
+    borderRadius: RAD.md,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  benchBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  benchResult: { fontSize: 13, color: CLR.text, lineHeight: 21, marginTop: 12, alignSelf: 'stretch' },
+  peakRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 },
+  peakText: { fontSize: 13, fontWeight: '600', color: CLR.green },
   heatGrid: { alignSelf: 'stretch' },
   heatRow: { flexDirection: 'row', gap: 2, marginBottom: 2 },
-  heatDay: { width: 26, fontSize: 9, color: '#aaa', textAlignVertical: 'center' },
+  heatDay: { width: 26, fontSize: 9, color: CLR.text3, textAlignVertical: 'center' },
   heatCell: { width: 10, height: 10, borderRadius: 2 },
   heatAxis: { flexDirection: 'row', gap: 2, marginTop: 2, marginLeft: 26 },
-  heatAxisText: { width: 48, fontSize: 9, color: '#aaa' },
+  heatAxisText: { width: 48, fontSize: 9, color: CLR.text3 },
   legendRow: { flexDirection: 'row', gap: 4, alignItems: 'center', marginTop: 10, alignSelf: 'center' },
-  legendText: { fontSize: 10, color: '#aaa' },
-  // 全屏画像详情
-  modalWrap: { flex: 1, padding: 16, backgroundColor: '#fafafa', paddingTop: 48 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: 22, fontWeight: '700' },
-  modalClose: { fontSize: 14, color: '#1a73e8' },
-  adviceRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eee' },
-  adviceScore: { width: 40, fontSize: 22, fontWeight: '700', color: '#111', textAlign: 'center' },
-  adviceBody: { flex: 1 },
-  adviceLabel: { fontSize: 14, fontWeight: '600', color: '#333' },
-  adviceText: { fontSize: 12, color: '#777', marginTop: 2, lineHeight: 18 },
-  // 卡壳词云
+  legendText: { fontSize: 10, color: CLR.text3 },
+  syllabusAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: CLR.orangeSoft,
+    borderRadius: RAD.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 8,
+  },
+  syllabusAlertText: { fontSize: 13, color: '#8c6b1f', fontWeight: '600', flex: 1, lineHeight: 19 },
+  newsLink: { fontSize: 13, color: CLR.blue, textDecorationLine: 'underline', marginTop: 4, lineHeight: 19 },
   cloudRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  cloudChip: { backgroundColor: '#fff1f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
-  cloudChipText: { color: '#b91c1c', fontSize: 13 },
+  cloudChip: { backgroundColor: CLR.redSoft, borderRadius: RAD.sm, paddingHorizontal: 10, paddingVertical: 4 },
+  cloudChipText: { color: CLR.red, fontSize: 13 },
   cloudCount: { color: '#e08a8a', fontSize: 11 },
+  // 全屏画像详情
+  modalWrap: { flex: 1, backgroundColor: CLR.bg },
+  modalContent: { padding: 16, paddingTop: 56, paddingBottom: 48 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: CLR.text },
+  modalCloseBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: CLR.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adviceRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: CLR.border },
+  adviceScoreWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: RAD.sm,
+    backgroundColor: CLR.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adviceScore: { fontSize: 17, fontWeight: '800', color: CLR.primaryDeep, fontVariant: ['tabular-nums'] },
+  adviceBody: { flex: 1 },
+  adviceLabel: { fontSize: 14, fontWeight: '700', color: CLR.text },
+  adviceText: { fontSize: 12, color: CLR.text2, marginTop: 2, lineHeight: 18 },
 });

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
@@ -1994,10 +1994,29 @@ window.EMOTION_SEED = [
 </script>
 <script>
 (function(){
-  var engine = GrokBall.create('#ball', { emotion:'02', color:'#1a1a1a', eyeColor:'#f5f5f5' });
-  document.getElementById('ball').addEventListener('pointerdown', function(){
+  // 与原版 demo 角标球同款配置；75px 小尺寸按 SKILL.md 建议放大眼睛保证可读
+  var engine = GrokBall.create('#ball', { emotion:'02', color:'#1a1a1a', eyeColor:'#f5f5f5', eyeScale: 1.4 });
+  var el = document.getElementById('ball');
+  var clamp = function(v){ return v < -1 ? -1 : (v > 1 ? 1 : v); };
+
+  // 点击行为与原版一致：自旋 + 甩 3D 彩带（同时通知 RN 唤起对话）
+  el.addEventListener('pointerdown', function(){
+    engine.spin(1);
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({type:'tap'}));
   });
+  // 触摸注视：移动端无鼠标，用手指在球面滑动的位置驱动眼睛跟随（原版 pointermove 注视的等价实现）
+  el.addEventListener('pointermove', function(e){
+    var r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    engine.setGaze(
+      clamp((e.clientX - (r.left + r.width / 2)) / (r.width / 2)),
+      clamp((e.clientY - (r.top + r.height / 2)) / (r.height / 2))
+    );
+  });
+  el.addEventListener('pointerup', function(){ engine.clearGaze(); });
+  el.addEventListener('pointercancel', function(){ engine.clearGaze(); });
+  el.addEventListener('pointerleave', function(){ engine.clearGaze(); });
+
   window.addEventListener('message', function(e){
     var msg; try { msg = JSON.parse(e.data); } catch(err){ return; }
     if (!msg || !msg.type) return;

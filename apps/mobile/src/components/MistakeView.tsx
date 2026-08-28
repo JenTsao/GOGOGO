@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -20,6 +21,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useAiStore } from '@/store/aiStore';
 import { transcribeAudio } from '@/lib/stt';
 import { recognizeMistake } from '@/lib/llm';
+import { C, R, cardShadow } from '@/theme';
 
 // 错题本：拍照/相册 → 压缩 → 学科/标签/语音反思 → 本地入库 + 云端同步
 const SUBJECTS = ['数学', '语文', '英语', '物理', '化学', '生物', '历史', '地理', '政治'] as const;
@@ -280,52 +282,75 @@ export function MistakeView() {
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
       {/* 新增入口 */}
-      <TouchableOpacity style={styles.addBtn} onPress={() => setPickerOpen(true)}>
-        <Text style={styles.addBtnText}>📷 收录错题</Text>
+      <TouchableOpacity style={styles.addBtn} onPress={() => setPickerOpen(true)} activeOpacity={0.85}>
+        <Ionicons name="camera" size={20} color="#fff" />
+        <Text style={styles.addBtnText}>收录错题</Text>
         <Text style={styles.addHint}>拍照或相册 → 学科标签 → 语音反思</Text>
       </TouchableOpacity>
 
       {/* 云同步 */}
-      <TouchableOpacity style={[styles.syncBtn, unsynced === 0 && styles.syncBtnDone]} onPress={sync} disabled={syncing}>
+      <TouchableOpacity
+        style={[styles.syncBtn, unsynced === 0 && styles.syncBtnDone]}
+        onPress={sync}
+        disabled={syncing}
+        activeOpacity={0.85}
+      >
         {syncing ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <Text style={styles.syncBtnText}>
-            ☁️ {unsynced > 0 ? `同步到云端（${unsynced} 条待传）` : '已全部同步'}
-          </Text>
+          <>
+            <Ionicons name="cloud-upload" size={15} color="#fff" />
+            <Text style={styles.syncBtnText}>
+              {unsynced > 0 ? `同步到云端（${unsynced} 条待传）` : '已全部同步'}
+            </Text>
+          </>
         )}
       </TouchableOpacity>
 
       {/* 列表 */}
       {mistakes.length === 0 ? (
-        <Text style={styles.empty}>还没有错题。考完一张卷子，第一时间把错题拍进来。</Text>
+        <View style={styles.emptyCard}>
+          <Ionicons name="book-outline" size={28} color={C.text3} />
+          <Text style={styles.empty}>还没有错题。考完一张卷子，第一时间把错题拍进来。</Text>
+        </View>
       ) : (
         mistakes.map((m) => (
-          <TouchableOpacity key={m.id} style={styles.card} onPress={() => setDetail(m)}>
+          <TouchableOpacity key={m.id} style={styles.card} onPress={() => setDetail(m)} activeOpacity={0.85}>
             {m.imageUri ? (
               <Image source={{ uri: m.imageUri }} style={styles.thumb} resizeMode="cover" />
             ) : (
-              <View style={[styles.thumb, styles.thumbPlaceholder]} />
+              <View style={[styles.thumb, styles.thumbPlaceholder]}>
+                <Ionicons name="image-outline" size={22} color={C.text3} />
+              </View>
             )}
             <View style={styles.cardInfo}>
-              <Text style={styles.cardSubject}>
-                {m.subject}
-                <Text style={styles.syncTag}>{m.synced ? '  ✅' : '  ⏳'}</Text>
-              </Text>
+              <View style={styles.cardSubjectRow}>
+                <Text style={styles.cardSubject}>{m.subject}</Text>
+                <Ionicons
+                  name={m.synced ? 'checkmark-circle' : 'cloud-offline'}
+                  size={13}
+                  color={m.synced ? C.green : C.text3}
+                />
+              </View>
               <Text style={styles.cardTags} numberOfLines={2}>
                 {m.tags.map((t) => `#${t}`).join(' ') || '无标签'}
               </Text>
-              <Text style={styles.cardDate}>{m.createdAt.slice(0, 10)}{m.voiceUri || m.voiceUrl ? ' · 🎤' : ''}</Text>
+              <View style={styles.cardDateRow}>
+                <Text style={styles.cardDate}>{m.createdAt.slice(0, 10)}</Text>
+                {(m.voiceUri || m.voiceUrl) && <Ionicons name="mic" size={11} color={C.text3} />}
+              </View>
             </View>
+            <Ionicons name="chevron-forward" size={16} color={C.text3} />
           </TouchableOpacity>
         ))
       )}
 
       {/* 详情弹窗 */}
       <Modal visible={!!detail} animationType="slide" onRequestClose={() => setDetail(null)}>
-        <ScrollView style={styles.detail}>
-          <TouchableOpacity style={styles.closeBtn} onPress={() => setDetail(null)}>
-            <Text style={styles.closeBtnText}>← 返回</Text>
+        <ScrollView style={styles.detail} contentContainerStyle={styles.detailContent}>
+          <TouchableOpacity style={styles.closeBtn} onPress={() => setDetail(null)} activeOpacity={0.85}>
+            <Ionicons name="chevron-back" size={20} color={C.primary} />
+            <Text style={styles.closeBtnText}>返回</Text>
           </TouchableOpacity>
           {detail && (
             <>
@@ -350,8 +375,9 @@ export function MistakeView() {
                 ))}
               </View>
               {(detail.voiceUri || detail.voiceUrl) && (
-                <TouchableOpacity style={styles.playBtn} onPress={() => playVoice(detail)}>
-                  <Text style={styles.playBtnText}>▶️ 播放语音反思</Text>
+                <TouchableOpacity style={styles.playBtn} onPress={() => playVoice(detail)} activeOpacity={0.85}>
+                  <Ionicons name="play" size={15} color={C.primary} />
+                  <Text style={styles.playBtnText}>播放语音反思</Text>
                 </TouchableOpacity>
               )}
 
@@ -359,11 +385,21 @@ export function MistakeView() {
               {(detail.voiceUri || detail.voiceUrl || detail.transcript) && (
                 <>
                   {(detail.voiceUri || detail.voiceUrl) && (
-                    <TouchableOpacity style={styles.playBtn} onPress={() => transcribe(detail)} disabled={transcribing}>
+                    <TouchableOpacity
+                      style={styles.playBtn}
+                      onPress={() => transcribe(detail)}
+                      disabled={transcribing}
+                      activeOpacity={0.85}
+                    >
                       {transcribing ? (
-                        <ActivityIndicator size="small" color="#111" />
+                        <ActivityIndicator size="small" color={C.primary} />
                       ) : (
-                        <Text style={styles.playBtnText}>{detail.transcript ? '🔁 重新转写语音' : '📝 语音转文字'}</Text>
+                        <>
+                          <Ionicons name="document-text" size={15} color={C.primary} />
+                          <Text style={styles.playBtnText}>
+                            {detail.transcript ? '重新转写语音' : '语音转文字'}
+                          </Text>
+                        </>
                       )}
                     </TouchableOpacity>
                   )}
@@ -375,8 +411,9 @@ export function MistakeView() {
                   )}
                 </>
               )}
-              <TouchableOpacity style={styles.aiBtn} onPress={() => askAi(detail)}>
-                <Text style={styles.aiBtnText}>🤖 AI 讲解这道错题</Text>
+              <TouchableOpacity style={styles.aiBtn} onPress={() => askAi(detail)} activeOpacity={0.85}>
+                <Ionicons name="sparkles" size={17} color="#fff" />
+                <Text style={styles.aiBtnText}>AI 讲解这道错题</Text>
                 <Text style={styles.aiHint}>
                   {detail.imageUri && visionApiKey
                     ? '直接识别错题图片（GLM-4.6V-Flash 视觉）'
@@ -391,17 +428,21 @@ export function MistakeView() {
                 <TouchableOpacity
                   style={[styles.resultBtn, detail.correct === 'right' && styles.resultRight]}
                   onPress={() => markCorrect(detail.id, 'right', webApiUrl, accessKey)}
+                  activeOpacity={0.85}
                 >
+                  <Ionicons name="checkmark-circle" size={16} color={detail.correct === 'right' ? C.green : C.text3} />
                   <Text style={[styles.resultText, detail.correct === 'right' && styles.resultTextActive]}>
-                    ✅ 重做正确
+                    重做正确
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.resultBtn, detail.correct === 'wrong' && styles.resultWrong]}
                   onPress={() => markCorrect(detail.id, 'wrong', webApiUrl, accessKey)}
+                  activeOpacity={0.85}
                 >
+                  <Ionicons name="close-circle" size={16} color={detail.correct === 'wrong' ? C.red : C.text3} />
                   <Text style={[styles.resultText, detail.correct === 'wrong' && styles.resultTextActive]}>
-                    ❌ 仍然做错
+                    仍然做错
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -409,7 +450,8 @@ export function MistakeView() {
               <TouchableOpacity style={styles.deleteBtn} onPress={() => {
                 removeMistake(detail.id);
                 setDetail(null);
-              }}>
+              }} activeOpacity={0.85}>
+                <Ionicons name="trash-outline" size={15} color={C.red} />
                 <Text style={styles.deleteBtnText}>删除该错题</Text>
               </TouchableOpacity>
             </>
@@ -419,28 +461,39 @@ export function MistakeView() {
 
       {/* 收录弹窗 */}
       <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
-        <ScrollView style={styles.detail}>
-          <TouchableOpacity style={styles.closeBtn} onPress={() => setPickerOpen(false)}>
-            <Text style={styles.closeBtnText}>← 取消</Text>
+        <ScrollView style={styles.detail} contentContainerStyle={styles.detailContent}>
+          <TouchableOpacity style={styles.closeBtn} onPress={() => setPickerOpen(false)} activeOpacity={0.85}>
+            <Ionicons name="chevron-back" size={20} color={C.primary} />
+            <Text style={styles.closeBtnText}>取消</Text>
           </TouchableOpacity>
           {imageUri ? (
             <>
               <Image source={{ uri: imageUri }} style={styles.detailImage} resizeMode="contain" />
-              <TouchableOpacity style={[styles.playBtn, recognizing && { opacity: 0.6 }]} onPress={recognize} disabled={recognizing}>
+              <TouchableOpacity
+                style={[styles.playBtn, recognizing && { opacity: 0.6 }]}
+                onPress={recognize}
+                disabled={recognizing}
+                activeOpacity={0.85}
+              >
                 {recognizing ? (
-                  <ActivityIndicator size="small" color="#111" />
+                  <ActivityIndicator size="small" color={C.primary} />
                 ) : (
-                  <Text style={styles.playBtnText}>🔍 AI 识别题面（自动填学科/标签/摘要）</Text>
+                  <>
+                    <Ionicons name="scan" size={15} color={C.primary} />
+                    <Text style={styles.playBtnText}>AI 识别题面（自动填学科/标签/摘要）</Text>
+                  </>
                 )}
               </TouchableOpacity>
             </>
           ) : (
             <View style={styles.pickRow}>
-              <TouchableOpacity style={styles.pickBtn} onPress={() => pick(true)}>
-                <Text style={styles.pickBtnText}>📷 拍照</Text>
+              <TouchableOpacity style={styles.pickBtn} onPress={() => pick(true)} activeOpacity={0.85}>
+                <Ionicons name="camera" size={24} color={C.primary} />
+                <Text style={styles.pickBtnText}>拍照</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.pickBtn} onPress={() => pick(false)}>
-                <Text style={styles.pickBtnText}>🖼 相册</Text>
+              <TouchableOpacity style={styles.pickBtn} onPress={() => pick(false)} activeOpacity={0.85}>
+                <Ionicons name="images" size={24} color={C.primary} />
+                <Text style={styles.pickBtnText}>相册</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -448,7 +501,12 @@ export function MistakeView() {
           <Text style={styles.fieldLabel}>学科</Text>
           <View style={styles.subjectRow}>
             {SUBJECTS.map((s) => (
-              <TouchableOpacity key={s} style={[styles.subjectChip, subject === s && styles.subjectChipActive]} onPress={() => setSubject(s)}>
+              <TouchableOpacity
+                key={s}
+                style={[styles.subjectChip, subject === s && styles.subjectChipActive]}
+                onPress={() => setSubject(s)}
+                activeOpacity={0.85}
+              >
                 <Text style={[styles.subjectText, subject === s && styles.subjectTextActive]}>{s}</Text>
               </TouchableOpacity>
             ))}
@@ -458,7 +516,7 @@ export function MistakeView() {
           <TextInput
             style={styles.input}
             placeholder="如：导数 设辅助函数 计算失误"
-            placeholderTextColor="#999"
+            placeholderTextColor={C.text3}
             value={tagsDraft}
             onChangeText={setTagsDraft}
             multiline
@@ -468,19 +526,33 @@ export function MistakeView() {
           <TextInput
             style={styles.input}
             placeholder="如：考查导数单调性，我在第二问设辅助函数处卡住"
-            placeholderTextColor="#999"
+            placeholderTextColor={C.text3}
             value={summaryDraft}
             onChangeText={setSummaryDraft}
             multiline
           />
 
           <Text style={styles.fieldLabel}>语音反思（可选，≤1 分钟）</Text>
-          <TouchableOpacity style={[styles.recordBtn, recording && styles.recordBtnActive]} onPress={toggleRecord}>
-            <Text style={styles.recordBtnText}>{recording ? '⏹ 停止录音' : voiceUri ? '🎤 已录制 · 点按重录' : '🎤 开始录音'}</Text>
+          <TouchableOpacity
+            style={[styles.recordBtn, recording && styles.recordBtnActive]}
+            onPress={toggleRecord}
+            activeOpacity={0.85}
+          >
+            <Ionicons name={recording ? 'stop' : 'mic'} size={16} color={recording ? C.red : C.primary} />
+            <Text style={[styles.recordBtnText, recording && { color: C.red, fontWeight: '600' }]}>
+              {recording ? '停止录音' : voiceUri ? '已录制 · 点按重录' : '开始录音'}
+            </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.saveBtn} onPress={save} disabled={saving}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>✅ 保存错题</Text>}
+          <TouchableOpacity style={styles.saveBtn} onPress={save} disabled={saving} activeOpacity={0.85}>
+            {saving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={17} color="#fff" />
+                <Text style={styles.saveBtnText}>保存错题</Text>
+              </>
+            )}
           </TouchableOpacity>
         </ScrollView>
       </Modal>
@@ -489,61 +561,172 @@ export function MistakeView() {
 }
 
 const styles = StyleSheet.create({
-  addBtn: { backgroundColor: '#111', borderRadius: 14, padding: 16, alignItems: 'center' },
-  addBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  addHint: { color: '#bbb', fontSize: 12, marginTop: 4 },
-  syncBtn: { backgroundColor: '#2563eb', borderRadius: 12, paddingVertical: 10, alignItems: 'center', marginTop: 10 },
-  syncBtnDone: { backgroundColor: '#94a3b8' },
+  addBtn: {
+    backgroundColor: C.primary,
+    borderRadius: R.md,
+    padding: 16,
+    alignItems: 'center',
+    gap: 4,
+    ...cardShadow,
+  },
+  addBtnText: { color: '#fff', fontSize: 16, fontWeight: '700', marginTop: 2 },
+  addHint: { color: 'rgba(255,255,255,0.75)', fontSize: 12 },
+  syncBtn: {
+    flexDirection: 'row',
+    backgroundColor: C.blue,
+    borderRadius: R.sm,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  syncBtnDone: { backgroundColor: C.text3 },
   syncBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  empty: { color: '#999', fontSize: 13, lineHeight: 22, marginTop: 20, textAlign: 'center' },
-  card: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, padding: 10, marginTop: 10, alignItems: 'center' },
-  thumb: { width: 72, height: 72, borderRadius: 8, backgroundColor: '#f0f1f3' },
+  emptyCard: {
+    alignItems: 'center',
+    gap: 10,
+    padding: 28,
+    marginTop: 14,
+    borderRadius: R.lg,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    borderStyle: 'dashed',
+    backgroundColor: C.card,
+  },
+  empty: { color: C.text3, fontSize: 13, lineHeight: 22, textAlign: 'center' },
+  card: {
+    flexDirection: 'row',
+    backgroundColor: C.card,
+    borderRadius: R.md,
+    padding: 10,
+    marginTop: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: C.border,
+    ...cardShadow,
+  },
+  thumb: { width: 72, height: 72, borderRadius: R.sm, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
   thumbPlaceholder: {},
-  cardInfo: { flex: 1, marginLeft: 12 },
-  cardSubject: { fontSize: 15, fontWeight: '700', color: '#111' },
-  syncTag: { fontSize: 11, fontWeight: '400' },
-  cardTags: { fontSize: 12, color: '#2563eb', marginTop: 4 },
-  cardDate: { fontSize: 11, color: '#aaa', marginTop: 4 },
-  detail: { flex: 1, padding: 16, backgroundColor: '#fafafa' },
-  closeBtn: { paddingVertical: 10, marginBottom: 8 },
-  closeBtnText: { fontSize: 15, color: '#2563eb' },
-  detailImage: { width: '100%', height: 320, borderRadius: 12, backgroundColor: '#fff', marginBottom: 12 },
-  detailMeta: { fontSize: 14, color: '#555', marginTop: 4 },
+  cardInfo: { flex: 1, marginLeft: 12, gap: 3 },
+  cardSubjectRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  cardSubject: { fontSize: 15, fontWeight: '700', color: C.text },
+  cardTags: { fontSize: 12, color: C.primary, lineHeight: 17 },
+  cardDateRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  cardDate: { fontSize: 11, color: C.text3 },
+  detail: { flex: 1, padding: 16, backgroundColor: C.bg },
+  detailContent: { paddingBottom: 48 },
+  closeBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 10, marginBottom: 8, minHeight: 44 },
+  closeBtnText: { fontSize: 15, color: C.primary, fontWeight: '600' },
+  detailImage: { width: '100%', height: 320, borderRadius: R.md, backgroundColor: C.card, marginBottom: 12 },
+  detailMeta: { fontSize: 14, color: C.text2, marginTop: 4 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  tag: { backgroundColor: '#eef2ff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  tagText: { color: '#3730a3', fontSize: 12 },
-  playBtn: { backgroundColor: '#fff', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 14, borderWidth: 1, borderColor: '#e5e7eb' },
-  playBtnText: { fontSize: 14, color: '#111' },
+  tag: { backgroundColor: C.primarySoft, borderRadius: R.sm, paddingHorizontal: 10, paddingVertical: 4 },
+  tagText: { color: C.primaryDeep, fontSize: 12 },
+  playBtn: {
+    flexDirection: 'row',
+    backgroundColor: C.card,
+    borderRadius: R.md,
+    padding: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  playBtnText: { fontSize: 14, color: C.text, fontWeight: '500' },
   // 语音转写结果
-  transcriptBox: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginTop: 10, borderLeftWidth: 3, borderLeftColor: '#2563eb' },
-  transcriptLabel: { fontSize: 12, color: '#888', marginBottom: 4 },
-  transcriptText: { fontSize: 14, color: '#333', lineHeight: 22 },
-  aiBtn: { backgroundColor: '#111', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
+  transcriptBox: {
+    backgroundColor: C.card,
+    borderRadius: R.md,
+    padding: 12,
+    marginTop: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: C.primary,
+  },
+  transcriptLabel: { fontSize: 12, color: C.text3, marginBottom: 4 },
+  transcriptText: { fontSize: 14, color: C.text, lineHeight: 22 },
+  aiBtn: { backgroundColor: C.primary, borderRadius: R.md, paddingVertical: 14, alignItems: 'center', marginTop: 14, gap: 5, ...cardShadow },
   aiBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  aiHint: { color: '#999', fontSize: 11, marginTop: 4 },
-  deleteBtn: { alignItems: 'center', padding: 14, marginTop: 24 },
-  deleteBtnText: { color: '#c0392b', fontSize: 14 },
+  aiHint: { color: 'rgba(255,255,255,0.75)', fontSize: 11 },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 14, marginTop: 24 },
+  deleteBtnText: { color: C.red, fontSize: 14, fontWeight: '500' },
   // 重做结果
   resultRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  resultBtn: { flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  resultRight: { backgroundColor: '#f0f9f2', borderColor: '#1c7d2c' },
-  resultWrong: { backgroundColor: '#fef2f2', borderColor: '#c0392b' },
-  resultText: { fontSize: 14, color: '#555' },
-  resultTextActive: { fontWeight: '700', color: '#111' },
-  syncHint: { fontSize: 12, color: '#aaa', marginTop: 8 },
+  resultBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: R.md,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: C.card,
+  },
+  resultRight: { backgroundColor: C.greenSoft, borderColor: C.green },
+  resultWrong: { backgroundColor: C.redSoft, borderColor: C.red },
+  resultText: { fontSize: 14, color: C.text2 },
+  resultTextActive: { fontWeight: '700', color: C.text },
+  syncHint: { fontSize: 12, color: C.text3, marginTop: 8 },
   pickRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  pickBtn: { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingVertical: 22, alignItems: 'center' },
-  pickBtnText: { fontSize: 15, color: '#111' },
-  fieldLabel: { fontSize: 14, fontWeight: '700', color: '#333', marginTop: 18, marginBottom: 8 },
+  pickBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: C.card,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    borderStyle: 'dashed',
+    borderRadius: R.md,
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  pickBtnText: { fontSize: 15, color: C.text, fontWeight: '500' },
+  fieldLabel: { fontSize: 14, fontWeight: '700', color: C.text, marginTop: 18, marginBottom: 8 },
   subjectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  subjectChip: { borderWidth: 1, borderColor: '#ddd', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6 },
-  subjectChipActive: { backgroundColor: '#111', borderColor: '#111' },
-  subjectText: { fontSize: 13, color: '#555' },
-  subjectTextActive: { color: '#fff' },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 12, fontSize: 14, minHeight: 60, textAlignVertical: 'top', color: '#111' },
-  recordBtn: { borderWidth: 1, borderColor: '#ddd', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  recordBtnActive: { backgroundColor: '#fee2e2', borderColor: '#fca5a5' },
-  recordBtnText: { fontSize: 14, color: '#111' },
-  saveBtn: { backgroundColor: '#111', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 24, marginBottom: 40 },
+  subjectChip: { borderWidth: 1, borderColor: C.border, borderRadius: R.pill, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: C.card },
+  subjectChipActive: { backgroundColor: C.primary, borderColor: C.primary },
+  subjectText: { fontSize: 13, color: C.text2 },
+  subjectTextActive: { color: '#fff', fontWeight: '600' },
+  input: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: R.sm,
+    padding: 12,
+    fontSize: 14,
+    minHeight: 60,
+    textAlignVertical: 'top',
+    color: C.text,
+    backgroundColor: C.card,
+  },
+  recordBtn: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: R.md,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    backgroundColor: C.card,
+  },
+  recordBtnActive: { backgroundColor: C.redSoft, borderColor: C.red },
+  recordBtnText: { fontSize: 14, color: C.text },
+  saveBtn: {
+    flexDirection: 'row',
+    backgroundColor: C.primary,
+    borderRadius: R.md,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    marginTop: 24,
+    marginBottom: 40,
+    ...cardShadow,
+  },
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import * as Location from 'expo-location';
 import * as IntentLauncher from 'expo-intent-launcher';
@@ -12,6 +13,7 @@ import { useMistakeStore } from '@/store/mistakeStore';
 import { useAuthStore } from '@/store/authStore';
 import { fetchDaily, DailyLearning } from '@/lib/cloud';
 import { readDailyCache } from '@/lib/background';
+import { C, R, cardShadow } from '@/theme';
 
 // Tab 1：驾驶舱（时间线与当下）——布局严格按蓝皮书顺序：
 // 日期天气 → 信仰级倒计时 → 今日提醒横幅 → 每日知识点 → 每日一题 → 今日三件事 → 专注启动器
@@ -226,22 +228,31 @@ export default function CockpitScreen() {
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        {/* 顶部状态栏：日期 + 天气 */}
-        <Text style={styles.date}>
-          {today.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}
-        </Text>
-        <Text style={styles.weather}>
-          {weather
-            ? `${weather.temp}°C ${weather.desc} · ${weatherTip(weather.temp)}`
-            : weatherKey
-              ? '天气加载中…'
-              : '在「我的」配置 OpenWeather Key 显示天气'}
-        </Text>
+        {/* 顶部状态栏：问候 + 日期天气 */}
+        <View style={styles.topBar}>
+          <View>
+            <Text style={styles.greeting}>今天也要稳住节奏</Text>
+            <Text style={styles.date}>
+              {today.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}
+              {weather ? ` · ${weather.temp}° ${weather.desc}` : ''}
+            </Text>
+          </View>
+          <View style={styles.weatherChip}>
+            <Ionicons
+              name={!weather ? 'partly-sunny-outline' : weather.temp >= 30 ? 'sunny' : weather.temp >= 12 ? 'cloudy-outline' : 'snow'}
+              size={16}
+              color={C.primary}
+            />
+            <Text style={styles.weatherChipText} numberOfLines={1}>
+              {weather ? weatherTip(weather.temp) : weatherKey ? '获取中' : '设天气'}
+            </Text>
+          </View>
+        </View>
 
         {/* 信仰级倒计时：点击切换 天 / 天时分 */}
         <TouchableOpacity
           style={[styles.card, styles.heroCard]}
-          activeOpacity={0.85}
+          activeOpacity={0.9}
           onPress={() => setCountdownMode((m) => (m === 'days' ? 'precise' : 'days'))}
         >
           <Text style={styles.heroLabel}>距离 2026 高考</Text>
@@ -267,40 +278,65 @@ export default function CockpitScreen() {
         {todayReminders.length > 0 && (
           <View style={styles.reminderBanner}>
             {todayReminders.map((r) => (
-              <Text key={r.id} style={styles.reminderText}>📌 {r.content}</Text>
+              <View key={r.id} style={styles.reminderRow}>
+                <Ionicons name="notifications" size={15} color={C.orange} />
+                <Text style={styles.reminderText}>{r.content}</Text>
+              </View>
             ))}
           </View>
         )}
 
-        {/* 📘 每日知识点（翻转卡片）——数据源：凌晨备课流水线 daily_learning */}
+        {/* 每日知识点（翻转卡片）——数据源：凌晨备课流水线 daily_learning */}
         {dailyState === 'ok' && daily?.knowledge_body ? (
           <TouchableOpacity
-            style={[styles.card, styles.knowledgeCard]}
+            style={styles.card}
             activeOpacity={0.85}
             onPress={() => setKnowledgeFlipped((v) => !v)}
           >
-            <Text style={styles.knowledgeTitle}>📘 每日知识点</Text>
+            <View style={styles.cardHead}>
+              <View style={[styles.cardBadge, styles.badgeBlue]}>
+                <Ionicons name="book" size={14} color={C.blue} />
+              </View>
+              <Text style={styles.cardTitle}>每日知识点</Text>
+              <Ionicons name={knowledgeFlipped ? 'chevron-up' : 'chevron-down'} size={16} color={C.text3} />
+            </View>
             <Text style={styles.knowledgeBody} numberOfLines={knowledgeFlipped ? undefined : 3}>
               {daily.knowledge_body}
             </Text>
-            <Text style={styles.knowledgeHint}>{knowledgeFlipped ? '点击翻回正面' : '点击翻转查看全文'}</Text>
+            <Text style={styles.knowledgeHint}>{knowledgeFlipped ? '点击收起' : '点击展开全文'}</Text>
           </TouchableOpacity>
         ) : (
           <View style={[styles.card, styles.placeholderCard]}>
-            <Text style={styles.placeholderTitle}>📘 每日知识点</Text>
+            <View style={styles.cardHead}>
+              <View style={[styles.cardBadge, styles.badgeBlue]}>
+                <Ionicons name="book-outline" size={14} color={C.text3} />
+              </View>
+              <Text style={styles.placeholderTitle}>每日知识点</Text>
+            </View>
             <Text style={styles.placeholderText}>{dailyStateText}</Text>
           </View>
         )}
 
-        {/* ✏️ 每日一题——显示答案 + AI 讲题 */}
+        {/* 每日一题——显示答案 + AI 讲题 */}
         {dailyState === 'ok' && daily?.question_text ? (
           <View style={styles.card}>
-            <Text style={styles.knowledgeTitle}>✏️ 每日一题</Text>
+            <View style={styles.cardHead}>
+              <View style={[styles.cardBadge, styles.badgePurple]}>
+                <Ionicons name="pencil" size={14} color={C.primary} />
+              </View>
+              <Text style={styles.cardTitle}>每日一题</Text>
+            </View>
             <Text style={styles.questionText}>{daily.question_text}</Text>
-            {showAnswer && !!daily.answer && <Text style={styles.answerText}>💡 {daily.answer}</Text>}
+            {showAnswer && !!daily.answer && (
+              <View style={styles.answerBox}>
+                <Ionicons name="bulb" size={14} color={C.green} />
+                <Text style={styles.answerText}>{daily.answer}</Text>
+              </View>
+            )}
             <View style={styles.questionBtnRow}>
               <TouchableOpacity style={styles.qBtn} onPress={() => setShowAnswer((v) => !v)}>
-                <Text style={styles.qBtnText}>{showAnswer ? '隐藏答案' : '📝 显示答案'}</Text>
+                <Ionicons name={showAnswer ? 'eye-off-outline' : 'eye-outline'} size={15} color={C.text2} />
+                <Text style={styles.qBtnText}>{showAnswer ? '隐藏答案' : '显示答案'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.qBtn, styles.qBtnDark]}
@@ -313,38 +349,54 @@ export default function CockpitScreen() {
                   );
                 }}
               >
-                <Text style={[styles.qBtnText, styles.qBtnTextDark]}>🤖 AI讲题</Text>
+                <Ionicons name="sparkles" size={15} color="#fff" />
+                <Text style={[styles.qBtnText, styles.qBtnTextDark]}>AI 讲题</Text>
               </TouchableOpacity>
             </View>
           </View>
         ) : (
           <View style={[styles.card, styles.placeholderCard]}>
-            <Text style={styles.placeholderTitle}>✏️ 每日一题</Text>
+            <View style={styles.cardHead}>
+              <View style={[styles.cardBadge, styles.badgePurple]}>
+                <Ionicons name="pencil-outline" size={14} color={C.text3} />
+              </View>
+              <Text style={styles.placeholderTitle}>每日一题</Text>
+            </View>
             <Text style={styles.placeholderText}>{dailyStateText}</Text>
           </View>
         )}
 
         {/* 今日三件事 */}
-        <View style={[styles.card, styles.sectionCard]}>
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>🎯 今日三件事</Text>
+        <View style={styles.card}>
+          <View style={styles.cardHead}>
+            <View style={[styles.cardBadge, styles.badgeGreen]}>
+              <Ionicons name="flag" size={14} color={C.green} />
+            </View>
+            <Text style={styles.cardTitle}>今日三件事</Text>
             <Text style={styles.sectionMeta}>
-              {top3.filter((t) => t.status === 'done').length}/{top3.length} 完成
+              {top3.filter((t) => t.status === 'done').length}/{top3.length}
             </Text>
           </View>
           {top3.length === 0 && <Text style={styles.empty}>添加最多 3 件今日要事</Text>}
           {top3.map((t) => (
             <View key={t.id} style={styles.taskRow}>
+              <TouchableOpacity style={styles.taskCheck} onPress={() => completeTask(t.id)}>
+                {t.status === 'done' ? (
+                  <Ionicons name="checkmark-circle" size={22} color={C.green} />
+                ) : (
+                  <Ionicons name="ellipse-outline" size={22} color={C.border} />
+                )}
+              </TouchableOpacity>
               <TouchableOpacity style={styles.taskMain} onPress={() => completeTask(t.id)}>
-                <Text style={[styles.taskItem, t.status === 'done' && styles.taskDone]}>
-                  {t.status === 'done' ? '☑' : '○'} {t.content}
+                <Text style={[styles.taskItem, t.status === 'done' && styles.taskDone]} numberOfLines={2}>
+                  {t.content}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.taskBtn} onPress={() => swapWithBacklog(t.id)}>
-                <Text style={styles.taskBtnText}>⇄</Text>
+              <TouchableOpacity style={styles.taskBtn} onPress={() => swapWithBacklog(t.id)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                <Ionicons name="swap-horizontal" size={16} color={C.text3} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.taskBtn} onPress={() => removeTask(t.id)}>
-                <Text style={styles.taskBtnText}>✕</Text>
+              <TouchableOpacity style={styles.taskBtn} onPress={() => removeTask(t.id)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                <Ionicons name="close" size={16} color={C.text3} />
               </TouchableOpacity>
             </View>
           ))}
@@ -354,7 +406,7 @@ export default function CockpitScreen() {
             <TextInput
               style={styles.input}
               placeholder="添加任务…"
-              placeholderTextColor="#999"
+              placeholderTextColor={C.text3}
               value={draft}
               onChangeText={setDraft}
               onSubmitEditing={() => submitTask('top3')}
@@ -369,8 +421,8 @@ export default function CockpitScreen() {
 
           {/* 后备箱 */}
           {backlog.length > 0 && (
-            <>
-              <Text style={styles.backlogTitle}>🧳 后备箱</Text>
+            <View style={styles.backlogBox}>
+              <Text style={styles.backlogTitle}>后备箱</Text>
               {backlog.map((t) => (
                 <View key={t.id} style={styles.taskRow}>
                   <TouchableOpacity
@@ -380,24 +432,33 @@ export default function CockpitScreen() {
                       addTask(t.content, 'top3');
                     }}
                   >
-                    <Text style={styles.taskItemBacklog}>↩ {t.content}</Text>
+                    <Text style={styles.taskItemBacklog} numberOfLines={1}>↩ {t.content}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskBtn} onPress={() => removeTask(t.id)}>
-                    <Text style={styles.taskBtnText}>✕</Text>
+                  <TouchableOpacity style={styles.taskBtn} onPress={() => removeTask(t.id)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                    <Ionicons name="close" size={16} color={C.text3} />
                   </TouchableOpacity>
                 </View>
               ))}
-            </>
+            </View>
           )}
         </View>
 
-        {/* 🎯 专注模型启动器 */}
-        <View style={[styles.card, styles.sectionCard]}>
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>🧠 专注模式</Text>
-            {todayFocusMin > 0 && <Text style={styles.sectionMeta}>今日 {todayFocusMin} 分钟</Text>}
+        {/* 专注模式启动器 */}
+        <View style={styles.card}>
+          <View style={styles.cardHead}>
+            <View style={[styles.cardBadge, styles.badgePurple]}>
+              <Ionicons name="headset" size={14} color={C.primary} />
+            </View>
+            <Text style={styles.cardTitle}>专注模式</Text>
+            {todayFocusMin > 0 && (
+              <View style={styles.focusMeta}>
+                <Ionicons name="time-outline" size={13} color={C.primary} />
+                <Text style={styles.focusMetaText}>今日 {todayFocusMin} 分钟</Text>
+              </View>
+            )}
           </View>
-          <TouchableOpacity style={styles.focusBtn} onPress={enterFlow}>
+          <TouchableOpacity style={styles.focusBtn} onPress={enterFlow} activeOpacity={0.9}>
+            <Ionicons name="play" size={18} color="#fff" />
             <Text style={styles.focusBtnText}>进入心流</Text>
           </TouchableOpacity>
           {sessions.length > 0 && (
@@ -411,14 +472,18 @@ export default function CockpitScreen() {
       {/* 全屏心流模式：黑底倒计时 + 本应用通知静默 + 系统免打扰深链 */}
       <Modal visible={inFlow} animationType="fade" onRequestClose={exitFlow}>
         <View style={styles.flow}>
-          <Text style={styles.flowHint}>心流进行中 · 本应用通知已静默</Text>
+          <View style={styles.flowBadge}>
+            <Ionicons name="moon" size={14} color="#8b7fc7" />
+            <Text style={styles.flowHint}>心流进行中 · 通知已静默</Text>
+          </View>
           <Text style={styles.flowTimer}>{fmt(seconds)}</Text>
           {Platform.OS === 'android' && (
             <TouchableOpacity style={styles.zenBtn} onPress={openZenMode}>
-              <Text style={styles.zenBtnText}>🔕 开启系统免打扰（拦截其他应用）</Text>
+              <Ionicons name="notifications-off-outline" size={16} color="#aaa" />
+              <Text style={styles.zenBtnText}>开启系统免打扰（拦截其他应用）</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.flowStop} onPress={exitFlow}>
+          <TouchableOpacity style={styles.flowStop} onPress={exitFlow} activeOpacity={0.8}>
             <Text style={styles.flowStopText}>结束心流</Text>
           </TouchableOpacity>
         </View>
@@ -428,92 +493,183 @@ export default function CockpitScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f5f7' },
+  container: { flex: 1, backgroundColor: C.bg },
   content: { padding: 16, paddingBottom: 96 }, // 底部留出 Tab 栏与 AI 悬浮球空间
-  date: { color: '#666', fontSize: 14, fontWeight: '500' },
-  weather: { color: '#999', fontSize: 13, marginTop: 2 },
 
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 12,
-    // iOS 阴影 + Android elevation 双兜底
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+  // 顶栏
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 4 },
+  greeting: { color: C.text, fontSize: 18, fontWeight: '700' },
+  date: { color: C.text3, fontSize: 13, marginTop: 3 },
+  weatherChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: C.primarySoft,
+    borderRadius: R.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 2,
   },
+  weatherChipText: { color: C.primaryDeep, fontSize: 12, fontWeight: '600' },
+
+  // 通用卡片
+  card: {
+    backgroundColor: C.card,
+    borderRadius: R.lg,
+    padding: 16,
+    marginTop: 14,
+    ...cardShadow,
+  },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgePurple: { backgroundColor: C.primarySoft },
+  badgeBlue: { backgroundColor: C.blueSoft },
+  badgeGreen: { backgroundColor: C.greenSoft },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: C.text, flex: 1 },
+  sectionMeta: { fontSize: 13, color: C.text3, fontWeight: '600', fontVariant: ['tabular-nums'] },
 
   // 信仰级倒计时
-  heroCard: { alignItems: 'center', paddingVertical: 24, backgroundColor: '#111' },
-  heroLabel: { color: '#888', fontSize: 14, letterSpacing: 2 },
-  heroDays: { color: '#fff', fontSize: 64, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 4 },
-  heroUnit: { fontSize: 22, fontWeight: '600', color: '#ccc' },
+  heroCard: { alignItems: 'center', paddingVertical: 26, backgroundColor: C.primary },
+  heroLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 13, letterSpacing: 3, fontWeight: '600' },
+  heroDays: { color: '#fff', fontSize: 64, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 6 },
+  heroUnit: { fontSize: 22, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
   heroPrecise: { color: '#fff', fontSize: 36, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 12 },
-  heroUnitSm: { fontSize: 16, fontWeight: '500', color: '#aaa' },
-  heroHint: { color: '#555', fontSize: 11, marginTop: 8 },
+  heroUnitSm: { fontSize: 16, fontWeight: '500', color: 'rgba(255,255,255,0.65)' },
+  heroHint: { color: 'rgba(255,255,255,0.55)', fontSize: 11, marginTop: 10 },
 
   // 今日提醒横幅
   reminderBanner: {
-    backgroundColor: '#fff7e6',
-    borderLeftWidth: 4,
-    borderLeftColor: '#faad14',
-    borderRadius: 10,
+    backgroundColor: C.orangeSoft,
+    borderRadius: R.md,
     paddingVertical: 10,
     paddingHorizontal: 14,
     marginTop: 12,
+    gap: 4,
   },
-  reminderText: { color: '#8c6b1f', fontSize: 14, lineHeight: 22 },
+  reminderRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  reminderText: { color: '#8c6b1f', fontSize: 14, lineHeight: 22, flex: 1 },
 
-  // 每日知识点 / 每日一题占位（云端不可用时的降级卡片）
-  placeholderCard: { borderStyle: 'dashed', borderWidth: 1, borderColor: '#d9dce1' },
-  placeholderTitle: { fontSize: 16, fontWeight: '700', color: '#333' },
-  placeholderText: { fontSize: 13, color: '#999', marginTop: 6, lineHeight: 20 },
+  // 占位降级卡
+  placeholderCard: { borderStyle: 'dashed', borderWidth: 1.5, borderColor: C.border, backgroundColor: 'transparent', elevation: 0, shadowOpacity: 0 },
+  placeholderTitle: { fontSize: 15, fontWeight: '700', color: C.text2 },
+  placeholderText: { fontSize: 13, color: C.text3, marginTop: 8, lineHeight: 20 },
 
-  // 每日知识点翻转卡 / 每日一题
-  knowledgeCard: { backgroundColor: '#eef4ff' },
-  knowledgeTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a1a' },
-  knowledgeBody: { fontSize: 15, color: '#333', lineHeight: 24, marginTop: 8 },
-  knowledgeHint: { fontSize: 12, color: '#8aa2c8', marginTop: 8 },
-  questionText: { fontSize: 15, color: '#333', lineHeight: 24, marginTop: 8 },
-  answerText: { fontSize: 14, color: '#1c5d2c', lineHeight: 22, marginTop: 10, backgroundColor: '#f0f9f2', borderRadius: 10, padding: 10 },
-  questionBtnRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  qBtn: { flex: 1, borderWidth: 1, borderColor: '#d9dce1', borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
-  qBtnDark: { backgroundColor: '#111', borderColor: '#111' },
-  qBtnText: { fontSize: 14, fontWeight: '600', color: '#444' },
+  // 每日知识点
+  knowledgeBody: { fontSize: 15, color: C.text, lineHeight: 24, marginTop: 10 },
+  knowledgeHint: { fontSize: 12, color: C.text3, marginTop: 8 },
+
+  // 每日一题
+  questionText: { fontSize: 15, color: C.text, lineHeight: 24, marginTop: 10 },
+  answerBox: {
+    flexDirection: 'row',
+    gap: 6,
+    backgroundColor: C.greenSoft,
+    borderRadius: R.sm,
+    padding: 10,
+    marginTop: 10,
+  },
+  answerText: { fontSize: 14, color: '#0b6b4a', lineHeight: 21, flex: 1 },
+  questionBtnRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  qBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: R.sm,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: C.card,
+  },
+  qBtnDark: { backgroundColor: C.primary, borderColor: C.primary },
+  qBtnText: { fontSize: 14, fontWeight: '600', color: C.text2 },
   qBtnTextDark: { color: '#fff' },
 
-  sectionCard: { marginTop: 16 },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a1a' },
-  sectionMeta: { fontSize: 13, color: '#888' },
-  empty: { color: '#999', fontSize: 14, marginTop: 10 },
-  taskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
+  // 今日三件事
+  empty: { color: C.text3, fontSize: 14, marginTop: 10 },
+  taskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, marginTop: 6 },
+  taskCheck: { marginRight: 8 },
   taskMain: { flex: 1 },
-  taskItem: { fontSize: 16, paddingVertical: 6, color: '#333' },
-  taskDone: { color: '#aaa', textDecorationLine: 'line-through' },
-  taskItemBacklog: { fontSize: 15, paddingVertical: 6, color: '#666' },
-  taskBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#f0f1f3', alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
-  taskBtnText: { color: '#555', fontSize: 16 },
-  backlogTitle: { fontSize: 14, fontWeight: '600', color: '#888', marginTop: 12, marginBottom: 2 },
-  inputRow: { flexDirection: 'row', marginTop: 10, gap: 8 },
-  input: { flex: 1, borderWidth: 1, borderColor: '#e2e4e8', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, backgroundColor: '#fafafa' },
-  addBtn: { backgroundColor: '#111', borderRadius: 10, paddingHorizontal: 14, justifyContent: 'center' },
+  taskItem: { fontSize: 15, paddingVertical: 4, color: C.text, lineHeight: 22 },
+  taskDone: { color: C.text3, textDecorationLine: 'line-through' },
+  taskItemBacklog: { fontSize: 14, paddingVertical: 4, color: C.text2 },
+  taskBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: C.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+  backlogBox: { marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border },
+  backlogTitle: { fontSize: 13, fontWeight: '600', color: C.text3, marginBottom: 2 },
+  inputRow: { flexDirection: 'row', marginTop: 12, gap: 8 },
+  input: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: R.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 15,
+    backgroundColor: C.bg,
+    color: C.text,
+  },
+  addBtn: { backgroundColor: C.primary, borderRadius: R.sm, paddingHorizontal: 14, justifyContent: 'center' },
   addBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  addBtnGhost: { backgroundColor: '#eee' },
-  addBtnTextGhost: { color: '#555', fontSize: 14, fontWeight: '600' },
+  addBtnGhost: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
+  addBtnTextGhost: { color: C.text2, fontSize: 14, fontWeight: '600' },
 
-  focusBtn: { marginTop: 12, backgroundColor: '#111', borderRadius: 12, padding: 16, alignItems: 'center' },
-  focusBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  sessionHint: { marginTop: 10, color: '#888', fontSize: 13, textAlign: 'center' },
+  // 专注
+  focusMeta: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  focusMetaText: { fontSize: 13, color: C.primary, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  focusBtn: {
+    marginTop: 14,
+    backgroundColor: C.primary,
+    borderRadius: R.md,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  focusBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  sessionHint: { marginTop: 10, color: C.text3, fontSize: 13, textAlign: 'center' },
 
-  flow: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
-  flowHint: { color: '#555', fontSize: 15, letterSpacing: 4 },
-  flowTimer: { color: '#fff', fontSize: 72, fontWeight: '200', marginVertical: 32, fontVariant: ['tabular-nums'] },
-  flowStop: { borderWidth: 1, borderColor: '#444', borderRadius: 24, paddingHorizontal: 32, paddingVertical: 12 },
-  flowStopText: { color: '#888', fontSize: 15 },
-  zenBtn: { marginTop: 28, borderWidth: 1, borderColor: '#333', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
+  // 心流
+  flow: { flex: 1, backgroundColor: '#0d0b14', alignItems: 'center', justifyContent: 'center' },
+  flowBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#2a2440',
+    borderRadius: R.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  flowHint: { color: '#8b7fc7', fontSize: 13, letterSpacing: 2 },
+  flowTimer: { color: '#fff', fontSize: 72, fontWeight: '200', marginVertical: 36, fontVariant: ['tabular-nums'] },
+  flowStop: { borderWidth: 1, borderColor: '#3a3355', borderRadius: 24, paddingHorizontal: 32, paddingVertical: 12 },
+  flowStopText: { color: '#9d93bd', fontSize: 15 },
+  zenBtn: {
+    marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#2a2440',
+    borderRadius: R.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
   zenBtnText: { color: '#aaa', fontSize: 13 },
 });

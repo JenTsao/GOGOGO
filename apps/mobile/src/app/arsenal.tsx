@@ -1,41 +1,43 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { useAiStore } from '@/store/aiStore';
 import { CodeSandbox } from '@/components/CodeSandbox';
 import { KnowledgeView } from '@/components/KnowledgeView';
 import { MistakeView } from '@/components/MistakeView';
+import { C, R, cardShadow } from '@/theme';
 
 // Tab 2：弹药库（工具与知识）
-// 顶部切换：[💻 代码沙盒] | [📓 知识库] | [📕 错题本]
+// 顶部切换：[代码沙盒] | [知识库] | [错题本]
 // 业务入口：一键生成错题本 / 编译输出（驱动 AI 表情状态）
 export default function ArsenalScreen() {
   const [tab, setTab] = useState<'code' | 'knowledge' | 'mistake'>('code');
   const runAction = useAiStore((s) => s.runAction);
 
+  const TABS: { key: 'code' | 'knowledge' | 'mistake'; label: string; icon: string }[] = [
+    { key: 'code', label: '沙盒', icon: 'code-slash' },
+    { key: 'knowledge', label: '知识库', icon: 'library' },
+    { key: 'mistake', label: '错题本', icon: 'book' },
+  ];
+
   return (
     <View style={styles.container}>
+      {/* 分段控制器：滑动胶囊选中态 */}
       <View style={styles.switch}>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'code' && styles.tabActive]}
-          onPress={() => setTab('code')}
-        >
-          <Text style={[styles.tabText, tab === 'code' && styles.tabTextActive]}>💻 沙盒</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'knowledge' && styles.tabActive]}
-          onPress={() => setTab('knowledge')}
-        >
-          <Text style={[styles.tabText, tab === 'knowledge' && styles.tabTextActive]}>📓 知识库</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'mistake' && styles.tabActive]}
-          onPress={() => setTab('mistake')}
-        >
-          <Text style={[styles.tabText, tab === 'mistake' && styles.tabTextActive]}>📕 错题本</Text>
-        </TouchableOpacity>
+        {TABS.map((t) => (
+          <TouchableOpacity
+            key={t.key}
+            style={[styles.tab, tab === t.key && styles.tabActive]}
+            onPress={() => setTab(t.key)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name={t.icon as keyof typeof Ionicons.glyphMap} size={15} color={tab === t.key ? '#fff' : C.text2} />
+            <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      <View style={styles.body}>
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
         {tab === 'code' ? (
           <CodeSandbox />
         ) : tab === 'knowledge' ? (
@@ -45,41 +47,71 @@ export default function ArsenalScreen() {
         )}
 
         {/* 业务入口：生成错题本 / 编译输出 */}
-        <Text style={styles.sectionTitle}>⚡ 快捷生成</Text>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => runAction('生成错题本')}>
-          <Text style={styles.actionBtnText}>📚 生成错题本</Text>
-          <Text style={styles.actionHint}>汇总全部错题，AI 精炼成终极复习卡片</Text>
+        <Text style={styles.sectionTitle}>快捷生成</Text>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => runAction('生成错题本')} activeOpacity={0.85}>
+          <View style={[styles.actionIcon, styles.iconRed]}>
+            <Ionicons name="library" size={18} color={C.red} />
+          </View>
+          <View style={styles.actionText}>
+            <Text style={styles.actionBtnText}>生成错题本</Text>
+            <Text style={styles.actionHint}>汇总全部错题，AI 精炼成终极复习卡片</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={C.text3} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => runAction('编译输出')}>
-          <Text style={styles.actionBtnText}>📦 编译输出</Text>
-          <Text style={styles.actionHint}>一键生成 PDF 复习 / Anki 卡片包 / 纯文本大纲</Text>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => runAction('编译输出')} activeOpacity={0.85}>
+          <View style={[styles.actionIcon, styles.iconBlue]}>
+            <Ionicons name="archive" size={18} color={C.blue} />
+          </View>
+          <View style={styles.actionText}>
+            <Text style={styles.actionBtnText}>编译输出</Text>
+            <Text style={styles.actionHint}>一键生成 PDF 复习 / Anki 卡片包 / 纯文本大纲</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={C.text3} />
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 16, backgroundColor: '#fafafa' },
-  switch: { flexDirection: 'row', paddingHorizontal: 16, gap: 8 },
-  tab: { flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: '#eee', alignItems: 'center' },
-  tabActive: { backgroundColor: '#111' },
-  tabText: { color: '#555', fontWeight: '600' },
-  tabTextActive: { color: '#fff' },
-  body: { flex: 1, padding: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginTop: 24, marginBottom: 8 },
-  actionBtn: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#eee',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+  container: { flex: 1, paddingTop: 12, backgroundColor: C.bg },
+  switch: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    gap: 6,
+    backgroundColor: '#EBE7F4',
+    borderRadius: R.sm,
+    padding: 4,
   },
-  actionBtnText: { fontSize: 16, fontWeight: '700', color: '#111' },
-  actionHint: { marginTop: 4, fontSize: 13, color: '#888' },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    paddingVertical: 9,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  tabActive: { backgroundColor: C.primary, ...cardShadow },
+  tabText: { color: C.text2, fontWeight: '600', fontSize: 13 },
+  tabTextActive: { color: '#fff' },
+  body: { flex: 1 },
+  bodyContent: { padding: 16, paddingBottom: 96 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', marginTop: 24, marginBottom: 10, color: C.text },
+  actionBtn: {
+    backgroundColor: C.card,
+    borderRadius: R.md,
+    padding: 14,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    ...cardShadow,
+  },
+  actionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  iconRed: { backgroundColor: C.redSoft },
+  iconBlue: { backgroundColor: C.blueSoft },
+  actionText: { flex: 1 },
+  actionBtnText: { fontSize: 15, fontWeight: '700', color: C.text },
+  actionHint: { marginTop: 3, fontSize: 12, color: C.text3, lineHeight: 17 },
 });

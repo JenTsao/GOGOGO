@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { useSandboxStore } from '@/store/sandboxStore';
+import { C, R, cardShadow } from '@/theme';
 
 // 资产由 Expo 打包（Monaco + Pyodide 从 CDN 加载，postMessage 双向桥接）
 const SANDBOX_HTML = require('../../assets/sandbox/sandbox.html');
@@ -92,9 +94,15 @@ export function CodeSandbox() {
 
   const statusText: Record<RunStatus, string> = {
     loading: '加载中…',
-    ready: '● 就绪',
-    running: '● 运行中',
-    error: '● 运行时加载失败（检查网络）',
+    ready: '就绪',
+    running: '运行中',
+    error: '运行时加载失败（检查网络）',
+  };
+  const statusColor: Record<RunStatus, string> = {
+    loading: C.text3,
+    ready: C.green,
+    running: C.orange,
+    error: C.red,
   };
 
   return (
@@ -118,15 +126,21 @@ export function CodeSandbox() {
           style={[styles.runBtn, status === 'running' && styles.runBtnBusy]}
           onPress={run}
           disabled={status !== 'ready'}
+          activeOpacity={0.85}
+          accessibilityLabel="运行代码"
         >
-          <Text style={styles.runBtnText}>{status === 'running' ? '运行中…' : '▶ 运行'}</Text>
+          <Ionicons name="play" size={13} color="#fff" />
+          <Text style={styles.runBtnText}>{status === 'running' ? '运行中…' : '运行'}</Text>
         </TouchableOpacity>
       </View>
 
       {/* 控制台输出 */}
-      <Text style={styles.label}>
-        控制台 · {statusText[status]}
-      </Text>
+      <View style={styles.labelRow}>
+        <View style={[styles.statusDot, { backgroundColor: statusColor[status] }]} />
+        <Text style={styles.label}>
+          控制台 · {statusText[status]}
+        </Text>
+      </View>
       <ScrollView style={styles.console}>
         {logs.map((l, i) => (
           <Text key={i} style={styles.logLine}>
@@ -141,7 +155,7 @@ export function CodeSandbox() {
         <TextInput
           style={styles.saveInput}
           placeholder="片段名称"
-          placeholderTextColor="#999"
+          placeholderTextColor={C.text3}
           value={name}
           onChangeText={(t) => {
             setName(t);
@@ -150,24 +164,39 @@ export function CodeSandbox() {
         />
         <TouchableOpacity
           style={styles.saveBtn}
+          activeOpacity={0.85}
           onPress={() => {
             // 保存的是编辑器当前内容：让 WebView 把代码回传后落盘
             webRef.current?.postMessage(JSON.stringify({ type: 'export' }));
           }}
         >
-          <Text style={styles.saveBtnText}>💾 保存片段</Text>
+          <Ionicons name="save" size={14} color="#fff" />
+          <Text style={styles.saveBtnText}>保存片段</Text>
         </TouchableOpacity>
       </View>
-      {saveHint && <Text style={styles.saveHint}>{saveHint}</Text>}
+      {saveHint && (
+        <View style={styles.saveHintRow}>
+          <Ionicons name="checkmark-circle" size={13} color={C.green} />
+          <Text style={styles.saveHint}>{saveHint}</Text>
+        </View>
+      )}
 
       {/* 片段列表 */}
       {snippets.map((s) => (
         <View key={s.id} style={styles.snippetRow}>
-          <TouchableOpacity style={styles.snippetMain} onPress={() => loadSnippet(s.code)}>
-            <Text style={styles.snippetName}>📄 {s.name}</Text>
+          <TouchableOpacity style={styles.snippetMain} onPress={() => loadSnippet(s.code)} activeOpacity={0.85}>
+            <Ionicons name="document-text" size={15} color={C.primary} />
+            <Text style={styles.snippetName} numberOfLines={1}>
+              {s.name}
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.snippetDel} onPress={() => remove(s.id)}>
-            <Text style={styles.snippetDelText}>✕</Text>
+          <TouchableOpacity
+            style={styles.snippetDel}
+            onPress={() => remove(s.id)}
+            activeOpacity={0.85}
+            accessibilityLabel={`删除片段 ${s.name}`}
+          >
+            <Ionicons name="close" size={16} color={C.text3} />
           </TouchableOpacity>
         </View>
       ))}
@@ -177,39 +206,68 @@ export function CodeSandbox() {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
-  editorWrap: { flex: 5, borderRadius: 12, overflow: 'hidden' },
+  editorWrap: { flex: 5, borderRadius: R.md, overflow: 'hidden', ...cardShadow },
   runBtn: {
     position: 'absolute',
     right: 12,
     top: 12,
-    backgroundColor: '#111',
-    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: C.primary,
+    borderRadius: R.sm,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    shadowColor: '#3B2D6B',
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
-  runBtnBusy: { backgroundColor: '#555' },
+  runBtnBusy: { backgroundColor: C.primaryDeep },
   runBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  label: { marginTop: 10, marginBottom: 4, fontSize: 12, color: '#888' },
-  console: { flex: 2, backgroundColor: '#111', borderRadius: 12, padding: 10 },
-  logLine: { color: '#c8e6c9', fontFamily: 'monospace', fontSize: 12, lineHeight: 18 },
-  logEmpty: { color: '#555', fontSize: 12 },
-  saveRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, marginBottom: 6 },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  label: { fontSize: 12, color: C.text2, fontWeight: '500' },
+  // 控制台保留终端深底（代码语境），但换成与紫罗兰色板呼应的深墨紫
+  console: { flex: 2, backgroundColor: '#241F3A', borderRadius: R.md, padding: 12 },
+  logLine: { color: '#C7E8D5', fontFamily: 'monospace', fontSize: 12, lineHeight: 18 },
+  logEmpty: { color: '#6A6489', fontSize: 12 },
+  saveRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   saveInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
+    borderColor: C.border,
+    borderRadius: R.sm,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     fontSize: 14,
-    backgroundColor: '#fff',
+    backgroundColor: C.card,
+    color: C.text,
   },
-  saveBtn: { backgroundColor: '#111', borderRadius: 10, paddingHorizontal: 14, justifyContent: 'center' },
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: C.primary,
+    borderRadius: R.sm,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+  },
   saveBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  saveHint: { marginTop: 6, fontSize: 12, color: '#1c5d2c' },
-  snippetRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-  snippetMain: { flex: 1 },
-  snippetName: { fontSize: 14, color: '#333', paddingVertical: 4 },
-  snippetDel: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
-  snippetDelText: { color: '#999' },
+  saveHintRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
+  saveHint: { fontSize: 12, color: C.green, fontWeight: '500' },
+  snippetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    backgroundColor: C.card,
+    borderRadius: R.sm,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  snippetMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
+  snippetName: { fontSize: 14, color: C.text, flex: 1 },
+  snippetDel: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
 });

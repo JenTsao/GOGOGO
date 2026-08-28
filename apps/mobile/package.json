@@ -34,6 +34,7 @@
     "react-native-markdown-display": "^7.0.2",
     "react-native-screens": "~3.31.1",
     "react-native-svg": "~15.2.0",
+    "@expo/vector-icons": "~14.0.2",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
