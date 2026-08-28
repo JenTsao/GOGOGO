@@ -15,15 +15,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system';
 import { useAiStore, STATUS_EMOTION } from '@/store/aiStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { describeToolCall } from '@/lib/aiTools';
 import { C, R, cardShadow } from '@/theme';
 
-// grok-ball 完整引擎（32 表情）已内联进 ball.html；用 Asset 解析本地 URI，避免 require 直接喂给 WebView 在部分机型上失败
+// 本地 asset（需 metro.config.js 把 html 列入 assetExts）+ 远程兜底
 const BALL_MODULE = require('../../assets/grok-ball/ball.html');
+const BALL_REMOTE =
+  'https://raw.githubusercontent.com/JenTsao/GOGOGO/main/apps/mobile/assets/grok-ball/ball.html';
 
-// AI 悬浮球：完整 grok-ball 表情球 + 多供应商 LLM 对话（请求逻辑统一在 aiStore.ask）
+// AI 悬浮球：完整 grok-ball（32 表情）+ 多供应商 LLM 对话
 export function AiOrb() {
   const { visible, status, open, close, messages, ask, confirmToolCall, cancelToolCall } = useAiStore();
   const { llmModel } = useSettingsStore();
@@ -31,7 +34,10 @@ export function AiOrb() {
   const scrollRef = useRef<ScrollView>(null);
   const [ready, setReady] = useState(false);
   const [orbFailed, setOrbFailed] = useState(false);
-  const [ballUri, setBallUri] = useState<string | null>(null);
+  // html 字符串注入最稳；失败再退到 remote uri；再失败才静态占位
+  const [ballSource, setBallSource] = useState<
+    { html: string } | { uri: string } | null
+  >(null);
   const [input, setInput] = useState('');
   const insets = useSafeAreaInsets();
   const busy = status === 'thinking' || status === 'searching' || status === 'generating';
@@ -39,7 +45,7 @@ export function AiOrb() {
   const post = (obj: Record<string, unknown>) =>
     webviewRef.current?.postMessage(JSON.stringify(obj));
 
-  // 解析 ball.html 本地路径（Expo 打包后的 file:// / asset URI）
+  // 解析 ball：本地 asset → 读成字符串 → source={{ html }}；失败则用 GitHub raw
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -47,18 +53,23 @@ export function AiOrb() {
         const asset = Asset.fromModule(BALL_MODULE);
         await asset.downloadAsync();
         const uri = asset.localUri || asset.uri;
-        if (!uri) throw new Error('ball.html uri empty');
-        if (!cancelled) setBallUri(uri);
+        if (uri) {
+          const html = await FileSystem.readAsStringAsync(uri);
+          if (html && html.includes('GrokBall') && !cancelled) {
+            setBallSource({ html });
+            return;
+          }
+        }
       } catch {
-        if (!cancelled) setOrbFailed(true);
+        // fall through to remote
       }
+      if (!cancelled) setBallSource({ uri: BALL_REMOTE });
     })();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // 状态变化 → 切换 grok-ball 表情（完整 32 种引擎已就绪，业务映射见 STATUS_EMOTION）
   useEffect(() => {
     if (ready) post({ type: 'emotion', id: STATUS_EMOTION[status] });
   }, [status, ready]);
@@ -71,16 +82,19 @@ export function AiOrb() {
 
   return (
     <>
-      {/* 角标球：完整 grok-ball（眨眼/注视/环带/撒花）；仅真正加载失败时才降级静态球 */}
       <View style={[styles.orbWrap, cardShadow]} pointerEvents="box-none">
-        {orbFailed || !ballUri ? (
+        {orbFailed || !ballSource ? (
           <TouchableOpacity style={styles.orbFallback} onPress={open} activeOpacity={0.85}>
             <Ionicons name="sparkles" size={30} color="#f5f5f5" />
           </TouchableOpacity>
         ) : (
           <WebView
             ref={webviewRef}
-            source={{ uri: ballUri }}
+            source={
+              'html' in ballSource
+                ? { html: ballSource.html, baseUrl: '' }
+                : { uri: ballSource.uri }
+            }
             style={styles.orb}
             containerStyle={styles.orbContainer}
             originWhitelist={['*']}
@@ -94,8 +108,23 @@ export function AiOrb() {
             setSupportMultipleWindows={false}
             androidLayerType="hardware"
             {...(Platform.OS === 'android' ? { mixedContentMode: 'always' as const } : {})}
-            onError={() => setOrbFailed(true)}
-            onHttpError={() => setOrbFailed(true)}
+            onError={() => {
+              // 本地 html 失败时再试远程；远程也失败才占位
+              if (ballSource && 'html' in ballSource) {
+                setBallSource({ uri: BALL_REMOTE });
+                setReady(false);
+              } else {
+                setOrbFailed(true);
+              }
+            }}
+            onHttpError={() => {
+              if (ballSource && 'html' in ballSource) {
+                setBallSource({ uri: BALL_REMOTE });
+                setReady(false);
+              } else {
+                setOrbFailed(true);
+              }
+            }}
             onMessage={(e) => {
               let msg: { type: string };
               try {
