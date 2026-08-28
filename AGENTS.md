@@ -33,6 +33,9 @@ supabase/    # schema.sql（10 张表 + pgvector + RLS 全部 user_id = auth.uid
 
 1. **本地禁止安装任何依赖**。安装、类型检查、构建一律由 `.github/workflows/ci.yml` 执行。
    添加依赖 = 手动编辑对应 `package.json`，让 CI 去装。mobile 依赖须兼容 Expo SDK 51。
+1b. **全仓 React 锁 18.2.0**（Expo SDK 51 上限；Next 14.2 兼容），由根 `pnpm.overrides` 强制。
+   禁止单边升级——双版本 React 在 hoisted 安装下会产生嵌套副本，Next 预渲染 /404 /500 时报
+   `Cannot read properties of null (reading 'useRef')`。
 2. **RLS 是数据安全命门**：所有 Supabase 表必须启用行级安全且 `user_id = auth.uid()`。
 3. **Secrets 不进代码仓库**：web 用 `.env.local`（参考 `.env.example`）；GITHUB\_TOKEN 仅服务端 Route Handler 使用；移动端用户密钥存 MMKV（settingsStore）。
 4. **提交前确认 CI 会跑过**：`pnpm --filter @gk/mobile lint`、`pnpm --filter @gk/web lint`、`pnpm --filter @gk/web build`。

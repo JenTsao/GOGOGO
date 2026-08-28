@@ -15,6 +15,12 @@
     "typescript": "^5.4.5"
   },
   "packageManager": "pnpm@9.1.0",
+  "pnpm": {
+    "overrides": {
+      "react": "18.2.0",
+      "react-dom": "18.2.0"
+    }
+  },
   "engines": {
     "node": ">=18.18.0"
   }
