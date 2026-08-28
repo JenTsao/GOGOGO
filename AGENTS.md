@@ -84,6 +84,7 @@ APK 打包：GitHub Actions「Build APK」workflow（手动 dispatch 或推送 `
 - ✅ 视觉讲解：GLM-4.6V-Flash 接入（settingsStore visionBaseUrl/visionApiKey/visionModel，默认智谱 OpenAI 兼容）；llm.ts 支持 OpenAI 视觉 content 数组（ChatContentPart + imageTextContent）；aiStore.askVision（不传工具，历史文本照带）；MistakeView AI 讲解优先读图（本地图 → base64 data URL），未配 Key 回退文本讲解
 - ✅ 错题多模态识别：llm.ts `recognizeMistake`（视觉模型 → JSON {subject,tags,summary} 容错解析）；收录弹窗「🔍 AI 识别题面」自动填学科/卡壳标签/题面摘要（summary 存 mistake.summary，可手改），讲解上下文与详情页均携带
 - ✅ 情绪打卡：`MoodCheckin` 组件（仪表盘顶部，emoji 5 档 + 备注 + 语音备忘 ≤1min + 转写）；`moodStore`（MMKV 本地优先，同日覆盖，经管理台 `/api/mood` 云同步：x-access-key 鉴权 → mood 桶语音上传 → mood_checkins upsert，schema 已补 date 列 + user_id,date 唯一索引 + mood 桶）；画像联动：近 7 天情绪轨迹行 + 情绪信号合并错题转写与打卡转写/备注的消极词
+- ✅ tasks/timer 云同步：`/api/tasks/sync`（并集合并 + 墓碑删除：removeTask/swap/complete 记墓碑 {content,status}，云端按墓碑删行后并集插入 missing，返回规范池云端 id 重建本地；已知取舍：A 端删除后 B 端未拉到合并结果再推同任务会复活，无版本向量）+ `/api/timer/sync`（append-only 并集：按 duration+started_at 精确去重，双端差集收敛，focusStore 上限提至 200）；驾驶舱挂载时静默触发（tasks/focus/mood/mistake 全量 sync，失败静默）
 - ⏳ 可继续增强：Supabase Auth 正式登录（多设备一致）
 
 ## LLM 适配层

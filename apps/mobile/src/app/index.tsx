@@ -6,6 +6,8 @@ import { useFocusStore } from '@/store/focusStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
 import { useAiStore } from '@/store/aiStore';
+import { useMoodStore } from '@/store/moodStore';
+import { useMistakeStore } from '@/store/mistakeStore';
 import { fetchDaily, DailyLearning } from '@/lib/cloud';
 import { readDailyCache } from '@/lib/background';
 
@@ -85,6 +87,16 @@ export default function CockpitScreen() {
     const id = setInterval(() => useFocusStore.getState().tick(), 1000);
     return () => clearInterval(id);
   }, [running]);
+
+  // 启动静默云同步：任务池（并集+墓碑）、专注会话（并集）、情绪打卡与错题（本地优先上传）
+  // 全部失败静默——离线可用的底线是本地功能完整
+  useEffect(() => {
+    useTaskStore.getState().syncTasks();
+    useFocusStore.getState().syncSessions();
+    useMoodStore.getState().load();
+    useMoodStore.getState().syncAll();
+    useMistakeStore.getState().syncAll();
+  }, []);
 
   // 自动定位：启动时请求前台权限，取当前坐标（失败静默，回退到配置城市）
   useEffect(() => {

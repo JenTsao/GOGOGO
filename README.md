@@ -87,8 +87,8 @@ pnpm dev:mobile   # 手机端（Expo Go）
 - [ ] 心流模式强制屏蔽通知（Android DND / iOS Focus 权限，现仅全屏遮罩）
 - [ ] `correctCode` 工具当前读沙盒最近保存片段，可升级为读取编辑器实时内容
 
-**云端同步（当前本地为主）**
-- [ ] tasks / timer_sessions 云端双向同步（多设备一致）
+**云端同步**
+- [x] tasks（并集合并 + 墓碑删除）/ timer_sessions（append-only 并集）双向同步，驾驶舱启动静默触发
 - [ ] mistakes 双向同步（现单向上传）+ 语音转写/重做结果回填云端
 
 **定时任务（蓝皮书 7 管道中 1 个已完成）**
