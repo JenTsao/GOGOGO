@@ -9,7 +9,7 @@ export default function ProfileScreen() {
   const {
     weatherKey, weatherCity, targetUniversity, githubRepo, githubBranch,
     llmProvider, llmBaseUrl, llmModel, llmApiKey,
-    supabaseUrl, supabaseAnonKey, accessKey, update,
+    supabaseUrl, supabaseAnonKey, accessKey, tavilyKey, update,
   } = useSettingsStore();
   const { reminders, addReminder, removeReminder } = useReminderStore();
 
@@ -119,6 +119,19 @@ export default function ProfileScreen() {
         placeholderTextColor="#999"
         value={accessKey}
         onChangeText={(v) => update({ accessKey: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+      />
+
+      <Text style={styles.sectionTitle}>🔍 联网搜索（Tavily）</Text>
+      <Text style={styles.label}>Tavily API Key（AI 的 searchWeb 工具）</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="tvly-…"
+        placeholderTextColor="#999"
+        value={tavilyKey}
+        onChangeText={(v) => update({ tavilyKey: v })}
         autoCapitalize="none"
         autoCorrect={false}
         secureTextEntry

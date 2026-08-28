@@ -18,10 +18,32 @@ export interface ChatMessage {
   content: string;
 }
 
+// OpenAI 兼容工具定义（L4 调度用；主流供应商均支持）
+export interface ToolDef {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
+export interface LlmResponse {
+  content: string;
+  toolCalls: ToolCall[];
+}
+
 export async function chatWithLlm(
   cfg: { baseUrl: string; apiKey: string; model: string },
-  messages: ChatMessage[]
-): Promise<string> {
+  messages: ChatMessage[],
+  opts?: { tools?: ToolDef[] }
+): Promise<LlmResponse> {
   // model 允许为空：自定义供应商留空时由后端按默认模型处理，只校验必填的 baseUrl 与 apiKey
   if (!cfg.baseUrl || !cfg.apiKey) {
     throw new Error('请先在「我的」Tab 配置 AI 供应商与 API Key');
@@ -30,14 +52,35 @@ export async function chatWithLlm(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
     // model 为空时整个字段省略而非传空串，避免后端收到无效模型名报错
-    body: JSON.stringify({ ...(cfg.model ? { model: cfg.model } : {}), messages, temperature: 0.7 }),
+    body: JSON.stringify({
+      ...(cfg.model ? { model: cfg.model } : {}),
+      messages,
+      temperature: 0.7,
+      ...(opts?.tools ? { tools: opts.tools } : {}),
+    }),
   });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
   }
-  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('模型返回为空');
-  return content;
+  const data = (await res.json()) as {
+    choices?: {
+      message?: {
+        content?: string | null;
+        tool_calls?: { id: string; function: { name: string; arguments: string } }[];
+      };
+    }[];
+  };
+  const msg = data.choices?.[0]?.message;
+  const toolCalls: ToolCall[] = (msg?.tool_calls ?? []).map((tc) => {
+    let args: Record<string, unknown> = {};
+    try {
+      args = JSON.parse(tc.function.arguments || '{}');
+    } catch {
+      // 参数解析失败按空参处理，由工具执行侧兜底
+    }
+    return { id: tc.id, name: tc.function.name, args };
+  });
+  if (!msg?.content && toolCalls.length === 0) throw new Error('模型返回为空');
+  return { content: msg?.content ?? '', toolCalls };
 }

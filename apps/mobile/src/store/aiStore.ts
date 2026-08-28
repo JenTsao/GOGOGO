@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { chatWithLlm } from '@/lib/llm';
+import { chatWithLlm, ChatMessage, ToolCall } from '@/lib/llm';
+import { TOOL_SCHEMAS, WRITE_TOOLS, executeTool, describeToolCall, AiToolName } from '@/lib/aiTools';
 import { useSettingsStore } from './settingsStore';
 
 // L4 级 AI 悬浮球状态（六大专属工具调度占位）
@@ -11,10 +12,19 @@ export type AiTool =
   | 'queryStats'
   | 'correctCode';
 
+// 消息附带的工具调用（写操作待确认状态挂在消息上）
+export interface PendingToolCall {
+  id: string;
+  name: AiToolName;
+  args: Record<string, unknown>;
+  state: 'pending' | 'confirmed' | 'cancelled';
+}
+
 export interface AiMessage {
   role: 'user' | 'assistant';
   content: string;
   tool?: AiTool;
+  toolCall?: PendingToolCall;
 }
 
 // AI 工作状态 → grok-ball 表情映射（emotionId 见 grok-ball 文档）
@@ -40,10 +50,11 @@ export const STATUS_EMOTION: Record<AiStatus, string> = {
   done: '33',
 };
 
-// L1-L3 级对话：多轮上下文 + 人设系统提示（L4 工具调度在 Phase 3）
+// L1-L4 人设：简洁鼓励、学科给步骤、有工具就用
 const SYSTEM_PROMPT =
-  '你是「高考副驾驶」，一名陪伴高三学生备考的 AI 助手。要求：回答简洁、鼓励但不灌鸡汤；' +
-  '学科问题给出清晰步骤；能识别用户想记录任务、查资料等意图时，提示可以使用对应功能（工具调度将在后续版本上线）。';
+  '你是「高考副驾驶」，一名陪伴高三学生备考的 AI 助手。要求：回答简洁、鼓励但不灌鸡汤；学科问题给出清晰步骤。' +
+  '你可以调用工具：添加任务、创建日期提醒、联网搜索、导出笔记、查询专注统计、修复代码。' +
+  '需要用户确认的写操作会先展示确认卡片，由系统处理；你只负责判断意图并调用工具。';
 
 interface AiState {
   visible: boolean;
@@ -53,11 +64,13 @@ interface AiState {
   close: () => void;
   setStatus: (s: AiStatus) => void;
   pushMessage: (m: AiMessage) => void;
-  // 真实对话入口：驾驶舱「AI讲题」等入口可直接注入问题并触发请求
+  // 真实对话入口（L1-L4）：识别工具意图；写操作挂确认卡片，读操作直接执行
   ask: (content: string) => Promise<void>;
+  // 确认卡片：执行 / 取消
+  confirmToolCall: (callId: string) => Promise<void>;
+  cancelToolCall: (callId: string) => void;
   // 业务动作：进入“生成中”忙碌状态，完成后切回“任务完成”（供错题本 / 编译输出等入口调用）
   runAction: (label: string, durationMs?: number) => void;
-  // TODO: Phase 3 实现 L4 跨模块调度（工具调用 + 执行前确认卡片）
 }
 
 let actionTimer: ReturnType<typeof setTimeout> | null = null;
@@ -77,18 +90,69 @@ export const useAiStore = create<AiState>((set, get) => ({
     get().setStatus('thinking');
     const { llmBaseUrl, llmModel, llmApiKey } = useSettingsStore.getState();
     try {
-      // 最近 12 条作为上下文（当前 user 消息已在 store 中）
-      const history = [...get().messages.slice(-12)].map((m) => ({ role: m.role, content: m.content }));
+      // 最近 12 条作为上下文（当前 user 消息已在 store 中；toolCall 元数据不进 LLM）
+      const history: ChatMessage[] = [...get().messages.slice(-12)].map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
       const reply = await chatWithLlm(
         { baseUrl: llmBaseUrl, apiKey: llmApiKey, model: llmModel },
-        [{ role: 'system', content: SYSTEM_PROMPT }, ...history]
+        [{ role: 'system', content: SYSTEM_PROMPT }, ...history],
+        { tools: TOOL_SCHEMAS }
       );
-      get().pushMessage({ role: 'assistant', content: reply });
+
+      if (reply.toolCalls.length > 0) {
+        const call: ToolCall = reply.toolCalls[0]; // 一次处理一个，保持确认流程简单
+        const summary = reply.content || `好的，我来${describeToolCall(call.name, call.args)}。`;
+        if (WRITE_TOOLS.has(call.name)) {
+          // 写操作：挂待确认卡片，等用户点确认
+          get().pushMessage({
+            role: 'assistant',
+            content: summary,
+            toolCall: { id: call.id, name: call.name as AiToolName, args: call.args, state: 'pending' },
+          });
+          get().setStatus('listening');
+        } else {
+          // 读操作：直接执行并上屏结果
+          get().pushMessage({ role: 'assistant', content: summary });
+          const result = await executeTool(call.name, call.args);
+          get().pushMessage({ role: 'assistant', content: result.text });
+          get().setStatus(result.ok ? 'done' : 'error');
+        }
+        return;
+      }
+
+      if (!reply.content) throw new Error('模型返回为空');
+      get().pushMessage({ role: 'assistant', content: reply.content });
       get().setStatus('done');
     } catch (e) {
       get().pushMessage({ role: 'assistant', content: `请求失败：${(e as Error).message}` });
       get().setStatus('error');
     }
+  },
+  confirmToolCall: async (callId) => {
+    const msg = get().messages.find((m) => m.toolCall?.id === callId);
+    if (!msg?.toolCall || msg.toolCall.state !== 'pending') return;
+    // 先置为已确认（防止重复点击），再执行
+    set((s) => ({
+      messages: s.messages.map((m) =>
+        m.toolCall?.id === callId ? { ...m, toolCall: { ...m.toolCall, state: 'confirmed' as const } } : m
+      ),
+    }));
+    get().setStatus('generating');
+    const { name, args } = msg.toolCall;
+    const result = await executeTool(name, args);
+    get().pushMessage({ role: 'assistant', content: result.text });
+    get().setStatus(result.ok ? 'done' : 'error');
+  },
+  cancelToolCall: (callId) => {
+    set((s) => ({
+      messages: s.messages.map((m) =>
+        m.toolCall?.id === callId ? { ...m, toolCall: { ...m.toolCall, state: 'cancelled' as const } } : m
+      ),
+    }));
+    get().pushMessage({ role: 'assistant', content: '好的，已取消该操作。' });
+    get().setStatus('done');
   },
   runAction: (label, durationMs = 1200) => {
     if (actionTimer) clearTimeout(actionTimer);
@@ -103,7 +167,7 @@ export const useAiStore = create<AiState>((set, get) => ({
           ...s.messages,
           {
             role: 'assistant',
-            content: `${label}已完成（Phase 2 接入真实引擎后产出 PDF / Anki / 大纲）。`,
+            content: `${label}已完成（编译引擎上线后将产出 PDF / Anki / 大纲）。`,
           },
         ],
       }));

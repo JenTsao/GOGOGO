@@ -1,15 +1,16 @@
-import { View, StyleSheet, Modal, Text, TextInput, ScrollView } from 'react-native';
+import { View, StyleSheet, Modal, Text, TextInput, ScrollView, TouchableOpacity } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useEffect, useRef, useState } from 'react';
 import { useAiStore, STATUS_EMOTION } from '@/store/aiStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { describeToolCall } from '@/lib/aiTools';
 
 // grok-ball 资产由 Expo 打包（引擎已内联进 ball.html，零外部依赖）
 const BALL_HTML = require('../../assets/grok-ball/ball.html');
 
 // AI 悬浮球：grok-ball 表情球 + 多供应商 LLM 对话（请求逻辑统一在 aiStore.ask）
 export function AiOrb() {
-  const { visible, status, open, close, setStatus, messages, ask } = useAiStore();
+  const { visible, status, open, close, setStatus, messages, ask, confirmToolCall, cancelToolCall } = useAiStore();
   const { llmModel } = useSettingsStore();
   const webviewRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
@@ -71,12 +72,37 @@ export function AiOrb() {
               </Text>
             )}
             {messages.map((m, i) => (
-              <Text
-                key={i}
-                style={[styles.bubble, m.role === 'user' ? styles.user : styles.assistant]}
-              >
-                {m.content}
-              </Text>
+              <View key={i}>
+                <Text style={[styles.bubble, m.role === 'user' ? styles.user : styles.assistant]}>
+                  {m.content}
+                </Text>
+                {/* L4 写操作确认卡片（执行前强制确认，防误触） */}
+                {m.toolCall?.state === 'pending' && (
+                  <View style={styles.confirmCard}>
+                    <Text style={styles.confirmText}>⚙️ {describeToolCall(m.toolCall.name, m.toolCall.args)}</Text>
+                    <View style={styles.confirmRow}>
+                      <TouchableOpacity
+                        style={[styles.confirmBtn, styles.confirmBtnOk]}
+                        onPress={() => confirmToolCall(m.toolCall!.id)}
+                      >
+                        <Text style={styles.confirmBtnOkText}>✓ 确认执行</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.confirmBtn, styles.confirmBtnNo]}
+                        onPress={() => cancelToolCall(m.toolCall!.id)}
+                      >
+                        <Text style={styles.confirmBtnNoText}>取消</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+                {m.toolCall?.state === 'confirmed' && (
+                  <Text style={styles.confirmDone}>⚙️ 已执行</Text>
+                )}
+                {m.toolCall?.state === 'cancelled' && (
+                  <Text style={styles.confirmDone}>⚙️ 已取消</Text>
+                )}
+              </View>
             ))}
           </ScrollView>
 
@@ -126,6 +152,23 @@ const styles = StyleSheet.create({
   bubble: { padding: 10, borderRadius: 12, marginBottom: 8, fontSize: 14 },
   user: { backgroundColor: '#e3f2fd', alignSelf: 'flex-end' },
   assistant: { backgroundColor: '#f3f3f3', alignSelf: 'flex-start' },
+  // L4 确认卡片
+  confirmCard: {
+    backgroundColor: '#fff8e1',
+    borderLeftWidth: 4,
+    borderLeftColor: '#faad14',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
+  },
+  confirmText: { fontSize: 14, color: '#6b5414', lineHeight: 20 },
+  confirmRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  confirmBtn: { flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: 'center' },
+  confirmBtnOk: { backgroundColor: '#111' },
+  confirmBtnOkText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  confirmBtnNo: { backgroundColor: '#eee' },
+  confirmBtnNoText: { color: '#666', fontSize: 13 },
+  confirmDone: { fontSize: 12, color: '#999', marginBottom: 8 },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
