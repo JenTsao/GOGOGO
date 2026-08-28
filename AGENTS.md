@@ -73,7 +73,7 @@ APK 打包：GitHub Actions「Build APK」workflow（手动 dispatch 或推送 `
 - ✅ 语义检索中心：`/api/knowledge/sync`（内容哈希增量向量化 + extractTags 提取 #行内/frontmatter 标签存 obsidian_metadata.tags，GIN 索引）+ `/api/search`（关键词 ilike + pgvector rpc match_notes 混合检索），schema.sql 已补 match_notes + hnsw 索引
 - ✅ 层级标签树管理：`/api/tags` GET（树聚合 + byPath 映射）/ POST（rename/merge/delete 子层级跟随重写数组，assign 批量关联笔记）；search 页左栏树 UI（点击筛选、勾选结果批量加标签）
 - ✅ 驾驶舱消费 daily_learning：知识点翻转卡 + 每日一题（显示答案 / AI讲题，复用 aiStore.ask）；移动端经 `get_daily_by_key` RPC 免登录读取（profiles.access_key 设备密钥，security definer，不放宽 RLS）
-- ✅ L4 工具调度：`src/lib/aiTools.ts` 6 大工具 schema + 执行器（addTask/setReminder 写操作走确认卡片 aiStore.confirmToolCall；searchWeb/queryStats/exportNote/correctCode 直读直返）；LLM 层支持 OpenAI 兼容 tool_calls
+- ✅ L4 工具调度：`src/lib/aiTools.ts` 6 大工具 schema + 执行器（addTask/setReminder 写操作走确认卡片 aiStore.confirmToolCall；searchWeb/queryStats/correctCode 直读直返；exportNote 接通管理台 `/api/export` 服务端编译：fetchRawFile 采集 → 大纲/打印HTML/真.apkg → Storage compilations 公开桶 → knowledge_compilations 记录 → 返回下载 URL；笔记从知识库已下载缓存定位，pdf 产物为 A4 打印 HTML 开箱调起打印）；LLM 层支持 OpenAI 兼容 tool_calls
 - ✅ 编译与输出：`/compile` 资源池勾选（笔记+错题）→ 纯文本大纲 / **真 .apkg**（`lib/apkg.ts` sql.js wasm 构建 SQLite schema ver 11 + jszip，guid=内容哈希去重，失败自动降级 TSV，依赖 serverComponentsExternalPackages）/ PDF（浏览器打印视图 A4，错题照片 `<img>` 内嵌；Anki 背面同样嵌图），历史最近 10 次 localStorage
 - ✅ 画像系统：仪表盘 react-native-svg 六维雷达（专注投入/深度/坚持天数/任务执行/知识积累/学科掌握）+ 近 7 天专注柱状 + 心流热力 + 完成率折线 + Tavily 横向对标（目标大学分数线）
 - ✅ 后台唤醒：`src/lib/background.ts` expo-background-fetch（15 分钟级）+ expo-notifications（当日提醒去重通知）+ 每日备课内容预取 MMKV（驾驶舱云失败时兜底）；Expo Go 下 Android 不支持 background fetch，需构建版

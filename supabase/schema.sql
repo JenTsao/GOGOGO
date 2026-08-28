@@ -246,3 +246,8 @@ alter table public.mistakes add column if not exists is_mastered boolean; -- 重
 insert into storage.buckets (id, name, public)
 values ('mistakes', 'mistakes', true)
 on conflict (id) do nothing;
+
+-- compilations 桶：L4 exportNote / 管理台编译产物（大纲/HTML/Anki 包），公开读（下载链接）
+insert into storage.buckets (id, name, public)
+values ('compilations', 'compilations', true)
+on conflict (id) do nothing;

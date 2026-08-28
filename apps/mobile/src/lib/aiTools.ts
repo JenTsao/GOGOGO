@@ -6,6 +6,7 @@ import { useReminderStore, localDateStr } from '@/store/reminderStore';
 import { useFocusStore } from '@/store/focusStore';
 import { useSandboxStore } from '@/store/sandboxStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useKnowledgeStore } from '@/store/knowledgeStore';
 
 export type AiToolName =
   | 'addTask'
@@ -64,8 +65,14 @@ export const TOOL_SCHEMAS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'exportNote',
-      description: '导出/编译笔记为 PDF、Anki 卡片包或纯文本大纲',
-      parameters: { type: 'object', properties: {} },
+      description: '导出/编译笔记为复习 HTML（可另存 PDF）、Anki 卡片包或纯文本大纲，返回下载链接',
+      parameters: {
+        type: 'object',
+        properties: {
+          note: { type: 'string', description: '笔记文件名或路径（知识库中已下载过的笔记）；不传则默认最近下载的一篇' },
+          type: { type: 'string', enum: ['pdf', 'anki', 'outline'], description: 'pdf=A4打印HTML，anki=Anki卡片包，outline=纯文本大纲' },
+        },
+      },
     },
   },
   {
@@ -151,9 +158,46 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
           text: `🔍 「${query}」搜索结果：\n${data.answer ? `摘要：${data.answer}\n\n` : ''}${lines.join('\n') || '无结果'}`,
         };
       }
-      case 'exportNote':
-        // Phase 3 编译引擎（PDF/Anki）落地前的占位：记录意图
-        return { ok: true, text: '📤 导出任务已记录。编译与输出中心（PDF/Anki）即将上线，届时将自动完成。' };
+      case 'exportNote': {
+        // 编译在管理台服务端完成：拉取 GitHub 原文 → 产物上传 Supabase Storage → 返回下载链接
+        const { webApiUrl, accessKey } = useSettingsStore.getState();
+        if (!webApiUrl || !accessKey) {
+          return { ok: false, text: '导出需要云端：请先在「我的」配置管理台地址 + 访问密钥' };
+        }
+        const cache = useKnowledgeStore.getState().cache;
+        const paths = Object.keys(cache);
+        if (paths.length === 0) {
+          return { ok: false, text: '知识库还没有已下载的笔记。请先在弹药库→知识库中下载要导出的笔记，再让我导出。' };
+        }
+        // 定位目标笔记：按传入名称后缀/包含匹配；未传时若只有一篇则直接用
+        const wanted = String(args.note ?? '').trim();
+        let target: string | undefined;
+        if (wanted) {
+          target = paths.find((p) => p === wanted || p.endsWith(`/${wanted}`) || p.endsWith(wanted));
+          if (!target) target = paths.find((p) => p.includes(wanted));
+        } else if (paths.length === 1) {
+          target = paths[0];
+        }
+        if (!target) {
+          const list = paths.slice(-8).map((p) => `· ${p}`).join('\n');
+          return { ok: false, text: `找到 ${paths.length} 篇已下载笔记，请说明要导出哪一篇（如“导出导数.md”）：\n${list}` };
+        }
+        const type = args.type === 'anki' || args.type === 'outline' ? args.type : 'pdf';
+        const res = await fetch(`${webApiUrl.replace(/\/+$/, '')}/api/export`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-access-key': accessKey },
+          body: JSON.stringify({ paths: [target], type }),
+        });
+        const data = (await res.json()) as { downloadUrl?: string; error?: string; files?: number; warn?: string };
+        if (!res.ok || !data.downloadUrl) {
+          return { ok: false, text: `导出失败：${data.error ?? `HTTP ${res.status}`}` };
+        }
+        const typeName = type === 'anki' ? 'Anki 卡片包' : type === 'outline' ? '纯文本大纲' : 'A4 打印 HTML（浏览器打开→Ctrl+P 存为 PDF）';
+        return {
+          ok: true,
+          text: `📤 「${target}」已编译为${typeName}${data.warn ? `（⚠️ ${data.warn}）` : ''}：\n${data.downloadUrl}`,
+        };
+      }
       case 'queryStats': {
         const sessions = useFocusStore.getState().sessions;
         const today = localDateStr(new Date());
