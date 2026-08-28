@@ -32,7 +32,7 @@ export default function ProfileScreen() {
         autoCorrect={false}
       />
 
-      <Text style={styles.label}>天气城市（拼音，如 Hangzhou）</Text>
+      <Text style={styles.label}>备用天气城市（定位失败或拒绝授权时使用，拼音如 Hangzhou）</Text>
       <TextInput
         style={styles.input}
         placeholder="Hangzhou"

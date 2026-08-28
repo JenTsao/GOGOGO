@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
 import { useEffect, useState } from 'react';
+import * as Location from 'expo-location';
 import { useTaskStore } from '@/store/taskStore';
 import { useFocusStore } from '@/store/focusStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -13,6 +14,7 @@ export default function CockpitScreen() {
   const [draft, setDraft] = useState('');
   const [weather, setWeather] = useState<{ temp: number; desc: string } | null>(null);
   const [inFlow, setInFlow] = useState(false); // 全屏心流模式
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
 
   const examDate = new Date('2026-06-07');
   const today = new Date();
@@ -25,13 +27,35 @@ export default function CockpitScreen() {
     return () => clearInterval(id);
   }, [running]);
 
-  // 天气：OpenWeatherMap（Key 在「我的」Tab 配置）
+  // 自动定位：启动时请求前台权限，取当前坐标（失败静默，回退到配置城市）
   useEffect(() => {
-    if (!weatherKey || !weatherCity) return;
     let cancelled = false;
-    fetch(
-      `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(weatherCity)}&appid=${weatherKey}&units=metric&lang=zh_cn`
-    )
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+        if (!cancelled) setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+      } catch {
+        // 定位失败不阻塞界面
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 天气：优先按定位坐标查询，无定位时按「我的」里配置的城市查询
+  useEffect(() => {
+    if (!weatherKey) return;
+    const query = coords
+      ? `lat=${coords.lat}&lon=${coords.lon}`
+      : weatherCity
+        ? `q=${encodeURIComponent(weatherCity)}`
+        : null;
+    if (!query) return;
+    let cancelled = false;
+    fetch(`https://api.openweathermap.org/data/2.5/weather?${query}&appid=${weatherKey}&units=metric&lang=zh_cn`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((data) => {
         if (!cancelled) setWeather({ temp: Math.round(data.main.temp), desc: data.weather?.[0]?.description ?? '' });
@@ -42,7 +66,7 @@ export default function CockpitScreen() {
     return () => {
       cancelled = true;
     };
-  }, [weatherKey, weatherCity]);
+  }, [weatherKey, weatherCity, coords]);
 
   const weatherTip = (temp: number) =>
     temp >= 30 ? '太热，多喝水' : temp >= 22 ? '适合刷题' : temp >= 12 ? '微凉，穿外套' : '注意保暖';

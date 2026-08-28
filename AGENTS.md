@@ -1,0 +1,65 @@
+# AGENTS.md — Gaokao Co-pilot（高考副驾驶）
+
+> 本文件供 AI 编码代理（Trae / Claude Code / Cursor 等）阅读，提供项目全貌与硬性约束。
+
+## 项目定位
+
+高考备考一站式系统：**本地瞬时响应 + 云端永不关机 + 知识资产专业化治理**。
+完整蓝图见 `项目书.md`（16 项技术选型、10 张数据表、3 个开发阶段）。
+
+## 目录结构
+
+```
+apps/
+  mobile/    # Expo (React Native 0.74 + TypeScript) 手机端，4 Tab + AI 悬浮球
+    src/app/         # expo-router 页面：index(驾驶舱) arsenal(弹药库) dashboard(仪表盘) profile(我的)
+    src/components/  # AiOrb（grok-ball WebView 表情球）
+    src/store/       # zustand：taskStore / focusStore / settingsStore / aiStore（MMKV 持久化）
+    assets/grok-ball/  # AI 球资产（HTML 内联引擎）
+  web/       # Next.js 14 (App Router) 管理台
+    src/app/workshop/   # 知识工坊：GitHub 文件树 + Monaco 只读编辑器
+    src/app/api/github/ # Route Handler 代理 GitHub API（token 仅服务端）
+    src/lib/            # supabase.ts / github.ts
+supabase/    # schema.sql（10 张表 + pgvector + RLS 全部 user_id = auth.uid()）
+.github/workflows/ci.yml  # CI：安装/类型检查/构建全部在 GitHub Actions 完成
+```
+
+## 硬性约束（必须遵守）
+
+1. **本地禁止安装任何依赖**。安装、类型检查、构建一律由 `.github/workflows/ci.yml` 执行。
+   添加依赖 = 手动编辑对应 `package.json`，让 CI 去装。mobile 依赖须兼容 Expo SDK 51。
+2. **RLS 是数据安全命门**：所有 Supabase 表必须启用行级安全且 `user_id = auth.uid()`。
+3. **Secrets 不进代码仓库**：web 用 `.env.local`（参考 `.env.example`）；GITHUB_TOKEN 仅服务端 Route Handler 使用；移动端用户密钥存 MMKV（settingsStore）。
+4. **提交前确认 CI 会跑过**：`pnpm --filter @gk/mobile lint`、`pnpm --filter @gk/web lint`、`pnpm --filter @gk/web build`。
+
+## 关键命令
+
+```bash
+pnpm dev:mobile   # 本地开发（需 node_modules 时提示用户跑 CI 或手动 pnpm install）
+pnpm dev:web
+pnpm build:web
+pnpm lint         # 全 workspace 类型检查
+```
+
+## 环境变量
+
+| 变量 | 位置 | 用途 |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` / `ANON_KEY` | web | Supabase 客户端 |
+| `GITHUB_REPO` / `GITHUB_BRANCH` / `GITHUB_TOKEN` | web 服务端 | 知识工坊读取 Obsidian 仓库 |
+| DeepSeek / OpenWeather Key | mobile MMKV | 用户在「我的」Tab 自填 |
+
+## 当前进度（Phase 1 已完成）
+
+- ✅ Monorepo（pnpm workspace）+ Supabase schema + CI
+- ✅ 移动端 4 Tab；驾驶舱：倒计时 / 自动定位天气（expo-location，坐标优先、配置城市兜底）/ 今日三件事 + 后备箱（MMKV 持久化）；全屏心流计时器（会话记录持久化）
+- ✅ 管理台知识工坊：文件树预览 + Monaco 只读编辑器
+- ⏳ Phase 2：Pyodide 沙盒、Markdown 渲染知识库、DeepSeek 对话（L1-L3）、凌晨备课流水线、pgvector 语义检索
+- ⏳ Phase 3：L4 工具调度（6 大工具 + 确认卡片）、编译输出（PDF/Anki）、画像系统、后台唤醒
+
+## 代码风格
+
+- TypeScript 严格模式；中文注释，注释写「为什么」而非「是什么」
+- zustand store 不可变更新（禁直接改 state 字段），MMKV 快照用 JSON 序列化，读写都要 try/catch 兜底
+- 移动端组件保持函数式 + hooks；网络请求必须可取消（cleanup 置 cancelled 标志）且失败静默降级
+- 命名：store 文件与 hook 同名（`useXxxStore`）；路由文件即 Tab 名
