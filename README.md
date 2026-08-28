@@ -84,9 +84,7 @@ pnpm dev:mobile   # 手机端（Expo Go）
 ## TODO（对照蓝皮书未完成项）
 
 **移动端**
-- [ ] L4 `exportNote` 工具接通管理台编译（现占位）
 - [ ] 心流模式强制屏蔽通知（Android DND / iOS Focus 权限，现仅全屏遮罩）
-- [ ] 情绪打卡（`mood_checkins` 表对应的 emoji + 语音每日备忘独立功能）
 - [ ] `correctCode` 工具当前读沙盒最近保存片段，可升级为读取编辑器实时内容
 
 **云端同步（当前本地为主）**

@@ -41,6 +41,15 @@ jobs:
         working-directory: apps/mobile
         run: npx expo prebuild -p android --no-install --clean
 
+      - name: 对齐 Expo SDK 51 官方工具链（Gradle 8.6；8.7+ 移除的 API 会让 expo-av / expo-modules-core 配置阶段崩溃）
+        working-directory: apps/mobile/android
+        run: |
+          # SDK 51 / RN 0.74 官方配套 Gradle 8.6；wrapper 若生成更高版本则强制钉回（兼容 all/bin 两种分发后缀）
+          sed -i 's#gradle-[0-9.]*-all.zip#gradle-8.6-all.zip#' gradle/wrapper/gradle-wrapper.properties
+          sed -i 's#gradle-[0-9.]*-bin.zip#gradle-8.6-bin.zip#' gradle/wrapper/gradle-wrapper.properties
+          # expo-av 旧式 archiveClassifier 写法在 Gradle 8.7+ 报 unknown property 'classifier'，统一改新 API（8.6 下等价）
+          sed -i 's/\bclassifier\b/archiveClassifier/g' ../node_modules/expo-av/android/build.gradle
+
       - name: 调优 gradle 构建（runner 4 核 16G：加大 JVM、并行、启用 build cache）
         working-directory: apps/mobile/android
         run: |

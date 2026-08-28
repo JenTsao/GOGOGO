@@ -6,9 +6,11 @@ import { useTaskStore } from '@/store/taskStore';
 import { useKnowledgeStore } from '@/store/knowledgeStore';
 import { useSandboxStore } from '@/store/sandboxStore';
 import { useMistakeStore } from '@/store/mistakeStore';
+import { useMoodStore } from '@/store/moodStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { localDateStr } from '@/store/reminderStore';
 import { countNegativeWords } from '@/lib/stt';
+import MoodCheckin from '@/components/MoodCheckin';
 
 // Tab 3：仪表盘 —— 激进模式画像
 // 六维雷达基于可计算数据（专注/任务/知识积累 + 错题重做正确率的学科掌握）
@@ -43,6 +45,7 @@ export default function DashboardScreen() {
   const knowledgeCount = useKnowledgeStore((s) => Object.keys(s.cache).length);
   const snippetCount = useSandboxStore((s) => s.snippets.length);
   const mistakes = useMistakeStore((s) => s.mistakes);
+  const moodCheckins = useMoodStore((s) => s.checkins);
   const { targetUniversity, tavilyKey } = useSettingsStore();
 
   // 危险学科：错题最多的科目；卡壳词云：错题标签 top5
@@ -67,11 +70,31 @@ export default function DashboardScreen() {
   }, [mistakes]);
   const gradedCount = mistakes.filter((m) => m.correct).length;
 
-  // 情绪信号：语音反思转写中的消极词 top3（蓝皮书「搞不懂即时加权」）
+  // 情绪信号：错题语音反思 + 情绪打卡语音/备注转写中的消极词 top3（蓝皮书「搞不懂即时加权」）
   const moodSignals = useMemo(
-    () => [...countNegativeWords(mistakes.map((m) => m.transcript ?? ''))].sort((a, b) => b[1] - a[1]).slice(0, 3),
-    [mistakes]
+    () =>
+      [
+        ...countNegativeWords(mistakes.map((m) => m.transcript ?? '')),
+        ...countNegativeWords(moodCheckins.map((c) => c.transcript ?? c.summary ?? '')),
+      ]
+        .reduce<Map<string, number>>((acc, [w, n]) => {
+          acc.set(w, (acc.get(w) ?? 0) + n);
+          return acc;
+        }, new Map())
+        .entries(),
+    [mistakes, moodCheckins]
   );
+  const moodTop3 = [...moodSignals].sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+  // 近 7 天情绪轨迹（emoji 行）：打卡越连续，画像情绪面越准
+  const moodTrail = useMemo(() => {
+    const days: (string | null)[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = localDateStr(new Date(Date.now() - i * 86400000));
+      days.push(moodCheckins.find((c) => c.date === date)?.emojiCode ?? null);
+    }
+    return days;
+  }, [moodCheckins]);
 
   const [benchmark, setBenchmark] = useState<string | null>(null);
   const [benchmarkBusy, setBenchmarkBusy] = useState(false);
@@ -193,19 +216,27 @@ export default function DashboardScreen() {
   return (
     <>
     <ScrollView style={styles.container}>
+      <MoodCheckin />
+
       <Text style={styles.cardTitle}>📊 我的画像</Text>
       <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={() => setDetailOpen(true)}>
+        <View style={styles.moodTrailRow}>
+          {moodTrail.map((e, i) => (
+            <Text key={i} style={styles.moodTrailEmoji}>{e ?? '·'}</Text>
+          ))}
+          <Text style={styles.moodTrailLabel}>← 近 7 天情绪</Text>
+        </View>
         {mistakes.length > 0 && dangerSubject && (
           <Text style={styles.profileText}>
             🔥 危险学科：<Text style={styles.weakness}>{dangerSubject[0]}</Text>
             <Text style={styles.placeholder}>（{dangerSubject[1]} 道错题）</Text>
           </Text>
         )}
-        {moodSignals.length > 0 && (
+        {moodTop3.length > 0 && (
           <>
-            <Text style={styles.profileText}>😤 情绪信号（语音反思中的消极词，即时加权）</Text>
+            <Text style={styles.profileText}>😤 情绪信号（语音反思 + 打卡备注中的消极词，即时加权）</Text>
             <View style={styles.cloudRow}>
-              {moodSignals.map(([word, n]) => (
+              {moodTop3.map(([word, n]) => (
                 <View key={word} style={styles.cloudChip}>
                   <Text style={styles.cloudChipText}>
                     {word} <Text style={styles.cloudCount}>×{n}</Text>
@@ -447,6 +478,9 @@ const ADVICE: Record<string, string> = {
 };
 
 const styles = StyleSheet.create({
+  moodTrailRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 8 },
+  moodTrailEmoji: { fontSize: 16 },
+  moodTrailLabel: { fontSize: 11, color: '#999', marginLeft: 6 },
   container: { flex: 1, padding: 16, backgroundColor: '#fafafa' },
   cardTitle: { fontSize: 18, fontWeight: '700', marginTop: 16, marginBottom: 8 },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 16, minHeight: 60 },

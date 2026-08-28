@@ -251,3 +251,12 @@ on conflict (id) do nothing;
 insert into storage.buckets (id, name, public)
 values ('compilations', 'compilations', true)
 on conflict (id) do nothing;
+
+-- mood 桶：情绪打卡语音备忘（公开读）
+insert into storage.buckets (id, name, public)
+values ('mood', 'mood', true)
+on conflict (id) do nothing;
+
+-- mood_checkins 补日期列 + 一人一天一条（同日重打覆盖）
+alter table public.mood_checkins add column if not exists date date;
+create unique index if not exists idx_mood_checkins_user_date on public.mood_checkins (user_id, date);
