@@ -33,6 +33,9 @@ supabase/    # schema.sql（10 张表 + pgvector + RLS 全部 user_id = auth.uid
 
 1. **本地禁止安装任何依赖**。安装、类型检查、构建一律由 `.github/workflows/ci.yml` 执行。
    添加依赖 = 手动编辑对应 `package.json`，让 CI 去装。mobile 依赖须兼容 Expo SDK 51。
+   ⚠️ RN/expo 的 autolinking 只扫描 app package.json 的**直接依赖**——expo-router 的 peer 依赖
+   （react-native-safe-area-context 4.10.5 / expo-constants / expo-linking）必须显式声明，
+   否则 Expo Go 正常而独立 APK 启动即崩（hoisted 布局让 JS 可解析、原生模块却没链接）。
 1b. **全仓 React 锁 18.2.0**（Expo SDK 51 上限；Next 14.2 兼容），由根 `pnpm.overrides` 强制。
    禁止单边升级——双版本 React 在 hoisted 安装下会产生嵌套副本，Next 预渲染 /404 /500 时报
    `Cannot read properties of null (reading 'useRef')`。

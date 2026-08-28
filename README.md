@@ -67,23 +67,95 @@ pnpm install
 
 # 2. 管理台环境变量
 cp apps/web/.env.example apps/web/.env.local
-# Supabase URL/AnonKey、GITHUB_REPO/TOKEN、LLM_PROVIDER+Key、EMBEDDING_*、TAVILY_API_KEY、CRON_SECRET、OWNER_USER_ID
 
-# 3. 初始化数据库：Supabase SQL Editor 执行 supabase/schema.sql
-#    （11 张表 + 桶 + Auth 触发器 + ensure_access_key，改动后重跑幂等）
+# 3. 初始化数据库（见部署教程第 2 步）
 
 # 4. 启动
-pnpm dev:web      # 管理台
-pnpm dev:mobile   # 手机端（Expo Go）
-
-# 5. Vercel 部署：环境变量配好后 Cron 自动生效；APK 用 GitHub Actions 构建
+pnpm dev:web      # 管理台 http://localhost:3000
+pnpm dev:mobile   # 手机端（Expo Go 扫码）
 ```
 
-移动端配置（「我的」Tab，按顺序）：
-1. **Supabase URL + Anon Key** → 注册/登录 → 访问密钥自动回填
-2. **LLM Key**（对话/L4 工具，DeepSeek 等）→ **视觉 Key**（错题识别/讲解，智谱 GLM-4.6V-Flash）→ **转写 Key**（语音转文字，推荐 Groq `whisper-large-v3` 免费）
-3. **Tavily Key**（对标/资讯）→ 天气自动定位无需 Key（备用城市可填）
-4. **管理台地址**（错题/情绪/任务云同步代理）
+完整部署（Supabase → Vercel → 手机 → APK）见下方部署教程。
+
+## 部署教程
+
+### 第 1 步：Supabase 数据库（免费额度够用一整年）
+
+1. [supabase.com](https://supabase.com) 免费注册 → **New project**（区域选 Singapore，离中国最近）
+2. 左侧 **SQL Editor** → 粘贴 [supabase/schema.sql](./supabase/schema.sql) 全文 → **Run**（幂等，可重复执行）
+   - 一次创建：11 张表 + RLS 策略 + `match_notes` 向量检索函数 + Auth 注册触发器 + 4 个存储桶
+3. 记下两串凭据（**Settings → API**）：
+   - `Project URL`（形如 `https://xxx.supabase.co`）
+   - `anon public` Key（公开 Key，可进客户端）
+4. 开启邮箱认证（默认已开）：**Authentication → Providers → Email** 保持 Enabled；本地测试可先在 **Authentication → Sign In / Up** 关闭「Confirm email」（正式使用建议开启）
+
+### 第 2 步：管理台部署 Vercel
+
+1. 本仓库推到 GitHub，[vercel.com](https://vercel.com) → **Add New Project** → 导入仓库
+2. Framework Preset 自动识别 Next.js，**Root Directory** 填 `apps/web`
+3. 配置环境变量（**Settings → Environment Variables**）：
+
+   | 变量 | 必填 | 说明 |
+   |---|---|---|
+   | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | 第 1 步的 Project URL |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | 第 1 步的 anon Key |
+   | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase **service_role** Key（Settings → API；仅服务端写数据，勿泄露） |
+   | `GITHUB_REPO` | ✅ | Obsidian 仓库，如 `你的用户名/notes` |
+   | `GITHUB_BRANCH` | | 默认 `main` |
+   | `GITHUB_TOKEN` | 私有仓库必填 | [GitHub → Settings → Developer settings → Fine-grained tokens](https://github.com/settings/personal-access-tokens)，仅授予该仓库 Contents 读权限 |
+   | `LLM_PROVIDER` | ✅ | `deepseek` / `openai` / `moonshot` / `glm` |
+   | `LLM_MODEL` | | 留空用默认；DeepSeek 填 `deepseek-chat` |
+   | `DEEPSEEK_API_KEY` 等 | ✅ | 与 LLM_PROVIDER 对应的 Key |
+   | `EMBEDDING_PROVIDER` / `EMBEDDING_MODEL` / 对应 Key | 用语义检索则填 | 向量维度锁 1536 |
+   | `TAVILY_API_KEY` | 用周复盘/对标则填 | [tavily.com](https://tavily.com) 免费 1000 次/月 |
+   | `CRON_SECRET` | ✅ | 随机长字符串，Cron 任务鉴权 |
+   | `OWNER_USER_ID` | ✅ | 你的 Supabase 用户 UUID（Authentication → Users 里复制） |
+
+4. **Deploy** → 拿到 `https://你的项目.vercel.app`（下称「管理台地址」）
+5. Cron 自动生效（[vercel.json](./vercel.json)）：04:00 备课 / 04:10 向量化 / 周一 04:30 周复盘（北京时间）
+   - 注意：Vercel Hobby 计划 Cron 任务在项目部署后才会触发；首次全量向量化可在语义检索中心手动点「同步」加速
+
+### 第 3 步：手机端配置（Expo Go 或 APK）
+
+1. 安装 [Expo Go](https://expo.dev/go)（Android）→ 电脑跑 `pnpm dev:mobile` 扫码；或直接用第 4 步的 APK
+2. 打开 App → **我的** Tab，按顺序填写：
+   1. **Supabase URL + Anon Key**（第 1 步凭据）→ 🔐 **注册/登录** → 访问密钥自动回填（多设备登录同一账号即数据同步）
+   2. **管理台地址**（第 2 步的 vercel.app 地址，错题/情绪/任务云同步代理）
+   3. **LLM Key**（对话 + L4 工具；[DeepSeek](https://platform.deepseek.com) 充 10 元用一学期）→ **视觉 Key**（[智谱开放平台](https://open.bigmodel.cn)领 GLM-4.6V-Flash 免费额度）→ **转写 Key**（[Groq](https://console.groq.com) 免费 `whisper-large-v3`）
+   4. **Tavily Key**（对标/资讯）+ 天气自动定位免配置
+3. 功能验证清单：驾驶舱出现天气与倒计时 → 弹药库错题拍照 AI 识别 → 悬浮球对话 → 仪表盘雷达出图 → 明早 04:30 后驾驶舱出现「每日知识点」
+
+### 第 4 步：构建正式 APK（后台唤醒/常驻使用必做）
+
+Expo Go 不支持 background fetch，日常使用建议装构建版：
+
+1. GitHub 仓库 → **Actions** → 选 **Build APK** workflow → **Run workflow**（或推送 `v*` tag 自动触发）
+2. 构建完成（约 15 分钟）→ 该次运行页 **Artifacts** 下载 `app-release.apk`
+3. 传到手机安装（debug 签名，可直接侧载；如需上架需自行配置正式签名）
+4. 系统设置里允许「后台弹出界面 / 无限制省电策略」，提醒通知与后台同步才稳定
+
+### 日常使用速查
+
+| 时间 | 发生什么 |
+|---|---|
+| 随时记 | 错题拍照 30 秒入库；情绪打卡；语音反思自动转写 |
+| 每天 04:00-04:30 | 云端自动备课 + 笔记向量化 + 周一复盘 |
+| 早上打开 App | 每日知识点/一题已就位；四路云同步静默完成 |
+| 每周一 | 仪表盘画像详情出现教练复盘 + 考纲警示 + 资讯 |
+| 心流学习 | 进入心流 → App 通知静默 → 一键开系统免打扰 |
+| 周末 | 知识工坊整理笔记 → 编译 .apkg 导入 AnkiDroid |
+
+### 月度成本
+
+全部免费额度内：Supabase（500MB DB + 1GB Storage）+ Vercel Hobby + Tavily 1000 次/月 + 智谱/Groq 免费额度；唯一硬成本 DeepSeek ≈ ¥1-5/月。
+
+### 故障排查
+
+- **手机读不到每日知识点**：查「我的」Supabase URL/Anon Key 是否填对 → 已登录且访问密钥非空 → 云端 SQL 查 `daily_learning` 当日是否有行（04:00 Cron 是否正常，Vercel Logs 看 `/api/cron/daily`）
+- **错题同步失败**：管理台地址末尾别带 `/`；访问密钥与登录账号一致；Vercel Logs 看 `/api/mistakes` 报错
+- **语义检索没结果**：先手动点「同步」跑一轮；`.env.local` 的 `EMBEDDING_*` 是否配置
+- **知识工坊文件树为空**：`GITHUB_REPO` 格式为 `owner/repo`（无 https 前缀）；私有仓库确认 token 权限
+- **Cron 没触发**：Vercel 项目必须至少成功部署过一次；Hobby 计划仅生产环境生效
 
 ## Roadmap 完成状态
 
