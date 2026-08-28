@@ -21,6 +21,7 @@ apps/
     src/app/api/github/ # Route Handler 代理 GitHub API（token 仅服务端）
     src/lib/            # supabase.ts / github.ts
 supabase/    # schema.sql（10 张表 + pgvector + RLS 全部 user_id = auth.uid()）
+.npmrc       # node-linker=hoisted（Expo+pnpm 官方推荐，否则 RN gradle 插件路径解析为 null）
 .github/workflows/ci.yml  # CI：安装/类型检查/构建全部在 GitHub Actions 完成
 .github/workflows/build-apk.yml  # APK 打包：expo prebuild（CNG）→ gradle assembleRelease → artifact（手动触发或 push v* tag）
 ```

@@ -83,6 +83,7 @@ create table if not exists public.obsidian_metadata (
   file_path text not null,
   content_hash text,
   version_history jsonb default '[]'::jsonb,
+  tags text[] not null default '{}', -- 层级标签（#数学/微积分/导数 + frontmatter tags），sync 时提取
   updated_at timestamptz default now(),
   unique (user_id, file_path)
 );
@@ -123,6 +124,8 @@ create index if not exists idx_tasks_user_status on public.tasks (user_id, statu
 create index if not exists idx_daily_learning_user_date on public.daily_learning (user_id, date);
 create index if not exists idx_knowledge_embeddings_user on public.knowledge_embeddings (user_id);
 create index if not exists idx_obsidian_metadata_user_path on public.obsidian_metadata (user_id, file_path);
+-- 标签树聚合/重写走 tags 数组过滤，GIN 加速
+create index if not exists idx_obsidian_metadata_tags on public.obsidian_metadata using gin (tags);
 
 -- ============================================================
 -- 行级安全策略（RLS）— 云端数据安全的唯一命门

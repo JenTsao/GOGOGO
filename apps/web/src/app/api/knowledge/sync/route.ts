@@ -26,6 +26,33 @@ function chunkText(text: string): string[] {
   return chunks.filter((c) => c.length > 20).slice(0, 10); // 单篇最多 10 块，控制成本
 }
 
+// 层级标签提取（语义检索中心标签树数据源）：
+// 1) 正文行内标签 #数学/微积分/导数（兼容行尾多个标签）
+// 2) Obsidian frontmatter tags: [a, b/c] 列表
+function extractTags(content: string): string[] {
+  const tags = new Set<string>();
+  // frontmatter 区（文件开头 --- ... ---）内的 tags 行
+  const fm = /^---\n([\s\S]*?)\n---/.exec(content.slice(0, 2000));
+  if (fm) {
+    for (const line of fm[1].split('\n')) {
+      const m = /^tags:\s*(.+)$/.exec(line.trim());
+      if (m) {
+        // 支持 [a, b/c] 与 a, b/c 两种写法
+        const inner = m[1].replace(/^\[|\]$/g, '');
+        for (const t of inner.split(',').map((s) => s.trim().replace(/^#/, ''))) {
+          if (t) tags.add(t);
+        }
+      }
+    }
+  }
+  // 正文行内标签：去代码块避免误提取；支持层级（数学/微积分/导数）与单级（重点）
+  const body = content.replace(/```[\s\S]*?```/g, '');
+  for (const m of body.matchAll(/(?:^|\s)#([\w\u4e00-\u9fa5/-]{2,})/g)) {
+    tags.add(m[1]);
+  }
+  return [...tags].slice(0, 30); // 上限防异常文件污染
+}
+
 export async function POST(req: NextRequest) {
   try {
     const owner = requireAdminEnv();
@@ -57,11 +84,11 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // upsert 元数据，取回 note_id
+      // upsert 元数据（含标签提取），取回 note_id
       const { data: meta, error: metaErr } = await supabaseAdmin()
         .from('obsidian_metadata')
         .upsert(
-          { user_id: owner, file_path: entry.path, content_hash: hash },
+          { user_id: owner, file_path: entry.path, content_hash: hash, tags: extractTags(content) },
           { onConflict: 'user_id,file_path' }
         )
         .select('id')
