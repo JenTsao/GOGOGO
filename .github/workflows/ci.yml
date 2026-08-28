@@ -1,0 +1,55 @@
+name: CI
+
+# 本地不安装任何依赖：安装 / 类型检查 / 构建全部在 GitHub Actions 完成
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  web:
+    name: Web 管理台（类型检查 + 构建）
+    runs-on: ubuntu-latest
+    env:
+      # 构建期占位变量（代码中已做空值兜底，此处仅为保证 next build 顺利）
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+      GITHUB_REPO: placeholder/vault
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # 自动读取根 package.json 的 packageManager 字段
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --no-frozen-lockfile
+
+      - name: 类型检查
+        run: pnpm --filter @gk/web lint
+
+      - name: 构建
+        run: pnpm --filter @gk/web build
+
+  mobile:
+    name: Mobile（类型检查）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --no-frozen-lockfile
+
+      - name: 类型检查
+        run: pnpm --filter @gk/mobile lint
