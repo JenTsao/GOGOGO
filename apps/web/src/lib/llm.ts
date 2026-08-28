@@ -32,6 +32,10 @@ function pick(
   fallbackProvider: string
 ): Resolved {
   const key = providerName && registry[providerName] ? providerName : fallbackProvider;
+  // 配置了不存在的供应商名时必须告警：静默回退会误导排查（报错指向 fallback 的 Key）甚至把请求发给非预期供应商
+  if (providerName && !registry[providerName]) {
+    console.warn(`[llm] 供应商 "${providerName}" 不在注册表中，已回退到 "${fallbackProvider}"`);
+  }
   const info = registry[key];
   return {
     info,

@@ -20,16 +20,24 @@ export async function fetchDaily(cfg: CloudConfig, date?: string): Promise<Daily
   if (!base || !cfg.supabaseAnonKey || !cfg.accessKey) {
     throw new Error('请在「我的」配置云端地址 / Anon Key / 访问密钥');
   }
-  const res = await fetch(`${base}/rest/v1/rpc/get_daily_by_key`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: cfg.supabaseAnonKey,
-      Authorization: `Bearer ${cfg.supabaseAnonKey}`,
-    },
-    body: JSON.stringify({ access_key: cfg.accessKey, target_date: date ?? localDateStr(new Date()) }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const rows = (await res.json()) as DailyLearning[];
-  return rows?.[0] ?? null;
+  // 10s 超时兜底：Supabase 挂起时让调用方进入 error 降级而非永久 loading
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(`${base}/rest/v1/rpc/get_daily_by_key`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: cfg.supabaseAnonKey,
+        Authorization: `Bearer ${cfg.supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ access_key: cfg.accessKey, target_date: date ?? localDateStr(new Date()) }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = (await res.json()) as DailyLearning[];
+    return rows?.[0] ?? null;
+  } finally {
+    clearTimeout(timer);
+  }
 }

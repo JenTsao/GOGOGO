@@ -28,7 +28,12 @@ export default function CockpitScreen() {
   const [knowledgeFlipped, setKnowledgeFlipped] = useState(false); // 知识点翻转卡
   const [showAnswer, setShowAnswer] = useState(false); // 每日一题答案
 
-  const today = useMemo(() => new Date(), []);
+  // 当前时间：分钟级刷新，避免应用跨天驻留后倒计时/提醒/备课日期全部冻结
+  const [today, setToday] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setToday(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
   const todayStr = localDateStr(today);
 
   const examDate = useMemo(() => new Date('2026-06-07T09:00:00'), []);

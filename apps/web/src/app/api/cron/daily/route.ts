@@ -7,9 +7,13 @@ export const dynamic = 'force-dynamic';
 // 凌晨备课流水线（Vercel Cron 04:00 北京时间，见 vercel.json）
 // 采集素材 → LLM 生成「每日知识点 + 每日一题」→ 写入 daily_learning
 export async function GET(req: NextRequest) {
-  // Vercel Cron 会自动附带 Authorization: Bearer $CRON_SECRET
+  // fail-closed：CRON_SECRET 未配置时拒绝执行，防止公网裸奔触发 LLM 消耗
+  //（Vercel Cron 在设置了 CRON_SECRET 后会自动附带 Authorization 头）
   const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get('authorization') !== `Bearer ${secret}`) {
+  if (!secret) {
+    return NextResponse.json({ error: '未配置 CRON_SECRET，已拒绝执行（防公网滥用）' }, { status: 500 });
+  }
+  if (req.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: '未授权' }, { status: 401 });
   }
 

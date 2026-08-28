@@ -201,6 +201,15 @@ $$;
 create index if not exists idx_knowledge_embeddings_vec
   on public.knowledge_embeddings using hnsw (embedding vector_cosine_ops);
 
+-- sync 流程按 note_id 逐文件清理旧向量，补索引避免顺序扫描
+create index if not exists idx_knowledge_embeddings_note
+  on public.knowledge_embeddings (note_id);
+
+-- 纵深防御：security definer 函数默认授予 PUBLIC EXECUTE，
+-- 匿名/普通用户不应调用（web 端经 service_role 调用，显式授权不受影响）
+revoke execute on function public.match_notes(vector(1536), uuid, int) from anon, public;
+grant execute on function public.match_notes(vector(1536), uuid, int) to service_role;
+
 -- ============================================================
 -- 设备访问密钥：移动端免登录读取每日备课内容
 -- 密钥由用户在 Supabase SQL 编辑器设置，移动端「我的」填同一密钥：

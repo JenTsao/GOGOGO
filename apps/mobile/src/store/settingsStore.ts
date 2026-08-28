@@ -3,7 +3,6 @@ import { storage } from './taskStore';
 
 // 用户配置（Tab 4 我的）：持久化到 MMKV
 export interface Settings {
-  deepseekKey: string;
   weatherKey: string;
   weatherCity: string;
   targetUniversity: string;
@@ -22,7 +21,6 @@ export interface Settings {
 const SETTINGS_KEY = 'settings';
 
 const DEFAULTS: Settings = {
-  deepseekKey: '',
   weatherKey: '',
   weatherCity: '',
   targetUniversity: '',
