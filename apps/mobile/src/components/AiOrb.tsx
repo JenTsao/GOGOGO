@@ -1,24 +1,37 @@
-import { View, StyleSheet, Modal, Text, TextInput, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Modal,
+  Text,
+  TextInput,
+  ScrollView,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+} from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Asset } from 'expo-asset';
 import { useAiStore, STATUS_EMOTION } from '@/store/aiStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { describeToolCall } from '@/lib/aiTools';
 import { C, R, cardShadow } from '@/theme';
 
-// grok-ball 资产由 Expo 打包（引擎已内联进 ball.html，零外部依赖）
-const BALL_HTML = require('../../assets/grok-ball/ball.html');
+// grok-ball 完整引擎（32 表情）已内联进 ball.html；用 Asset 解析本地 URI，避免 require 直接喂给 WebView 在部分机型上失败
+const BALL_MODULE = require('../../assets/grok-ball/ball.html');
 
-// AI 悬浮球：grok-ball 表情球 + 多供应商 LLM 对话（请求逻辑统一在 aiStore.ask）
+// AI 悬浮球：完整 grok-ball 表情球 + 多供应商 LLM 对话（请求逻辑统一在 aiStore.ask）
 export function AiOrb() {
-  const { visible, status, open, close, setStatus, messages, ask, confirmToolCall, cancelToolCall } = useAiStore();
+  const { visible, status, open, close, messages, ask, confirmToolCall, cancelToolCall } = useAiStore();
   const { llmModel } = useSettingsStore();
   const webviewRef = useRef<WebView>(null);
   const scrollRef = useRef<ScrollView>(null);
   const [ready, setReady] = useState(false);
-  const [orbFailed, setOrbFailed] = useState(false); // ball.html 加载失败时降级为静态占位球
+  const [orbFailed, setOrbFailed] = useState(false);
+  const [ballUri, setBallUri] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const insets = useSafeAreaInsets();
   const busy = status === 'thinking' || status === 'searching' || status === 'generating';
@@ -26,7 +39,26 @@ export function AiOrb() {
   const post = (obj: Record<string, unknown>) =>
     webviewRef.current?.postMessage(JSON.stringify(obj));
 
-  // 状态变化 → 切换 grok-ball 表情
+  // 解析 ball.html 本地路径（Expo 打包后的 file:// / asset URI）
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const asset = Asset.fromModule(BALL_MODULE);
+        await asset.downloadAsync();
+        const uri = asset.localUri || asset.uri;
+        if (!uri) throw new Error('ball.html uri empty');
+        if (!cancelled) setBallUri(uri);
+      } catch {
+        if (!cancelled) setOrbFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 状态变化 → 切换 grok-ball 表情（完整 32 种引擎已就绪，业务映射见 STATUS_EMOTION）
   useEffect(() => {
     if (ready) post({ type: 'emotion', id: STATUS_EMOTION[status] });
   }, [status, ready]);
@@ -39,32 +71,44 @@ export function AiOrb() {
 
   return (
     <>
-      {/* 角标球：Web 端 grok-ball，固定右下角，点击唤起 AI 对话；加载失败降级静态球保底可点 */}
+      {/* 角标球：完整 grok-ball（眨眼/注视/环带/撒花）；仅真正加载失败时才降级静态球 */}
       <View style={[styles.orbWrap, cardShadow]} pointerEvents="box-none">
-        {orbFailed ? (
+        {orbFailed || !ballUri ? (
           <TouchableOpacity style={styles.orbFallback} onPress={open} activeOpacity={0.85}>
             <Ionicons name="sparkles" size={30} color="#f5f5f5" />
           </TouchableOpacity>
         ) : (
           <WebView
             ref={webviewRef}
-            source={BALL_HTML}
+            source={{ uri: ballUri }}
             style={styles.orb}
+            containerStyle={styles.orbContainer}
             originWhitelist={['*']}
+            javaScriptEnabled
+            domStorageEnabled
+            allowsInlineMediaPlayback
+            mediaPlaybackRequiresUserAction={false}
+            scrollEnabled={false}
+            bounces={false}
+            overScrollMode="never"
+            setSupportMultipleWindows={false}
+            androidLayerType="hardware"
+            {...(Platform.OS === 'android' ? { mixedContentMode: 'always' as const } : {})}
             onError={() => setOrbFailed(true)}
+            onHttpError={() => setOrbFailed(true)}
             onMessage={(e) => {
-            let msg: { type: string };
-            try {
-              msg = JSON.parse(e.nativeEvent.data);
-            } catch {
-              return;
-            }
-            if (msg.type === 'tap') open();
-            if (msg.type === 'ready') {
-              setReady(true);
-              post({ type: 'emotion', id: STATUS_EMOTION.idle });
-            }
-          }}
+              let msg: { type: string };
+              try {
+                msg = JSON.parse(e.nativeEvent.data);
+              } catch {
+                return;
+              }
+              if (msg.type === 'tap') open();
+              if (msg.type === 'ready') {
+                setReady(true);
+                post({ type: 'emotion', id: STATUS_EMOTION.idle });
+              }
+            }}
           />
         )}
       </View>
@@ -75,7 +119,6 @@ export function AiOrb() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
-            {/* 顶部抓握条 + 标题栏（关闭按钮 ≥44pt 触达区） */}
             <View style={styles.gripBar}>
               <View style={styles.grip} />
             </View>
@@ -89,7 +132,11 @@ export function AiOrb() {
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.closeBtn} onPress={close} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={close}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
                 <Ionicons name="close" size={22} color={C.text2} />
               </TouchableOpacity>
             </View>
@@ -102,27 +149,30 @@ export function AiOrb() {
               {messages.length === 0 && (
                 <View style={styles.placeholderCard}>
                   <Ionicons name="chatbubbles-outline" size={28} color={C.primary} />
-                  <Text style={styles.placeholder}>
-                    随点随到。先在「我的」配置 API Key；试试：
+                  <Text style={styles.placeholder}>随点随到。先在「我的」配置 API Key；试试：</Text>
+                  <Text style={styles.placeholderExample}>
+                    “帮我规划今晚的数学复习”{'\n'}“讲讲导数构造函数”
                   </Text>
-                  <Text style={styles.placeholderExample}>“帮我规划今晚的数学复习”{'\n'}“讲讲导数构造函数”</Text>
                 </View>
               )}
               {messages.map((m, i) => (
                 <View key={i} style={m.role === 'user' ? styles.rowUser : styles.rowAssistant}>
-                  <View style={[styles.bubble, m.role === 'user' ? styles.bubbleUser : styles.bubbleAssistant]}>
+                  <View
+                    style={[styles.bubble, m.role === 'user' ? styles.bubbleUser : styles.bubbleAssistant]}
+                  >
                     <Text style={m.role === 'user' ? styles.bubbleUserText : styles.bubbleAssistantText}>
                       {m.content}
                     </Text>
                   </View>
-                  {/* L4 写操作确认卡片（执行前强制确认，防误触） */}
                   {m.toolCall?.state === 'pending' && (
                     <View style={styles.confirmCard}>
                       <View style={styles.confirmHead}>
                         <Ionicons name="settings-outline" size={15} color={C.orange} />
                         <Text style={styles.confirmTitle}>操作确认</Text>
                       </View>
-                      <Text style={styles.confirmText}>{describeToolCall(m.toolCall.name, m.toolCall.args)}</Text>
+                      <Text style={styles.confirmText}>
+                        {describeToolCall(m.toolCall.name, m.toolCall.args)}
+                      </Text>
                       <View style={styles.confirmRow}>
                         <TouchableOpacity
                           style={styles.confirmBtnOk}
@@ -154,20 +204,22 @@ export function AiOrb() {
                   )}
                 </View>
               ))}
-              {/* 思考中指示器：三点脉冲代替干等 */}
               {busy && (
                 <View style={styles.rowAssistant}>
                   <View style={[styles.bubble, styles.bubbleAssistant, styles.typingBubble]}>
                     <ActivityIndicator size="small" color={C.primary} />
                     <Text style={styles.typingText}>
-                      {status === 'searching' ? '检索资料中…' : status === 'generating' ? '生成回复中…' : '思考中…'}
+                      {status === 'searching'
+                        ? '检索资料中…'
+                        : status === 'generating'
+                          ? '生成回复中…'
+                          : '思考中…'}
                     </Text>
                   </View>
                 </View>
               )}
             </ScrollView>
 
-            {/* 输入区：圆角输入框 + 主色发送按钮 */}
             <View style={styles.inputRow}>
               <TextInput
                 style={styles.input}
@@ -205,12 +257,16 @@ const styles = StyleSheet.create({
     height: 75,
     borderRadius: 37.5,
     zIndex: 100,
+    overflow: 'hidden',
   },
   orb: {
     width: 75,
     height: 75,
     backgroundColor: 'transparent',
     borderRadius: 37.5,
+  },
+  orbContainer: {
+    backgroundColor: 'transparent',
   },
   orbFallback: {
     width: 75,
@@ -268,7 +324,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   placeholder: { color: C.text2, fontSize: 14, lineHeight: 22, textAlign: 'center' },
-  placeholderExample: { color: C.primaryDeep, fontSize: 14, lineHeight: 24, fontWeight: '600', textAlign: 'center' },
+  placeholderExample: {
+    color: C.primaryDeep,
+    fontSize: 14,
+    lineHeight: 24,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   rowUser: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 10 },
   rowAssistant: { flexDirection: 'row', justifyContent: 'flex-start', marginBottom: 10 },
   bubble: { borderRadius: R.md, paddingVertical: 10, paddingHorizontal: 14, maxWidth: '86%' },
@@ -278,7 +340,6 @@ const styles = StyleSheet.create({
   bubbleAssistantText: { color: C.text, fontSize: 14, lineHeight: 21 },
   typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
   typingText: { color: C.text2, fontSize: 13 },
-  // L4 确认卡片
   confirmCard: {
     backgroundColor: C.orangeSoft,
     borderLeftWidth: 4,
