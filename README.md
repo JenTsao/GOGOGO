@@ -49,7 +49,7 @@ apps/
     src/lib/               # llm（供应商注册表加一行即扩）/ supabaseAdmin / access / github
 supabase/schema.sql        # 10 张表 + pgvector + match_notes + mistakes 桶 + RLS
 .github/workflows/ci.yml   # 安装/类型检查/构建全部在 GitHub Actions（本地零安装）
-vercel.json                # Cron：每日 04:00 北京时间
+vercel.json                # Cron：每日备课 04:00 + 每周复盘周一 04:30（北京时间）
 ```
 
 ## 快速开始
@@ -91,9 +91,10 @@ pnpm dev:mobile   # 手机端（Expo Go）
 - [x] tasks（并集合并 + 墓碑删除）/ timer_sessions（append-only 并集）双向同步，驾驶舱启动静默触发
 - [ ] mistakes 双向同步（现单向上传）+ 语音转写/重做结果回填云端
 
-**定时任务（蓝皮书 7 管道中 1 个已完成）**
-- [ ] 每周画像复盘 Cron（聚合周数据 → LLM 生成复盘报告）
-- [ ] 资讯自动检索 Cron（Tavily 定时抓考纲变动 → 注入画像权重）
+**定时任务（蓝皮书 7 管道已完成 3）**
+- [x] `/api/cron/daily` 每日 04:00 备课流水线
+- [x] `/api/cron/weekly` 每周一 04:30：周数据聚合 + Tavily 双检索（考纲变动/资讯）→ LLM 教练复盘 → `weekly_reviews` → 画像详情弹窗展示
+- [ ] 其余管道（如定时同步 Obsidian 增量向量化 Cron，现手动触发）
 
 **其他**
 - [ ] 横向对标升级：解析分数线数值计算各科差距（现展示搜索结果）

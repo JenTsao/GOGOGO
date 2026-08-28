@@ -10,7 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
@@ -61,6 +61,20 @@ export function MistakeView() {
   const [transcribing, setTranscribing] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState(''); // 视觉识别的题面摘要（可手改）
   const [recognizing, setRecognizing] = useState(false);
+
+  // 录音/播放句柄用 ref 持有：定时器与卸载清理走 ref，避免闭包读到过期的 state
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 卸载时统一释放：清定时器、停录音、释放声音实例（防内存泄漏与后台占用麦克风）
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearTimeout(recordTimerRef.current);
+      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
+      soundRef.current?.unloadAsync().catch(() => {});
+    };
+  }, []);
 
   // 语音备忘转文字：结果落 mistakeStore（AI 讲解上下文 + 画像情绪词来源）
   const transcribe = async (m: Mistake) => {
@@ -152,12 +166,28 @@ export function MistakeView() {
     if (!result.canceled && result.assets[0]) setImageUri(result.assets[0].uri);
   };
 
-  const toggleRecord = async () => {
-    if (recording) {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
+  const stopRecording = async () => {
+    const rec = recordingRef.current;
+    if (!rec) return;
+    recordingRef.current = null;
+    if (recordTimerRef.current) {
+      clearTimeout(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    try {
+      await rec.stopAndUnloadAsync();
+      const uri = rec.getURI();
       setRecording(null);
       if (uri) setVoiceUri(await persistAudio(uri));
+    } catch {
+      setRecording(null);
+    }
+  };
+
+  const toggleRecord = async () => {
+    // 停止判定走 ref：60s 兜底定时器触发时 state 闭包不可靠
+    if (recordingRef.current) {
+      await stopRecording();
       return;
     }
     const perm = await Audio.requestPermissionsAsync();
@@ -167,7 +197,13 @@ export function MistakeView() {
     }
     await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
     const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+    recordingRef.current = rec;
     setRecording(rec);
+    // 60 秒兜底自动停（与 UI「≤1 分钟」标注一致）
+    recordTimerRef.current = setTimeout(() => {
+      recordTimerRef.current = null;
+      void stopRecording();
+    }, 61000);
   };
 
   const playVoice = async (m: Mistake) => {
@@ -175,6 +211,7 @@ export function MistakeView() {
     try {
       await sound?.unloadAsync();
       const { sound: s } = await Audio.Sound.createAsync({ uri: m.voiceUri ?? m.voiceUrl! });
+      soundRef.current = s;
       setSound(s);
       await s.playAsync();
     } catch {

@@ -65,6 +65,9 @@ export function CodeSandbox() {
         case 'code-value':
           save(nameRef.current, msg.code ?? '');
           setSaveHint(`已保存「${nameRef.current.trim() || '未命名片段'}」`);
+          // 落盘成功后才清空输入框（点击保存时立即清空会让连点第二次用空名覆盖）
+          setName('');
+          nameRef.current = '';
           break;
       }
     },
@@ -99,6 +102,11 @@ export function CodeSandbox() {
           source={SANDBOX_HTML}
           originWhitelist={['*']}
           onMessage={onMessage}
+          // 页面加载失败（CDN 断网等）时 status 会卡在 loading，必须显式降级到 error
+          onError={() => {
+            setStatus('error');
+            setLogs((l) => [...l, '❌ 沙盒页面加载失败，请检查网络后重试']);
+          }}
           javaScriptEnabled
           domStorageEnabled
         />
@@ -131,15 +139,16 @@ export function CodeSandbox() {
           placeholder="片段名称"
           placeholderTextColor="#999"
           value={name}
-          onChangeText={setName}
+          onChangeText={(t) => {
+            setName(t);
+            nameRef.current = t; // 输入实时同步到 ref：异步回传前连点保存也不会丢名字
+          }}
         />
         <TouchableOpacity
           style={styles.saveBtn}
           onPress={() => {
             // 保存的是编辑器当前内容：让 WebView 把代码回传后落盘
-            nameRef.current = name;
             webRef.current?.postMessage(JSON.stringify({ type: 'export' }));
-            setName('');
           }}
         >
           <Text style={styles.saveBtnText}>💾 保存片段</Text>

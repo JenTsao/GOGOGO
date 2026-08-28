@@ -18,9 +18,13 @@ export default function ProfileScreen() {
   } = useSettingsStore();
   const { reminders, addReminder, removeReminder } = useReminderStore();
 
-  // 切换预设自动填充默认 baseUrl / 模型；custom 留空由用户自填
+  // 切换预设自动填充默认 baseUrl / 模型；custom 不清空（保留用户已填的自定义配置）
   const pickPreset = (key: string) => {
     const preset = LLM_PRESETS[key];
+    if (key === 'custom') {
+      update({ llmProvider: key });
+      return;
+    }
     update({ llmProvider: key, llmBaseUrl: preset.baseUrl || '', llmModel: preset.model || '' });
   };
 
@@ -52,11 +56,15 @@ export default function ProfileScreen() {
   const submitReminder = () => {
     const content = reminderText.trim();
     const raw = reminderDate.trim();
-    if (!content || !/^\d{2,4}-\d{1,2}-\d{1,2}$/.test(raw)) return;
-    const full = raw.length === 10 ? raw : `${new Date().getFullYear()}-${raw}`;
+    if (!content || !raw) return;
+    // MM-DD 先补当年年份，再按完整日期校验（手输 09-10 这类月-日格式是高频用法）
+    const full = /^\d{1,2}-\d{1,2}$/.test(raw) ? `${new Date().getFullYear()}-${raw}` : raw;
+    const m = full.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (!m) return;
+    // 用构造函数解析并检查月份回读，拦截 02-31 之类溢出日期（Date 会静默滚进下月）
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (Number.isNaN(d.getTime()) || d.getMonth() !== Number(m[2]) - 1) return;
     // 归一化为本地日期串，保证驾驶舱横幅能按日匹配
-    const d = new Date(full);
-    if (Number.isNaN(d.getTime())) return;
     addReminder(localDateStr(d), content);
     setReminderText('');
   };

@@ -14,6 +14,7 @@ export function AiOrb() {
   const { llmModel } = useSettingsStore();
   const webviewRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
+  const [orbFailed, setOrbFailed] = useState(false); // ball.html 加载失败时降级为静态占位球
   const [input, setInput] = useState('');
   const busy = status === 'thinking';
 
@@ -33,14 +34,20 @@ export function AiOrb() {
 
   return (
     <>
-      {/* 角标球：Web 端 grok-ball，固定右下角，点击唤起 AI 对话 */}
+      {/* 角标球：Web 端 grok-ball，固定右下角，点击唤起 AI 对话；加载失败降级静态球保底可点 */}
       <View style={styles.orbWrap} pointerEvents="box-none">
-        <WebView
-          ref={webviewRef}
-          source={BALL_HTML}
-          style={styles.orb}
-          originWhitelist={['*']}
-          onMessage={(e) => {
+        {orbFailed ? (
+          <TouchableOpacity style={styles.orbFallback} onPress={open} activeOpacity={0.8}>
+            <Text style={styles.orbFallbackText}>🤖</Text>
+          </TouchableOpacity>
+        ) : (
+          <WebView
+            ref={webviewRef}
+            source={BALL_HTML}
+            style={styles.orb}
+            originWhitelist={['*']}
+            onError={() => setOrbFailed(true)}
+            onMessage={(e) => {
             let msg: { type: string };
             try {
               msg = JSON.parse(e.nativeEvent.data);
@@ -53,7 +60,8 @@ export function AiOrb() {
               post({ type: 'emotion', id: STATUS_EMOTION.idle });
             }
           }}
-        />
+          />
+        )}
       </View>
 
       <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
@@ -136,6 +144,15 @@ const styles = StyleSheet.create({
     height: 75,
     backgroundColor: 'transparent',
   },
+  orbFallback: {
+    width: 75,
+    height: 75,
+    borderRadius: 37.5,
+    backgroundColor: '#111',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orbFallbackText: { fontSize: 32 },
   sheet: {
     flex: 1,
     marginTop: 80,

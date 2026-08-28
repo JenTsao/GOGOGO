@@ -41,3 +41,42 @@ export async function fetchDaily(cfg: CloudConfig, date?: string): Promise<Daily
     clearTimeout(timer);
   }
 }
+
+// 周复盘产物（weekly_reviews.content）
+export interface WeeklyReview {
+  week_start: string;
+  content: {
+    summary: string;
+    risks: string[];
+    focusAdvice: string[];
+    syllabusAlert: string | null;
+    news: { title: string; url: string }[];
+  };
+}
+
+// 拉取最近一次周复盘（≤7 天内有效，更旧返回 null 让调用方提示）
+export async function fetchWeekly(cfg: CloudConfig): Promise<WeeklyReview | null> {
+  const base = cfg.supabaseUrl.replace(/\/+$/, '');
+  if (!base || !cfg.supabaseAnonKey || !cfg.accessKey) {
+    throw new Error('请在「我的」配置云端地址 / Anon Key / 访问密钥');
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(`${base}/rest/v1/rpc/get_weekly_by_key`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: cfg.supabaseAnonKey,
+        Authorization: `Bearer ${cfg.supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ p_access_key: cfg.accessKey }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = (await res.json()) as WeeklyReview[];
+    return rows?.[0] ?? null;
+  } finally {
+    clearTimeout(timer);
+  }
+}

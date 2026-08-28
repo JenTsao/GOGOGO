@@ -260,3 +260,32 @@ on conflict (id) do nothing;
 -- mood_checkins 补日期列 + 一人一天一条（同日重打覆盖）
 alter table public.mood_checkins add column if not exists date date;
 create unique index if not exists idx_mood_checkins_user_date on public.mood_checkins (user_id, date);
+
+-- weekly_reviews：每周画像复盘 + 资讯检索产物（周 Cron 写入，移动端 RPC 读取）
+create table if not exists public.weekly_reviews (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  week_start date not null,
+  content jsonb not null, -- {summary, risks[], focusAdvice[], syllabusAlert, news[{title,url}]}
+  created_at timestamptz not null default now(),
+  unique (user_id, week_start)
+);
+alter table public.weekly_reviews enable row level security;
+create policy "owners manage own weekly reviews" on public.weekly_reviews
+  for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- 移动端免登录读取最近一次复盘（security definer 内部显式校验 access_key，不放宽 RLS）
+create or replace function public.get_weekly_by_key(p_access_key text)
+returns table (week_start date, content jsonb)
+language sql
+security definer
+set search_path = public
+as $$
+  select wr.week_start, wr.content
+  from public.weekly_reviews wr
+  join public.profiles pr on pr.user_id = wr.user_id
+  where pr.access_key = p_access_key
+  order by wr.week_start desc
+  limit 1
+$$;
+grant execute on function public.get_weekly_by_key(text) to anon, authenticated;

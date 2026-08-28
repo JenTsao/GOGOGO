@@ -172,7 +172,10 @@ export function KnowledgeView() {
         if (!cancelled) setPaths(list);
       })
       .catch((e) => {
-        if (!cancelled) setError(`拉取目录树失败（${e}）`);
+        if (cancelled) return;
+        // github.ts 内置 10 秒 AbortController 超时，超时单独给出可读提示
+        if ((e as Error)?.name === 'AbortError') setError('拉取目录树超时，请检查网络后重试');
+        else setError(`拉取目录树失败（${e}）`);
       });
     return () => {
       cancelled = true;

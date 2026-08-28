@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Linking } from 'react-native';
 import Svg, { Polygon, Polyline, Line, Circle, Text as SvgText } from 'react-native-svg';
 import { Fragment, useMemo, useState } from 'react';
 import { useFocusStore } from '@/store/focusStore';
@@ -10,6 +10,7 @@ import { useMoodStore } from '@/store/moodStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { localDateStr } from '@/store/reminderStore';
 import { countNegativeWords } from '@/lib/stt';
+import { fetchWeekly, WeeklyReview } from '@/lib/cloud';
 import MoodCheckin from '@/components/MoodCheckin';
 
 // Tab 3：仪表盘 —— 激进模式画像
@@ -99,6 +100,9 @@ export default function DashboardScreen() {
   const [benchmark, setBenchmark] = useState<string | null>(null);
   const [benchmarkBusy, setBenchmarkBusy] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
+  // 周复盘（周 Cron 产物）：详情弹窗打开时拉取
+  const [weekly, setWeekly] = useState<WeeklyReview | null>(null);
+  const [weeklyState, setWeeklyState] = useState<'idle' | 'loading' | 'none' | 'error'>('idle');
 
   // 近 7 天每天专注分钟（含今天）
   const dailyMinutes = useMemo(() => {
@@ -219,7 +223,28 @@ export default function DashboardScreen() {
       <MoodCheckin />
 
       <Text style={styles.cardTitle}>📊 我的画像</Text>
-      <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={() => setDetailOpen(true)}>
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.8}
+        onPress={() => {
+          setDetailOpen(true);
+          // 每次进入详情都刷新周复盘（周 Cron 每周一凌晨产出）
+          if (!weekly) {
+            const { supabaseUrl, supabaseAnonKey, accessKey } = useSettingsStore.getState();
+            if (supabaseUrl && supabaseAnonKey && accessKey) {
+              setWeeklyState('loading');
+              fetchWeekly({ supabaseUrl, supabaseAnonKey, accessKey })
+                .then((w) => {
+                  setWeekly(w);
+                  setWeeklyState(w ? 'idle' : 'none');
+                })
+                .catch(() => setWeeklyState('error'));
+            } else {
+              setWeeklyState('error');
+            }
+          }
+        }}
+      >
         <View style={styles.moodTrailRow}>
           {moodTrail.map((e, i) => (
             <Text key={i} style={styles.moodTrailEmoji}>{e ?? '·'}</Text>
@@ -264,7 +289,7 @@ export default function DashboardScreen() {
           {[25, 50, 75, 100].map((lv) => (
             <Polygon
               key={lv}
-              points={polygonPoints(new Array(5).fill(lv), R)}
+              points={polygonPoints(new Array(dims.length).fill(lv), R)} // 网格边数必须与维度数一致，否则六边形数据会压进五边形网格扭曲
               fill="none"
               stroke="#e3e6eb"
               strokeWidth={1}
@@ -412,6 +437,50 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* 本周复盘（周 Cron：全量数据 + Tavily 考纲/资讯 → LLM 教练复盘） */}
+          <Text style={styles.cardTitle}>🗓 本周复盘</Text>
+          <View style={styles.card}>
+            {weeklyState === 'loading' && <ActivityIndicator color="#1a4d8f" />}
+            {weeklyState === 'error' && <Text style={styles.placeholder}>复盘拉取失败，稍后在画像页重试</Text>}
+            {weeklyState === 'none' && (
+              <Text style={styles.placeholder}>本周复盘还没生成（每周一凌晨自动产出，需在管理台配置 TAVILY_API_KEY 以获取考纲资讯）</Text>
+            )}
+            {weeklyState === 'idle' && weekly && (
+              <>
+                <Text style={styles.adviceText}>{weekly.content.summary}</Text>
+                {!!weekly.content.syllabusAlert && (
+                  <Text style={styles.syllabusAlert}>⚠️ 考纲警示：{weekly.content.syllabusAlert}</Text>
+                )}
+                {weekly.content.risks.length > 0 && (
+                  <>
+                    <Text style={styles.profileText}>⚠️ 薄弱点与下周权重建议</Text>
+                    {weekly.content.risks.map((r, i) => (
+                      <Text key={i} style={styles.adviceText}>· {r}</Text>
+                    ))}
+                  </>
+                )}
+                {weekly.content.focusAdvice.length > 0 && (
+                  <>
+                    <Text style={styles.profileText}>🎯 下周专注建议</Text>
+                    {weekly.content.focusAdvice.map((r, i) => (
+                      <Text key={i} style={styles.adviceText}>· {r}</Text>
+                    ))}
+                  </>
+                )}
+                {weekly.content.news.length > 0 && (
+                  <>
+                    <Text style={styles.profileText}>📰 本周高考资讯</Text>
+                    {weekly.content.news.map((n) => (
+                      <TouchableOpacity key={n.url} onPress={() => void Linking.openURL(n.url)}>
+                        <Text style={styles.newsLink}>· {n.title}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+          </View>
+
           <View style={styles.card}>
             {mistakes.length > 0 && dangerSubject && (
               <Text style={styles.profileText}>
@@ -478,6 +547,8 @@ const ADVICE: Record<string, string> = {
 };
 
 const styles = StyleSheet.create({
+  syllabusAlert: { fontSize: 13, color: '#b45309', fontWeight: '700', marginTop: 6, lineHeight: 19 },
+  newsLink: { fontSize: 13, color: '#1a4d8f', textDecorationLine: 'underline', marginTop: 4, lineHeight: 19 },
   moodTrailRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 8 },
   moodTrailEmoji: { fontSize: 16 },
   moodTrailLabel: { fontSize: 11, color: '#999', marginLeft: 6 },

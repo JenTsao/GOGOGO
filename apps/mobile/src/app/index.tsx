@@ -95,7 +95,9 @@ export default function CockpitScreen() {
     useFocusStore.getState().syncSessions();
     useMoodStore.getState().load();
     useMoodStore.getState().syncAll();
-    useMistakeStore.getState().syncAll();
+    // 错题 syncAll 需显式传管理台地址与密钥（接口签名与 moodStore 不同）
+    const { webApiUrl, accessKey } = useSettingsStore.getState();
+    if (webApiUrl && accessKey) void useMistakeStore.getState().syncAll(webApiUrl, accessKey);
   }, []);
 
   // 自动定位：启动时请求前台权限，取当前坐标（失败静默，回退到配置城市）

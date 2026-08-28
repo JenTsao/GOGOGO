@@ -1,7 +1,7 @@
 // 情绪打卡条（仪表盘顶部）：emoji + 一句话备注 + 语音备忘
 // 本地优先落 MMKV → 后台同步云端 mood_checkins；语音可转写喂画像情绪信号
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { useMoodStore } from '@/store/moodStore';
@@ -43,6 +43,20 @@ export default function MoodCheckin() {
   const [transcribing, setTranscribing] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // 录音/播放句柄用 ref 持有：60 秒兜底定时器触发时 state 闭包已过期（调度时 recording 还是 null），必须走 ref
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 卸载时统一释放：清定时器、停录音、释放声音实例
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearTimeout(recordTimerRef.current);
+      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
+      soundRef.current?.unloadAsync().catch(() => {});
+    };
+  }, []);
+
   // 打卡记录加载后回填今日状态
   useEffect(() => {
     if (today) {
@@ -53,12 +67,28 @@ export default function MoodCheckin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkins.length]);
 
-  const toggleRecord = async () => {
-    if (recording) {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
+  const stopRecording = async () => {
+    const rec = recordingRef.current;
+    if (!rec) return;
+    recordingRef.current = null;
+    if (recordTimerRef.current) {
+      clearTimeout(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    try {
+      await rec.stopAndUnloadAsync();
+      const uri = rec.getURI();
       setRecording(null);
       if (uri) setVoiceUri(await persistAudio(uri));
+    } catch {
+      setRecording(null);
+    }
+  };
+
+  const toggleRecord = async () => {
+    // 停止判定走 ref：定时器兜底触发时闭包里的 state 不可靠
+    if (recordingRef.current) {
+      await stopRecording();
       return;
     }
     try {
@@ -69,10 +99,12 @@ export default function MoodCheckin() {
       }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      recordingRef.current = rec;
       setRecording(rec);
       // 60 秒兜底自动停（防忘记停止）
-      setTimeout(() => {
-        if (recording) void toggleRecord();
+      recordTimerRef.current = setTimeout(() => {
+        recordTimerRef.current = null;
+        void stopRecording();
       }, 61000);
     } catch (e) {
       Alert.alert('录音失败', (e as Error).message);
@@ -84,6 +116,7 @@ export default function MoodCheckin() {
     try {
       await sound?.unloadAsync();
       const { sound: s } = await Audio.Sound.createAsync({ uri: voiceUri });
+      soundRef.current = s;
       setSound(s);
       await s.playAsync();
     } catch {
