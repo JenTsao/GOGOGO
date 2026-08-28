@@ -3,24 +3,18 @@ import { WebView } from 'react-native-webview';
 import { useEffect, useRef, useState } from 'react';
 import { useAiStore, STATUS_EMOTION } from '@/store/aiStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { chatWithLlm, ChatMessage } from '@/lib/llm';
 
 // grok-ball 资产由 Expo 打包（引擎已内联进 ball.html，零外部依赖）
 const BALL_HTML = require('../../assets/grok-ball/ball.html');
 
-// L1-L3 级对话：多轮上下文 + 人设系统提示（L4 工具调度在 Phase 3）
-const SYSTEM_PROMPT =
-  '你是「高考副驾驶」，一名陪伴高三学生备考的 AI 助手。要求：回答简洁、鼓励但不灌鸡汤；' +
-  '学科问题给出清晰步骤；能识别用户想记录任务、查资料等意图时，提示可以使用对应功能（工具调度将在后续版本上线）。';
-
-// AI 悬浮球：grok-ball 表情球 + 多供应商 LLM 对话
+// AI 悬浮球：grok-ball 表情球 + 多供应商 LLM 对话（请求逻辑统一在 aiStore.ask）
 export function AiOrb() {
-  const { visible, status, open, close, setStatus, messages, pushMessage } = useAiStore();
-  const { llmBaseUrl, llmModel, llmApiKey } = useSettingsStore();
+  const { visible, status, open, close, setStatus, messages, ask } = useAiStore();
+  const { llmModel } = useSettingsStore();
   const webviewRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const [input, setInput] = useState('');
-  const [busy, setBusy] = useState(false);
+  const busy = status === 'thinking';
 
   const post = (obj: Record<string, unknown>) =>
     webviewRef.current?.postMessage(JSON.stringify(obj));
@@ -30,32 +24,10 @@ export function AiOrb() {
     if (ready) post({ type: 'emotion', id: STATUS_EMOTION[status] });
   }, [status, ready]);
 
-  const send = async () => {
-    const text = input.trim();
-    if (!text || busy) return;
-    pushMessage({ role: 'user', content: text });
+  const send = () => {
+    if (!input.trim() || busy) return;
+    ask(input);
     setInput('');
-    setBusy(true);
-    setStatus('thinking');
-
-    try {
-      // 最近 12 条作为上下文（当前 user 消息已在 store 中）
-      const history: ChatMessage[] = [...useAiStore.getState().messages.slice(-12)].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-      const reply = await chatWithLlm(
-        { baseUrl: llmBaseUrl, apiKey: llmApiKey, model: llmModel },
-        [{ role: 'system', content: SYSTEM_PROMPT }, ...history]
-      );
-      pushMessage({ role: 'assistant', content: reply });
-      setStatus('done');
-    } catch (e) {
-      pushMessage({ role: 'assistant', content: `请求失败：${(e as Error).message}` });
-      setStatus('error');
-    } finally {
-      setBusy(false);
-    }
   };
 
   return (

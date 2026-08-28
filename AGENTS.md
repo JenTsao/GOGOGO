@@ -61,7 +61,8 @@ pnpm lint         # 全 workspace 类型检查
 - ✅ AI 悬浮球对话（L1-L3）：多供应商 OpenAI 兼容协议（DeepSeek/OpenAI/Kimi/GLM/自定义），BYOK 存 MMKV
 - ✅ 凌晨备课流水线：`/api/cron/daily`（vercel.json 每日 04:00 北京时间），service role 写 daily_learning，幂等
 - ✅ 语义检索中心：`/api/knowledge/sync`（内容哈希增量向量化）+ `/api/search`（关键词 ilike + pgvector rpc match_notes 混合检索），schema.sql 已补 match_notes + hnsw 索引
-- ⏳ Phase 2 剩余：驾驶舱消费 daily_learning（每日知识点卡片/每日一题）
+- ✅ 驾驶舱消费 daily_learning：知识点翻转卡 + 每日一题（显示答案 / AI讲题，复用 aiStore.ask）；移动端经 `get_daily_by_key` RPC 免登录读取（profiles.access_key 设备密钥，security definer，不放宽 RLS）
+- ✅ Phase 2 全部完成
 - ⏳ Phase 3：L4 工具调度（6 大工具 + 确认卡片）、编译输出（PDF/Anki）、画像系统、后台唤醒
 
 ## LLM 适配层

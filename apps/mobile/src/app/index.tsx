@@ -5,13 +5,15 @@ import { useTaskStore } from '@/store/taskStore';
 import { useFocusStore } from '@/store/focusStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
+import { useAiStore } from '@/store/aiStore';
+import { fetchDaily, DailyLearning } from '@/lib/cloud';
 
 // Tab 1：驾驶舱（时间线与当下）——布局严格按蓝皮书顺序：
 // 日期天气 → 信仰级倒计时 → 今日提醒横幅 → 每日知识点 → 每日一题 → 今日三件事 → 专注启动器
 export default function CockpitScreen() {
   const { top3, backlog, addTask, removeTask, swapWithBacklog, completeTask } = useTaskStore();
   const { seconds, running, sessions, start, stop } = useFocusStore();
-  const { weatherKey, weatherCity } = useSettingsStore();
+  const { weatherKey, weatherCity, supabaseUrl, supabaseAnonKey, accessKey } = useSettingsStore();
   const reminders = useReminderStore((s) => s.reminders);
 
   const [draft, setDraft] = useState('');
@@ -19,6 +21,12 @@ export default function CockpitScreen() {
   const [inFlow, setInFlow] = useState(false); // 全屏心流模式
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [countdownMode, setCountdownMode] = useState<'days' | 'precise'>('days'); // 倒计时两种展示
+
+  // 每日备课内容（云端 daily_learning）
+  const [daily, setDaily] = useState<DailyLearning | null>(null);
+  const [dailyState, setDailyState] = useState<'loading' | 'ok' | 'empty' | 'error' | 'unconfigured'>('loading');
+  const [knowledgeFlipped, setKnowledgeFlipped] = useState(false); // 知识点翻转卡
+  const [showAnswer, setShowAnswer] = useState(false); // 每日一题答案
 
   const today = useMemo(() => new Date(), []);
   const todayStr = localDateStr(today);
@@ -38,6 +46,22 @@ export default function CockpitScreen() {
     () => reminders.filter((r) => r.date === todayStr),
     [reminders, todayStr]
   );
+
+  // 每日备课不可用时的提示文案
+  const dailyStateText = useMemo(() => {
+    switch (dailyState) {
+      case 'unconfigured':
+        return '在「我的」配置云端地址与访问密钥后，展示 AI 每日生成的知识点与一题';
+      case 'loading':
+        return '云端加载中…';
+      case 'empty':
+        return '今日内容尚未生成（凌晨 04:00 备课流水线）';
+      case 'error':
+        return '云端读取失败，请检查配置或稍后重试';
+      default:
+        return '';
+    }
+  }, [dailyState]);
 
   // 今日累计专注（分钟），来自本地会话记录
   const todayFocusMin = useMemo(() => {
@@ -96,6 +120,29 @@ export default function CockpitScreen() {
       cancelled = true;
     };
   }, [weatherKey, weatherCity, coords]);
+
+  // 每日备课内容：云端读取（未配置/失败均静默降级为提示卡片）
+  useEffect(() => {
+    if (!supabaseUrl || !supabaseAnonKey || !accessKey) {
+      setDailyState('unconfigured');
+      return;
+    }
+    let cancelled = false;
+    setDailyState('loading');
+    fetchDaily({ supabaseUrl, supabaseAnonKey, accessKey }, todayStr)
+      .then((d) => {
+        if (!cancelled) {
+          setDaily(d);
+          setDailyState(d ? 'ok' : 'empty');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setDailyState('error');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabaseUrl, supabaseAnonKey, accessKey, todayStr]);
 
   const weatherTip = (temp: number) =>
     temp >= 30 ? '太热，多喝水' : temp >= 22 ? '适合刷题' : temp >= 12 ? '微凉，穿外套' : '注意保暖';
@@ -169,17 +216,57 @@ export default function CockpitScreen() {
           </View>
         )}
 
-        {/* 📘 每日知识点（翻转卡片）——数据源：Phase 2 凌晨备课流水线 */}
-        <View style={[styles.card, styles.placeholderCard]}>
-          <Text style={styles.placeholderTitle}>📘 每日知识点</Text>
-          <Text style={styles.placeholderText}>AI 每天凌晨 4:00 基于你的 Obsidian 笔记自动生成</Text>
-        </View>
+        {/* 📘 每日知识点（翻转卡片）——数据源：凌晨备课流水线 daily_learning */}
+        {dailyState === 'ok' && daily?.knowledge_body ? (
+          <TouchableOpacity
+            style={[styles.card, styles.knowledgeCard]}
+            activeOpacity={0.85}
+            onPress={() => setKnowledgeFlipped((v) => !v)}
+          >
+            <Text style={styles.knowledgeTitle}>📘 每日知识点</Text>
+            <Text style={styles.knowledgeBody} numberOfLines={knowledgeFlipped ? undefined : 3}>
+              {daily.knowledge_body}
+            </Text>
+            <Text style={styles.knowledgeHint}>{knowledgeFlipped ? '点击翻回正面' : '点击翻转查看全文'}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={[styles.card, styles.placeholderCard]}>
+            <Text style={styles.placeholderTitle}>📘 每日知识点</Text>
+            <Text style={styles.placeholderText}>{dailyStateText}</Text>
+          </View>
+        )}
 
-        {/* ✏️ 每日一题——数据源：Phase 2 凌晨备课流水线 */}
-        <View style={[styles.card, styles.placeholderCard]}>
-          <Text style={styles.placeholderTitle}>✏️ 每日一题</Text>
-          <Text style={styles.placeholderText}>中高难度 + 分步解析，与知识点同源生成</Text>
-        </View>
+        {/* ✏️ 每日一题——显示答案 + AI 讲题 */}
+        {dailyState === 'ok' && daily?.question_text ? (
+          <View style={styles.card}>
+            <Text style={styles.knowledgeTitle}>✏️ 每日一题</Text>
+            <Text style={styles.questionText}>{daily.question_text}</Text>
+            {showAnswer && !!daily.answer && <Text style={styles.answerText}>💡 {daily.answer}</Text>}
+            <View style={styles.questionBtnRow}>
+              <TouchableOpacity style={styles.qBtn} onPress={() => setShowAnswer((v) => !v)}>
+                <Text style={styles.qBtnText}>{showAnswer ? '隐藏答案' : '📝 显示答案'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.qBtn, styles.qBtnDark]}
+                onPress={() => {
+                  const ai = useAiStore.getState();
+                  ai.open();
+                  ai.ask(
+                    `请讲解这道题，分步骤说清思路：\n${daily.question_text}` +
+                      (daily.answer ? `\n\n参考解析：${daily.answer}` : '')
+                  );
+                }}
+              >
+                <Text style={[styles.qBtnText, styles.qBtnTextDark]}>🤖 AI讲题</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={[styles.card, styles.placeholderCard]}>
+            <Text style={styles.placeholderTitle}>✏️ 每日一题</Text>
+            <Text style={styles.placeholderText}>{dailyStateText}</Text>
+          </View>
+        )}
 
         {/* 今日三件事 */}
         <View style={[styles.card, styles.sectionCard]}>
@@ -319,10 +406,23 @@ const styles = StyleSheet.create({
   },
   reminderText: { color: '#8c6b1f', fontSize: 14, lineHeight: 22 },
 
-  // 每日知识点 / 每日一题占位（Phase 2 接入后替换为翻转卡与答题交互）
+  // 每日知识点 / 每日一题占位（云端不可用时的降级卡片）
   placeholderCard: { borderStyle: 'dashed', borderWidth: 1, borderColor: '#d9dce1' },
   placeholderTitle: { fontSize: 16, fontWeight: '700', color: '#333' },
   placeholderText: { fontSize: 13, color: '#999', marginTop: 6, lineHeight: 20 },
+
+  // 每日知识点翻转卡 / 每日一题
+  knowledgeCard: { backgroundColor: '#eef4ff' },
+  knowledgeTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a1a' },
+  knowledgeBody: { fontSize: 15, color: '#333', lineHeight: 24, marginTop: 8 },
+  knowledgeHint: { fontSize: 12, color: '#8aa2c8', marginTop: 8 },
+  questionText: { fontSize: 15, color: '#333', lineHeight: 24, marginTop: 8 },
+  answerText: { fontSize: 14, color: '#1c5d2c', lineHeight: 22, marginTop: 10, backgroundColor: '#f0f9f2', borderRadius: 10, padding: 10 },
+  questionBtnRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  qBtn: { flex: 1, borderWidth: 1, borderColor: '#d9dce1', borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
+  qBtnDark: { backgroundColor: '#111', borderColor: '#111' },
+  qBtnText: { fontSize: 14, fontWeight: '600', color: '#444' },
+  qBtnTextDark: { color: '#fff' },
 
   sectionCard: { marginTop: 16 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -200,3 +200,27 @@ $$;
 
 create index if not exists idx_knowledge_embeddings_vec
   on public.knowledge_embeddings using hnsw (embedding vector_cosine_ops);
+
+-- ============================================================
+-- 设备访问密钥：移动端免登录读取每日备课内容
+-- 密钥由用户在 Supabase SQL 编辑器设置，移动端「我的」填同一密钥：
+--   update profiles set access_key = '你的随机密钥' where user_id = '...';
+-- ============================================================
+alter table public.profiles add column if not exists access_key text;
+
+-- security definer：函数内部显式校验 access_key，不放宽 RLS
+create or replace function public.get_daily_by_key(
+  access_key text,
+  target_date date default (now() at time zone 'Asia/Shanghai')::date
+)
+returns table (date date, knowledge_body text, question_text text, answer text)
+language sql stable
+security definer set search_path = public
+as $$
+  select d.date, d.knowledge_body, d.question_text, d.answer
+  from public.daily_learning d
+  join public.profiles p on p.user_id = d.user_id
+  where p.access_key = get_daily_by_key.access_key
+    and d.date = target_date
+  limit 1;
+$$;

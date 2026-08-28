@@ -8,7 +8,8 @@ import { LLM_PRESETS } from '@/lib/llm';
 export default function ProfileScreen() {
   const {
     weatherKey, weatherCity, targetUniversity, githubRepo, githubBranch,
-    llmProvider, llmBaseUrl, llmModel, llmApiKey, update,
+    llmProvider, llmBaseUrl, llmModel, llmApiKey,
+    supabaseUrl, supabaseAnonKey, accessKey, update,
   } = useSettingsStore();
   const { reminders, addReminder, removeReminder } = useReminderStore();
 
@@ -84,6 +85,43 @@ export default function ProfileScreen() {
         onChangeText={(v) => update({ llmModel: v })}
         autoCapitalize="none"
         autoCorrect={false}
+      />
+
+      <Text style={styles.sectionTitle}>☁️ 云端（每日备课内容）</Text>
+      <Text style={styles.placeholder}>与 Supabase 项目对应；访问密钥需先在 SQL 编辑器设置：update profiles set access_key = '...' where user_id = '...'</Text>
+
+      <Text style={styles.label}>Supabase URL</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="https://xxx.supabase.co"
+        placeholderTextColor="#999"
+        value={supabaseUrl}
+        onChangeText={(v) => update({ supabaseUrl: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <Text style={styles.label}>Anon Key（公开 Key）</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="eyJhbGciOi…"
+        placeholderTextColor="#999"
+        value={supabaseAnonKey}
+        onChangeText={(v) => update({ supabaseAnonKey: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <Text style={styles.label}>访问密钥（与 profiles.access_key 一致）</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="你的随机密钥"
+        placeholderTextColor="#999"
+        value={accessKey}
+        onChangeText={(v) => update({ accessKey: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
       />
 
       <Text style={styles.label}>OpenWeather API Key</Text>

@@ -13,6 +13,9 @@ export interface Settings {
   llmBaseUrl: string;
   llmModel: string;
   llmApiKey: string;
+  supabaseUrl: string; // 云端读取（每日备课内容）
+  supabaseAnonKey: string;
+  accessKey: string; // 与 profiles.access_key 一致的设备访问密钥
 }
 
 const SETTINGS_KEY = 'settings';
@@ -28,6 +31,9 @@ const DEFAULTS: Settings = {
   llmBaseUrl: 'https://api.deepseek.com',
   llmModel: 'deepseek-chat',
   llmApiKey: '',
+  supabaseUrl: '',
+  supabaseAnonKey: '',
+  accessKey: '',
 };
 
 function loadSettings(): Settings {
