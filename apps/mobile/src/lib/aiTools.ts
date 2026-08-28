@@ -112,6 +112,20 @@ interface ToolResult {
   text: string;
 }
 
+// 外部 API 统一 15s 超时：Tavily / 管理台偶发挂起会卡死整轮对话，必须可中止
+async function fetchWithTimeout(url: string, init: RequestInit = {}, ms = 15000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (e) {
+    // AbortError 直接上屏只有一句「Aborted」，转译成可读文案
+    throw (e as Error).name === 'AbortError' ? new Error(`请求超时（${Math.round(ms / 1000)} 秒），请检查网络或管理台地址`) : (e as Error);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // 工具执行：只操作 store / 外部 API，不碰 aiStore（避免循环依赖），结果由 aiStore 上屏
 export async function executeTool(name: string, args: Record<string, unknown>): Promise<ToolResult> {
   try {
@@ -140,7 +154,7 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         if (!query) return { ok: false, text: '缺少搜索关键词' };
         const { tavilyKey } = useSettingsStore.getState();
         if (!tavilyKey) return { ok: false, text: '未配置 Tavily Key（在「我的」填写后可用联网搜索）' };
-        const res = await fetch('https://api.tavily.com/search', {
+        const res = await fetchWithTimeout('https://api.tavily.com/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ api_key: tavilyKey, query, max_results: 3, include_answer: true }),
@@ -183,7 +197,7 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
           return { ok: false, text: `找到 ${paths.length} 篇已下载笔记，请说明要导出哪一篇（如“导出导数.md”）：\n${list}` };
         }
         const type = args.type === 'anki' || args.type === 'outline' ? args.type : 'pdf';
-        const res = await fetch(`${webApiUrl.replace(/\/+$/, '')}/api/export`, {
+        const res = await fetchWithTimeout(`${webApiUrl.replace(/\/+$/, '')}/api/export`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-access-key': accessKey },
           body: JSON.stringify({ paths: [target], type }),

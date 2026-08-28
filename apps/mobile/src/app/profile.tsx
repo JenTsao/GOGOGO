@@ -10,7 +10,7 @@ import { fetchRepoPaths } from '@/lib/github';
 // Tab 4：我的（配置与调度）
 export default function ProfileScreen() {
   const {
-    weatherKey, weatherCity, targetUniversity, githubRepo, githubBranch,
+    weatherKey, weatherCity, targetUniversity, targetScore, githubRepo, githubBranch,
     llmProvider, llmBaseUrl, llmModel, llmApiKey,
     sttBaseUrl, sttApiKey, sttModel,
     visionBaseUrl, visionApiKey, visionModel,
@@ -325,6 +325,19 @@ export default function ProfileScreen() {
         placeholderTextColor="#999"
         value={targetUniversity}
         onChangeText={(v) => update({ targetUniversity: v })}
+      />
+
+      <Text style={styles.label}>目标总分（对标差距计算用，0–750）</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="如：630"
+        placeholderTextColor="#999"
+        value={targetScore === null ? '' : String(targetScore)}
+        onChangeText={(v) => {
+          const n = parseInt(v, 10);
+          update({ targetScore: Number.isFinite(n) && n > 0 && n <= 750 ? n : null });
+        }}
+        keyboardType="number-pad"
       />
 
       <Text style={styles.sectionTitle}>📓 知识库（Obsidian）</Text>

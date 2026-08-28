@@ -65,8 +65,12 @@ async function syncOnce(): Promise<BackgroundFetch.BackgroundFetchResult> {
     });
   }
   if (fresh.length > 0) {
-    // 只保留最近 200 条去重记录，防止无限增长
-    storage.set(NOTIFIED_KEY, JSON.stringify([...seen, ...fresh.map((r) => r.id)].slice(-200)));
+    try {
+      // 只保留最近 200 条去重记录，防止无限增长
+      storage.set(NOTIFIED_KEY, JSON.stringify([...seen, ...fresh.map((r) => r.id)].slice(-200)));
+    } catch {
+      // 写失败只影响下次去重（至多重复通知一次），不能让后台任务报错
+    }
   }
 
   // 2) 预取每日备课内容（配置齐全才拉，失败静默——下次后台周期重试）

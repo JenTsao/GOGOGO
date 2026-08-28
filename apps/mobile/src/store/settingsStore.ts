@@ -6,6 +6,7 @@ export interface Settings {
   weatherKey: string;
   weatherCity: string;
   targetUniversity: string;
+  targetScore: number | null; // 本人目标总分（横向对标数值化：与检索到的分数线计算差距）
   githubRepo: string; // Obsidian 仓库，格式 owner/repo（知识库用）
   githubBranch: string;
   llmProvider: string; // deepseek | openai | moonshot | glm | custom
@@ -31,6 +32,7 @@ const DEFAULTS: Settings = {
   weatherKey: '',
   weatherCity: '',
   targetUniversity: '',
+  targetScore: null,
   githubRepo: '',
   githubBranch: 'main',
   llmProvider: 'deepseek',

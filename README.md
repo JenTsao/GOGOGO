@@ -97,6 +97,6 @@ pnpm dev:mobile   # 手机端（Expo Go）
 - [ ] 其余管道（如定时同步 Obsidian 增量向量化 Cron，现手动触发）
 
 **其他**
-- [ ] 横向对标升级：解析分数线数值计算各科差距（现展示搜索结果）
+- [x] 横向对标数值化：目标总分 vs 检索分数线（启发式提取，省份/批次需人工核对）
+- [x] APK 构建：`.github/workflows/build-apk.yml`（手动 dispatch 或 `v*` tag 触发，debug 签名可侧载）
 - [ ] Supabase Auth 正式登录（多设备一致，替代设备访问密钥方案）
-- [ ] EAS 构建正式 APK（后台唤醒在 Expo Go 下不生效，需构建版）

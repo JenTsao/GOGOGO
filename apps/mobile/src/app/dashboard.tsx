@@ -47,7 +47,7 @@ export default function DashboardScreen() {
   const snippetCount = useSandboxStore((s) => s.snippets.length);
   const mistakes = useMistakeStore((s) => s.mistakes);
   const moodCheckins = useMoodStore((s) => s.checkins);
-  const { targetUniversity, tavilyKey } = useSettingsStore();
+  const { targetUniversity, targetScore, tavilyKey } = useSettingsStore();
 
   // 危险学科：错题最多的科目；卡壳词云：错题标签 top5
   const dangerSubject = useMemo(() => {
@@ -187,7 +187,7 @@ export default function DashboardScreen() {
   const heatColor = (min: number) =>
     min <= 0 ? '#f0f1f3' : min < 10 ? '#cfe5d2' : min < 25 ? '#93c29c' : min < 45 ? '#4e9a5f' : '#1c5d2c';
 
-  // 横向对标：Tavily 搜索目标大学分数线
+  // 横向对标数值化：Tavily 检索分数线 → 从摘要/正文提取可信分数 → 与目标总分计算差距
   const runBenchmark = async () => {
     if (!tavilyKey) {
       setBenchmark('未配置 Tavily Key（在「我的」填写后可用横向对标）');
@@ -198,17 +198,54 @@ export default function DashboardScreen() {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000); // Tavily 偶发慢响应，15s 兜底
     try {
-      const query = `${targetUniversity || '重点大学'} 2025 高考分数线 各科`;
+      const query = `${targetUniversity || '重点大学'} 2025 高考 录取分数线`;
       const res = await fetch('https://api.tavily.com/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ api_key: tavilyKey, query, max_results: 3, include_answer: true }),
+        body: JSON.stringify({ api_key: tavilyKey, query, max_results: 5, include_answer: true }),
         signal: controller.signal,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { answer?: string; results?: { title: string; url: string }[] };
+      const data = (await res.json()) as {
+        answer?: string;
+        results?: { title: string; url: string; content?: string }[];
+      };
       const lines = (data.results ?? []).slice(0, 3).map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}`);
-      setBenchmark(`🔥 ${query}\n${data.answer ? `\n摘要：${data.answer}` : ''}\n\n${lines.join('\n') || '无结果'}`);
+
+      // ---------- 分数数值化 ----------
+      // 从 Tavily answer + 各结果正文提取「XXX分」；480–700 为高考分数线可信区间
+      //（排除年份 2025、页码、排名等噪声），取最低估 ≈ 最低录取线（对考生最有参考意义）
+      const corpus = [data.answer ?? '', ...(data.results ?? []).map((r) => r.content ?? '')].join(' ');
+      const scores = [...corpus.matchAll(/(\d{3})\s*分/g)]
+        .map((m) => parseInt(m[1], 10))
+        .filter((n) => n >= 480 && n <= 700);
+      const uniq = [...new Set(scores)].sort((a, b) => a - b);
+      const estimate = uniq.length > 0 ? uniq[0] : null;
+
+      const out: string[] = [];
+      if (estimate !== null) {
+        out.push(`🏫 检索到分数区间：${uniq[0]}–${uniq[uniq.length - 1]} 分（按最低估 ${estimate} 分计算）`);
+        if (targetScore !== null) {
+          const gap = targetScore - estimate;
+          if (gap >= 0) {
+            out.push(`🎯 目标 ${targetScore} 分 → 超出底线 ${gap} 分，保持节奏，向专业录取线冲刺`);
+          } else {
+            out.push(`🎯 目标 ${targetScore} 分 → 🔥 差距 ${Math.abs(gap)} 分`);
+            // 差距 ≥20 分时联动画像：指向错题最多的危险学科
+            if (Math.abs(gap) >= 20 && dangerSubject) {
+              out.push(`📌 专项建议：优先补「${dangerSubject[0]}」（当前错题最多的学科，${dangerSubject[1]} 道）`);
+            }
+          }
+        } else {
+          out.push('💡 在「我的」填写目标总分，即可自动计算差距与专项建议');
+        }
+      } else {
+        out.push('未能从检索结果解析出分数线数值（省份/批次差异大，请从以下来源确认你所在省份的线）');
+      }
+
+      setBenchmark(
+        `🔥 ${query}\n${out.join('\n')}\n\n${data.answer ? `摘要：${data.answer}\n\n` : ''}${lines.join('\n') || '无结果'}`
+      );
     } catch (e) {
       setBenchmark(`对标搜索失败：${(e as Error).message}`);
     } finally {
