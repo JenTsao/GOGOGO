@@ -46,11 +46,15 @@ interface AiState {
   close: () => void;
   setStatus: (s: AiStatus) => void;
   pushMessage: (m: AiMessage) => void;
+  // 业务动作：进入“生成中”忙碌状态，完成后切回“任务完成”（供错题本 / 编译输出等入口调用）
+  runAction: (label: string, durationMs?: number) => void;
   // TODO: Phase 2 接入 DeepSeek API，实现 L1-L3 对话
   // TODO: Phase 3 实现 L4 跨模块调度（工具调用 + 执行前确认卡片）
 }
 
-export const useAiStore = create<AiState>((set) => ({
+let actionTimer: ReturnType<typeof setTimeout> | null = null;
+
+export const useAiStore = create<AiState>((set, get) => ({
   visible: false,
   status: 'idle',
   messages: [],
@@ -58,4 +62,23 @@ export const useAiStore = create<AiState>((set) => ({
   close: () => set({ visible: false, status: 'idle' }),
   setStatus: (status) => set({ status }),
   pushMessage: (m) => set((s) => ({ messages: [...s.messages, m] })),
+  runAction: (label, durationMs = 1200) => {
+    if (actionTimer) clearTimeout(actionTimer);
+    set((s) => ({
+      status: 'generating',
+      messages: [...s.messages, { role: 'assistant', content: `开始${label}…` }],
+    }));
+    actionTimer = setTimeout(() => {
+      set((s) => ({
+        status: 'done',
+        messages: [
+          ...s.messages,
+          {
+            role: 'assistant',
+            content: `${label}已完成（Phase 2 接入真实引擎后产出 PDF / Anki / 大纲）。`,
+          },
+        ],
+      }));
+    }, durationMs);
+  },
 }));

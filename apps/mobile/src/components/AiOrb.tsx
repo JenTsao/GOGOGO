@@ -16,7 +16,7 @@ function statusFromIntent(text: string): AiStatus {
 
 // AI 悬浮球：用 grok-ball 项目渲染会跟随、可切换 32 种表情的表情球
 export function AiOrb() {
-  const { visible, status, open, close, setStatus, messages, pushMessage } = useAiStore();
+  const { visible, status, open, close, setStatus, runAction, messages, pushMessage } = useAiStore();
   const webviewRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const inputRef = { current: '' } as { current: string };
@@ -92,11 +92,19 @@ export function AiOrb() {
               // TODO: Phase 2 接入 DeepSeek，识别工具意图并执行
               // 演示态：接收 → 按意图进入搜索/生成/思考 → 完成
               setStatus('receiving');
-              setTimeout(() => setStatus(statusFromIntent(text)), 220);
               setTimeout(() => {
-                pushMessage({ role: 'assistant', content: '（演示）已收到，AI 引擎将在 Phase 2 接入。' });
-                setStatus('done');
-              }, 900);
+                const s = statusFromIntent(text);
+                if (s === 'generating') {
+                  // “生成错题本/编译输出”类指令统一走 runAction
+                  runAction('智能生成');
+                } else {
+                  setStatus(s);
+                  setTimeout(() => {
+                    pushMessage({ role: 'assistant', content: '（演示）已收到，AI 引擎将在 Phase 2 接入。' });
+                    setStatus('done');
+                  }, 900);
+                }
+              }, 220);
               inputRef.current = '';
             }}
           />
