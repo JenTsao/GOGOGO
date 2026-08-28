@@ -76,8 +76,8 @@ export async function POST(req: NextRequest) {
       const vectors = await embedTexts(chunks);
 
       // 旧向量清掉再写（内容已变更）
-      await supabaseAdmin.from('knowledge_embeddings').delete().eq('note_id', meta.id);
-      const { error: embErr } = await supabaseAdmin.from('knowledge_embeddings').insert(
+      await supabaseAdmin().from('knowledge_embeddings').delete().eq('note_id', meta.id);
+      const { error: embErr } = await supabaseAdmin().from('knowledge_embeddings').insert(
         vectors.map((embedding) => ({ user_id: owner, note_id: meta.id, embedding }))
       );
       if (embErr) throw new Error(`写入向量失败：${embErr.message}`);

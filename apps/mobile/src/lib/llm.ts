@@ -22,13 +22,15 @@ export async function chatWithLlm(
   cfg: { baseUrl: string; apiKey: string; model: string },
   messages: ChatMessage[]
 ): Promise<string> {
-  if (!cfg.baseUrl || !cfg.apiKey || !cfg.model) {
+  // model 允许为空：自定义供应商留空时由后端按默认模型处理，只校验必填的 baseUrl 与 apiKey
+  if (!cfg.baseUrl || !cfg.apiKey) {
     throw new Error('请先在「我的」Tab 配置 AI 供应商与 API Key');
   }
   const res = await fetch(`${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
-    body: JSON.stringify({ model: cfg.model, messages, temperature: 0.7 }),
+    // model 为空时整个字段省略而非传空串，避免后端收到无效模型名报错
+    body: JSON.stringify({ ...(cfg.model ? { model: cfg.model } : {}), messages, temperature: 0.7 }),
   });
   if (!res.ok) {
     const text = await res.text();

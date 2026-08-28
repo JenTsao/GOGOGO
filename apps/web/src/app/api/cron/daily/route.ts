@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
       throw new Error(`生成结果无法解析：${raw.slice(0, 200)}`);
     }
 
-    const { error: insertErr } = await supabaseAdmin.from('daily_learning').insert({
+    const { error: insertErr } = await supabaseAdmin().from('daily_learning').insert({
       user_id: owner,
       date: today,
       knowledge_body: String(json.knowledge_body),

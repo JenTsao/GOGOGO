@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     let semanticOk = true;
     try {
       const [vec] = await embedTexts([q]);
-      const { data: semRows, error } = await supabaseAdmin.rpc('match_notes', {
+      const { data: semRows, error } = await supabaseAdmin().rpc('match_notes', {
         query_embedding: JSON.stringify(vec), // PostgREST 以文本形式传入 vector 参数
         owner,
         match_count: topN,
