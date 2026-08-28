@@ -56,6 +56,29 @@ jobs:
           else
             echo "::warning::未找到 expo-av build.gradle，跳过 classifier patch"
           fi
+          # 统一全模块 JVM 目标：expo-av 等三方库 Kotlin jvmTarget(11) 与 Java(17) 不一致会报
+          # Inconsistent JVM-target compatibility；android/ 是 prebuild 生成目录，只能在 CI 注入补丁
+          cat >> build.gradle <<'EOF'
+
+          // CI 注入：强制所有子模块 Java/Kotlin 统一 JVM 17（与 RN 0.74 / AGP 8 模板一致）
+          subprojects {
+              afterEvaluate { project ->
+                  if (project.hasProperty("android")) {
+                      project.android {
+                          compileOptions {
+                              sourceCompatibility JavaVersion.VERSION_17
+                              targetCompatibility JavaVersion.VERSION_17
+                          }
+                      }
+                  }
+                  project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                      kotlinOptions {
+                          jvmTarget = "17"
+                      }
+                  }
+              }
+          }
+          EOF
 
       - name: 调优 gradle 构建（runner 4 核 16G：加大 JVM、并行、启用 build cache）
         working-directory: apps/mobile/android

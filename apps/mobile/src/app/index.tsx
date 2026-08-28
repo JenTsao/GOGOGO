@@ -9,6 +9,7 @@ import { useReminderStore, localDateStr } from '@/store/reminderStore';
 import { useAiStore } from '@/store/aiStore';
 import { useMoodStore } from '@/store/moodStore';
 import { useMistakeStore } from '@/store/mistakeStore';
+import { useAuthStore } from '@/store/authStore';
 import { fetchDaily, DailyLearning } from '@/lib/cloud';
 import { readDailyCache } from '@/lib/background';
 
@@ -92,6 +93,7 @@ export default function CockpitScreen() {
   // 启动静默云同步：任务池（并集+墓碑）、专注会话（并集）、情绪打卡与错题（本地优先上传）
   // 全部失败静默——离线可用的底线是本地功能完整
   useEffect(() => {
+    void useAuthStore.getState().init(); // 幂等：恢复会话 + 注册订阅（profile 页也会调）
     useTaskStore.getState().syncTasks();
     useFocusStore.getState().syncSessions();
     useMoodStore.getState().load();

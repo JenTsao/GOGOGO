@@ -114,5 +114,14 @@ export async function syncKnowledge(limit: number): Promise<SyncResult> {
     embeddedFiles++;
   }
 
+  // 清理幽灵笔记：仓库里已删除的文件，其元数据与向量一并移除（否则语义检索会继续命中已删内容）。
+  // entries 是仓库全量树，与 limit 截断无关，清理恒安全。
+  const livePaths = new Set(entries.map((e) => e.path));
+  const ghosts = (metas ?? []).filter((m) => !livePaths.has(m.file_path));
+  for (const g of ghosts) {
+    await supabaseAdmin().from('knowledge_embeddings').delete().eq('note_id', g.id);
+    await supabaseAdmin().from('obsidian_metadata').delete().eq('id', g.id);
+  }
+
   return { total: entries.length, processed, embeddedFiles, skipped };
 }

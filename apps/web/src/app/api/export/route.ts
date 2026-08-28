@@ -116,7 +116,7 @@ function parseCards(docs: { path: string; content: string }[]) {
         .split('\n')
         .map((l) => {
           const img = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/.exec(l.trim());
-          if (img) return `<img src="${img[2]}" style="max-width:100%">`;
+          if (img) return `<img src="${escapeHtml(img[2])}" style="max-width:100%">`;
           return escapeHtml(l);
         })
         .join('<br>');
