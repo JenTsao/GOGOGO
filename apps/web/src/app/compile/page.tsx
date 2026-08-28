@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 
 // 菜单3：编译与输出（武器库）
-// 资源池勾选笔记 → 三种产物：复习 PDF（浏览器打印，A4 排版）/ Anki 导入包（TSV）/ 纯文本大纲
+// 资源池勾选笔记/错题 → 三种产物：复习 PDF（浏览器打印，A4 排版）/ Anki 导入包（TSV）/ 纯文本大纲
 // 设计取舍：纯客户端文本变换，零新增依赖；PDF 用浏览器打印（服务端嵌 CJK 字体体积过大）；
-// .apkg 需打包 SQLite，先用 Anki 官方支持的 TSV 导入格式。错题/代码片段接入待错题本实装。
+// .apkg 需打包 SQLite，先用 Anki 官方支持的 TSV 导入格式；代码片段资源待接入。
 interface TreeEntry {
   path: string;
   type: 'blob' | 'tree';
@@ -190,9 +190,24 @@ export default function CompilePage() {
     setMessage(null);
     try {
       const docs: { path: string; content: string }[] = [];
-      for (const path of paths.slice(0, MAX_FILES)) {
-        const res = await fetch(`/api/github/raw?path=${encodeURIComponent(path)}`);
-        docs.push({ path, content: res.ok ? await res.text() : '' });
+      for (const sel of paths.slice(0, MAX_FILES)) {
+        // 错题资源：元数据转文本（图片以 URL 引用，Anki 背面可显示）
+        if (sel.startsWith('mistake:')) {
+          const m = mistakes.find((x) => x.id === sel.slice(8));
+          if (m) {
+            docs.push({
+              path: `[错题] ${m.subject} · ${m.created_at.slice(0, 10)}`,
+              content: [
+                `学科：${m.subject}`,
+                `卡壳标签：${m.tags.map((t) => `#${t}`).join(' ') || '无'}`,
+                `错题图片：${m.image_urls[0] ?? '无'}`,
+              ].join('\n'),
+            });
+          }
+          continue;
+        }
+        const res = await fetch(`/api/github/raw?path=${encodeURIComponent(sel)}`);
+        docs.push({ path: sel, content: res.ok ? await res.text() : '' });
       }
       const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
       const job: CompileJob = {
@@ -258,7 +273,27 @@ export default function CompilePage() {
               </label>
             ))}
           </div>
-          <p className="placeholder" style={{ marginTop: 8 }}>已选 {selected.size} 篇（单次最多 {MAX_FILES}）· 错题/代码片段待错题本实装后加入</p>
+          <p className="placeholder" style={{ marginTop: 8 }}>已选 {selected.size} 项（单次最多 {MAX_FILES}）</p>
+
+          {mistakes.length > 0 && (
+            <>
+              <strong style={{ display: 'block', marginTop: 14 }}>📕 错题（{mistakes.length}）</strong>
+              <div style={{ marginTop: 8, maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {mistakes.map((m) => (
+                  <label key={m.id} style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', fontSize: 14 }}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(`mistake:${m.id}`)}
+                      onChange={() => toggle(`mistake:${m.id}`)}
+                    />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      📕 [{m.subject}] {m.tags.map((t) => `#${t}`).join(' ')} · {m.created_at.slice(0, 10)}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="panel">
@@ -308,4 +343,17 @@ export default function CompilePage() {
         </div>
         {history.length > 0 && (
           <button
-            classNa
+            className="btn btn-ghost"
+            style={{ marginTop: 10 }}
+            onClick={() => {
+              saveHistory([]);
+              setHistory([]);
+            }}
+          >
+            清空历史
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}

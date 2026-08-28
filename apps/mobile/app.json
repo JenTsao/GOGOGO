@@ -10,7 +10,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.gaokao.copilot",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "用于自动获取当前位置并显示当地天气"
+        "NSLocationWhenInUseUsageDescription": "用于自动获取当前位置并显示当地天气",
+        "NSMicrophoneUsageDescription": "用于录制错题语音反思",
+        "NSCameraUsageDescription": "用于拍摄错题图片",
+        "NSPhotoLibraryUsageDescription": "用于从相册选择错题图片"
       }
     },
     "android": {
@@ -19,7 +22,10 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "POST_NOTIFICATIONS",
-        "RECEIVE_BOOT_COMPLETED"
+        "RECEIVE_BOOT_COMPLETED",
+        "RECORD_AUDIO",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
       ]
     },
     "plugins": [

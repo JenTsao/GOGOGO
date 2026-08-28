@@ -66,7 +66,8 @@ pnpm lint         # 全 workspace 类型检查
 - ✅ 编译与输出：`/compile` 资源池勾选 → 纯文本大纲 / Anki TSV（## 标题=正面）/ PDF（浏览器打印视图 A4），历史最近 10 次 localStorage；纯客户端文本变换零新增依赖，.apkg 与错题源待错题本实装
 - ✅ 画像系统：仪表盘 react-native-svg 五维雷达（专注投入/深度/坚持天数/任务执行/知识积累）+ 近 7 天专注柱状 + Tavily 横向对标（目标大学分数线）；学科正确率维度待错题本实装
 - ✅ 后台唤醒：`src/lib/background.ts` expo-background-fetch（15 分钟级）+ expo-notifications（当日提醒去重通知）+ 每日备课内容预取 MMKV（驾驶舱云失败时兜底）；Expo Go 下 Android 不支持 background fetch，需构建版
-- ⏳ Phase 3 全部完成；错题本（mistakes 表 + 拍照错题 + 学科正确率）为未规划的增强项，可作为 Phase 3.5
+- ✅ 错题本（Phase 4）：弹药库第3子Tab `MistakeView`（拍照/相册 → image-manipulator 压缩 1080px/JPEG → 学科/标签/语音反思 expo-av → 本地 MMKV 优先）；云同步经管理台 `/api/mistakes` 代理（x-access-key 反查 profiles.access_key，service role 写 Storage `mistakes` 桶，无匿名写策略）；画像接入危险学科 + 卡壳词云（mistakeStore tags）；编译资源池 `/api/mistakes/pool`（OWNER 归属元数据）
+- ⏳ 可继续增强：错题正确率记录（喂雷达学科维度）、[[双链]] 跳转、Supabase Auth 正式登录
 
 ## LLM 适配层
 
