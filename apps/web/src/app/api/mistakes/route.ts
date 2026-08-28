@@ -11,7 +11,25 @@ const BUCKET = 'mistakes';
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const MAX_VOICE_BYTES = 3 * 1024 * 1024;
 
-// GET /api/mistakes → 最近 50 条（含编译资源池使用）
+// PATCH /api/mistakes —— 重做结果回写（喂画像学科掌握维度）：body: { id, isMastered }
+export async function PATCH(req: Request) {
+  const user = await getUserByAccessKey(accessKeyFromRequest(req));
+  if (!user) return NextResponse.json({ error: '访问密钥无效' }, { status: 401 });
+  try {
+    const body = (await req.json()) as { id?: string; isMastered?: boolean };
+    if (!body.id) return NextResponse.json({ error: '缺少错题 id' }, { status: 400 });
+    const { error } = await supabaseAdmin()
+      .from('mistakes')
+      .update({ is_mastered: body.isMastered ?? null })
+      .eq('id', body.id)
+      .eq('user_id', user.userId);
+    if (error) throw new Error(error.message);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
+}
+
 export async function GET(req: Request) {
   const user = await getUserByAccessKey(accessKeyFromRequest(req));
   if (!user) return NextResponse.json({ error: '访问密钥无效' }, { status: 401 });
@@ -44,6 +62,7 @@ export async function POST(req: Request) {
       voiceBase64?: string;
       voiceMime?: string;
       createdAt?: string;
+      isMastered?: boolean;
     };
     const subject = (body.subject ?? '').trim();
     if (!subject) return NextResponse.json({ error: '缺少学科' }, { status: 400 });
@@ -91,6 +110,7 @@ export async function POST(req: Request) {
         tags: body.tags ?? [],
         image_urls: [imageUrl],
         voice_note_url: voiceUrl,
+        is_mastered: body.isMastered ?? null,
       })
       .select('id')
       .single();

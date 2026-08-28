@@ -42,7 +42,7 @@ async function persistAudio(tempUri: string): Promise<string> {
 }
 
 export function MistakeView() {
-  const { mistakes, addMistake, removeMistake, syncAll } = useMistakeStore();
+  const { mistakes, addMistake, removeMistake, syncAll, markCorrect } = useMistakeStore();
   const { webApiUrl, accessKey } = useSettingsStore();
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -219,6 +219,27 @@ export function MistakeView() {
                   <Text style={styles.playBtnText}>▶️ 播放语音反思</Text>
                 </TouchableOpacity>
               )}
+
+              <Text style={styles.fieldLabel}>重做结果（喂画像「学科掌握」维度）</Text>
+              <View style={styles.resultRow}>
+                <TouchableOpacity
+                  style={[styles.resultBtn, detail.correct === 'right' && styles.resultRight]}
+                  onPress={() => markCorrect(detail.id, 'right', webApiUrl, accessKey)}
+                >
+                  <Text style={[styles.resultText, detail.correct === 'right' && styles.resultTextActive]}>
+                    ✅ 重做正确
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.resultBtn, detail.correct === 'wrong' && styles.resultWrong]}
+                  onPress={() => markCorrect(detail.id, 'wrong', webApiUrl, accessKey)}
+                >
+                  <Text style={[styles.resultText, detail.correct === 'wrong' && styles.resultTextActive]}>
+                    ❌ 仍然做错
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {!detail.cloudId && <Text style={styles.syncHint}>条目尚未同步到云端，掌握度先记录在本地</Text>}
               <TouchableOpacity style={styles.deleteBtn} onPress={() => {
                 removeMistake(detail.id);
                 setDetail(null);
@@ -310,6 +331,14 @@ const styles = StyleSheet.create({
   playBtnText: { fontSize: 14, color: '#111' },
   deleteBtn: { alignItems: 'center', padding: 14, marginTop: 24 },
   deleteBtnText: { color: '#c0392b', fontSize: 14 },
+  // 重做结果
+  resultRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  resultBtn: { flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  resultRight: { backgroundColor: '#f0f9f2', borderColor: '#1c7d2c' },
+  resultWrong: { backgroundColor: '#fef2f2', borderColor: '#c0392b' },
+  resultText: { fontSize: 14, color: '#555' },
+  resultTextActive: { fontWeight: '700', color: '#111' },
+  syncHint: { fontSize: 12, color: '#aaa', marginTop: 8 },
   pickRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
   pickBtn: { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingVertical: 22, alignItems: 'center' },
   pickBtnText: { fontSize: 15, color: '#111' },

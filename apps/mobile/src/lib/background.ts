@@ -43,6 +43,15 @@ export function readDailyCache(): DailyLearning | null {
   }
 }
 
+// 供「手动同步」与后台任务共用：写入当日备课离线缓存
+export function writeDailyCache(daily: DailyLearning): void {
+  try {
+    storage.set(DAILY_CACHE_KEY, JSON.stringify(daily));
+  } catch {
+    // MMKV 写失败极罕见，忽略
+  }
+}
+
 async function syncOnce(): Promise<BackgroundFetch.BackgroundFetchResult> {
   const today = localDateStr(new Date());
 

@@ -238,6 +238,8 @@ $$;
 -- 错题本存储桶：图片压缩 + 语音反思
 -- 写入仅经管理台 /api/mistakes（service role + x-access-key 鉴权），桶本身不开放匿名写
 -- ============================================================
+alter table public.mistakes add column if not exists is_mastered boolean; -- 重做结果：true=已掌握 false=仍错 null=未重做
+
 insert into storage.buckets (id, name, public)
 values ('mistakes', 'mistakes', true)
 on conflict (id) do nothing;

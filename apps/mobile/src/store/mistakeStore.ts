@@ -13,13 +13,17 @@ export interface Mistake {
   voiceUrl?: string;
   createdAt: string; // ISO
   synced: boolean;
+  cloudId?: string; // 云端 mistakes.id（同步成功后回填，供重做结果 PATCH）
+  correct?: 'right' | 'wrong'; // 重做结果：喂画像「学科掌握」维度
 }
 
 interface MistakeState {
   mistakes: Mistake[];
   addMistake: (m: Omit<Mistake, 'id' | 'synced'>) => string;
   removeMistake: (id: string) => void;
-  markSynced: (id: string, imageUrl: string, voiceUrl?: string) => void;
+  markSynced: (id: string, imageUrl: string, voiceUrl?: string, cloudId?: string) => void;
+  // 重做结果：本地即时更新；已同步的条目同时 PATCH 云端（失败静默，下次同步重试）
+  markCorrect: (id: string, correct: 'right' | 'wrong', webApiUrl: string, accessKey: string) => void;
   // 全量同步：未同步的逐条上传（图片 base64），成功回填 URL
   syncAll: (webApiUrl: string, accessKey: string) => Promise<{ ok: number; fail: number }>;
 }
@@ -67,12 +71,24 @@ export const useMistakeStore = create<MistakeState>((set, get) => ({
     persist(next);
     set({ mistakes: next });
   },
-  markSynced: (id, imageUrl, voiceUrl) => {
+  markSynced: (id, imageUrl, voiceUrl, cloudId) => {
     const next = get().mistakes.map((m) =>
-      m.id === id ? { ...m, synced: true, imageUrl, voiceUrl } : m
+      m.id === id ? { ...m, synced: true, imageUrl, voiceUrl, cloudId: cloudId ?? m.cloudId } : m
     );
     persist(next);
     set({ mistakes: next });
+  },
+  markCorrect: (id, correct, webApiUrl, accessKey) => {
+    const next = get().mistakes.map((m) => (m.id === id ? { ...m, correct } : m));
+    persist(next);
+    set({ mistakes: next });
+    const m = next.find((x) => x.id === id);
+    if (!m?.cloudId) return; // 未同步的先记本地，syncAll 成功后可再补报
+    fetch(`${webApiUrl.replace(/\/+$/, '')}/api/mistakes`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-access-key': accessKey },
+      body: JSON.stringify({ id: m.cloudId, isMastered: correct === 'right' }),
+    }).catch(() => {}); // 云端回写失败不影响本地画像
   },
   syncAll: async (webApiUrl, accessKey) => {
     if (!webApiUrl || !accessKey) throw new Error('请在「我的」配置管理台地址与访问密钥');
@@ -98,11 +114,12 @@ export const useMistakeStore = create<MistakeState>((set, get) => ({
             voiceBase64: voiceBase64 ?? undefined,
             voiceMime: 'audio/mp4',
             createdAt: m.createdAt,
+            isMastered: m.correct ? m.correct === 'right' : undefined,
           }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as { imageUrl: string; voiceUrl?: string };
-        get().markSynced(m.id, data.imageUrl, data.voiceUrl);
+        const data = (await res.json()) as { id?: string; imageUrl: string; voiceUrl?: string };
+        get().markSynced(m.id, data.imageUrl, data.voiceUrl, data.id);
         ok++;
       } catch {
         fail++; // 单条失败不阻断其余条目

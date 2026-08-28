@@ -10,7 +10,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { localDateStr } from '@/store/reminderStore';
 
 // Tab 3：仪表盘 —— 激进模式画像
-// 五维雷达暂基于可计算数据（专注/任务/知识积累）；学科正确率维度待错题本实装后接入
+// 六维雷达基于可计算数据（专注/任务/知识积累 + 错题重做正确率的学科掌握）
 interface RadarDim {
   label: string;
   score: number; // 0-100
@@ -58,6 +58,14 @@ export default function DashboardScreen() {
     return [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [mistakes]);
 
+  // 学科掌握度：已记录重做结果的错题正确率（0-100）
+  const masteryRate = useMemo(() => {
+    const graded = mistakes.filter((m) => m.correct);
+    if (graded.length === 0) return 0;
+    return (graded.filter((m) => m.correct === 'right').length / graded.length) * 100;
+  }, [mistakes]);
+  const gradedCount = mistakes.filter((m) => m.correct).length;
+
   const [benchmark, setBenchmark] = useState<string | null>(null);
   const [benchmarkBusy, setBenchmarkBusy] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -89,8 +97,10 @@ export default function DashboardScreen() {
       { label: '坚持天数', score: (activeDays / 7) * 100 },
       { label: '任务执行', score: doneRatio },
       { label: '知识积累', score: Math.min(100, ((knowledgeCount + snippetCount) / 20) * 100) },
+      // 学科掌握：错题重做正确率（重做越多越准；未记录重做结果时为 0 并提示）
+      { label: '学科掌握', score: masteryRate },
     ];
-  }, [dailyMinutes, sessions, top3, knowledgeCount, snippetCount]);
+  }, [dailyMinutes, sessions, top3, knowledgeCount, snippetCount, masteryRate]);
 
   const maxDaily = Math.max(30, ...dailyMinutes.map((d) => d.min));
   const strength = [...dims].sort((a, b) => b.score - a.score)[0];
@@ -382,7 +392,9 @@ export default function DashboardScreen() {
                 </View>
               </View>
             ))}
-            <Text style={styles.placeholder}>雷达图学科正确率维度待错题正确率记录实装后接入</Text>
+            <Text style={styles.placeholder}>
+              学科掌握 = 错题重做正确率，已在错题本记录 {gradedCount} 题{gradedCount === 0 ? '（去错题本标记重做结果吧）' : ''}
+            </Text>
           </View>
 
           <Text style={styles.cardTitle}>横向对标</Text>
@@ -403,13 +415,14 @@ export default function DashboardScreen() {
   );
 }
 
-// 五维一句话建议（全屏画像详情用）
+// 六维一句话建议（全屏画像详情用）
 const ADVICE: Record<string, string> = {
   专注投入: '每天保证 30–50 分钟专注，总量决定基础盘',
   专注深度: '尝试单次 45 分钟不间断，深度比时长更重要',
   坚持天数: '连续打卡比单日爆发更有效，先保 5 天/周',
   任务执行: '三件事当日清空，避免任务滚雪球',
   知识积累: '多在沙盒跑代码、按需下载笔记，持续积累弹药',
+  学科掌握: '错题隔天重做并记录结果，重做越多掌握度越可信',
 };
 
 const styles = StyleSheet.create({

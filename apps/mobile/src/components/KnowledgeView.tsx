@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import Markdown from 'react-native-markdown-display';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useKnowledgeStore } from '@/store/knowledgeStore';
+import { fetchRepoPaths, fetchRawFile } from '@/lib/github';
 
 // 知识库：按需从 GitHub 拉取 Obsidian 目录树，点击单篇下载 Markdown 并渲染（缓存后离线可读）
 interface TreeNode {
@@ -166,15 +167,9 @@ export function KnowledgeView() {
     }
     let cancelled = false;
     setPaths(null);
-    fetch(`https://api.github.com/repos/${repo}/git/trees/${branch}?recursive=1`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((data) => {
-        if (cancelled) return;
-        setPaths(
-          (data.tree as { path: string; type: string }[])
-            .filter((n) => n.type === 'blob' && n.path.endsWith('.md'))
-            .map((n) => n.path)
-        );
+    fetchRepoPaths(repo, branch)
+      .then((list) => {
+        if (!cancelled) setPaths(list);
       })
       .catch((e) => {
         if (!cancelled) setError(`拉取目录树失败（${e}）`);
@@ -190,11 +185,8 @@ export function KnowledgeView() {
       if (cache[path]) return;
       setLoading(true);
       try {
-        const r = await fetch(
-          `https://raw.githubusercontent.com/${repo}/${branch}/${path.split('/').map(encodeURIComponent).join('/')}`
-        );
-        const text = await r.text();
-        if (r.ok) save(path, text);
+        const text = await fetchRawFile(repo, branch, path);
+        save(path, text);
       } catch {
         // 静默：下次点开重试
       } finally {

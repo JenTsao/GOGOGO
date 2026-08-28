@@ -1,8 +1,11 @@
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity } from 'react-native';
-import { useState } from 'react';
+import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useMemo, useState } from 'react';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
 import { LLM_PRESETS } from '@/lib/llm';
+import { fetchDaily } from '@/lib/cloud';
+import { writeDailyCache } from '@/lib/background';
+import { fetchRepoPaths } from '@/lib/github';
 
 // Tab 4：我的（配置与调度）
 export default function ProfileScreen() {
@@ -22,6 +25,27 @@ export default function ProfileScreen() {
   const [reminderDate, setReminderDate] = useState('');
   const [reminderText, setReminderText] = useState('');
 
+  // 日历视图：当月网格 + 提醒红点（纯本地数据，点击日期回填输入框）
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => new Date().getMonth()); // 0-11
+  const today = localDateStr(new Date());
+  const monthGrid = useMemo(() => {
+    const startWeek = new Date(viewYear, viewMonth, 1).getDay(); // 0 = 周日
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const cells: (string | null)[] = Array(startWeek).fill(null);
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push(`${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+    }
+    return cells;
+  }, [viewYear, viewMonth]);
+  const reminderDates = useMemo(() => new Set(reminders.map((r) => r.date)), [reminders]);
+
+  const shiftMonth = (delta: number) => {
+    const d = new Date(viewYear, viewMonth + delta, 1);
+    setViewYear(d.getFullYear());
+    setViewMonth(d.getMonth());
+  };
+
   // 日期允许两种输入：MM-DD（当年）或 YYYY-MM-DD
   const submitReminder = () => {
     const content = reminderText.trim();
@@ -32,8 +56,48 @@ export default function ProfileScreen() {
     const d = new Date(full);
     if (Number.isNaN(d.getTime())) return;
     addReminder(localDateStr(d), content);
-    setReminderDate('');
     setReminderText('');
+  };
+
+  // 手动同步：备课预取（写离线缓存）+ Obsidian 目录连通性检查
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+  const runSync = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    const parts: string[] = [];
+    const s = useSettingsStore.getState();
+    const day = localDateStr(new Date());
+    if (s.supabaseUrl && s.supabaseAnonKey && s.accessKey) {
+      try {
+        const daily = await fetchDaily(
+          { supabaseUrl: s.supabaseUrl, supabaseAnonKey: s.supabaseAnonKey, accessKey: s.accessKey },
+          day
+        );
+        if (daily) {
+          writeDailyCache(daily);
+          parts.push(`✅ ${day} 备课内容已预取（驾驶舱离线兜底生效）`);
+        } else {
+          parts.push('⚠️ 云端暂无今日备课内容（等凌晨流水线生成）');
+        }
+      } catch {
+        parts.push('❌ 备课拉取失败，保留旧缓存兜底');
+      }
+    } else {
+      parts.push('⚠️ 未配置 Supabase / 访问密钥，跳过备课预取');
+    }
+    if (/^[\w.-]+\/[\w.-]+$/.test(s.githubRepo.trim())) {
+      try {
+        const list = await fetchRepoPaths(s.githubRepo.trim(), s.githubBranch.trim() || 'main');
+        parts.push(`✅ Obsidian 目录可达（${list.length} 篇笔记）`);
+      } catch (e) {
+        parts.push(`❌ 目录拉取失败（${(e as Error).name === 'AbortError' ? '请求超时' : (e as Error).message}）`);
+      }
+    } else {
+      parts.push('⚠️ 未配置 GitHub 仓库，跳过目录检查');
+    }
+    setSyncResult(parts.join('\n'));
+    setSyncing(false);
   };
 
   return (
