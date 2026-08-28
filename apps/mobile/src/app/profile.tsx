@@ -268,7 +268,59 @@ export default function ProfileScreen() {
       />
 
       <Text style={styles.sectionTitle}>📅 自定义日期提醒</Text>
-      <Text style={styles.label}>日期（MM-DD 或 YYYY-MM-DD，当日显示在驾驶舱横幅）</Text>
+
+      {/* 月历红点视图（蓝皮书：点击日期添加提醒，红点标记） */}
+      <View style={styles.calCard}>
+        <View style={styles.calHeader}>
+          <TouchableOpacity onPress={() => shiftMonth(-1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.calNav}>‹</Text>
+          </TouchableOpacity>
+          <Text style={styles.calTitle}>
+            {viewYear} 年 {viewMonth + 1} 月
+          </Text>
+          <TouchableOpacity onPress={() => shiftMonth(1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.calNav}>›</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.calWeek}>
+          {['日', '一', '二', '三', '四', '五', '六'].map((w) => (
+            <Text key={w} style={[styles.calWeekText, w === '日' && styles.calWeekend, w === '六' && styles.calWeekend]}>
+              {w}
+            </Text>
+          ))}
+        </View>
+        <View style={styles.calGrid}>
+          {monthGrid.map((date, i) =>
+            date === null ? (
+              <View key={`pad-${i}`} style={styles.calCell} />
+            ) : (
+              <TouchableOpacity
+                key={date}
+                style={[
+                  styles.calCell,
+                  date === today && styles.calCellToday,
+                  reminderDate === date && styles.calCellSelected,
+                ]}
+                onPress={() => setReminderDate(date)}
+              >
+                <Text
+                  style={[
+                    styles.calDay,
+                    date === today && styles.calDayToday,
+                    reminderDate === date && styles.calDaySelected,
+                  ]}
+                >
+                  {Number(date.slice(8))}
+                </Text>
+                {reminderDates.has(date) && <View style={styles.calDot} />}
+              </TouchableOpacity>
+            )
+          )}
+        </View>
+        <Text style={styles.calHint}>点击日期填入输入框；红点 = 已有提醒（当日显示在驾驶舱横幅）</Text>
+      </View>
+
+      <Text style={styles.label}>提醒内容（日期可点上方日历，或手输 MM-DD / YYYY-MM-DD）</Text>
       <View style={styles.reminderRow}>
         <TextInput
           style={[styles.input, styles.reminderDateInput]}
@@ -296,7 +348,8 @@ export default function ProfileScreen() {
         .sort((a, b) => a.date.localeCompare(b.date))
         .map((r) => (
           <View key={r.id} style={styles.reminderItem}>
-            <Text style={styles.reminderItemText}>
+            <Text style={[styles.reminderItemText, r.date < today && styles.reminderExpired]}>
+              {r.date < today ? '（已过期）' : ''}
               {r.date} · {r.content}
             </Text>
             <TouchableOpacity onPress={() => removeReminder(r.id)}>
@@ -304,10 +357,17 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         ))}
-      <Text style={styles.placeholder}>日历红点视图 Phase 3 实现。</Text>
 
       <Text style={styles.sectionTitle}>🔄 手动同步</Text>
-      <Text style={styles.placeholder}>拉取云端最新画像与 Obsidian 目录。Phase 3 接入 Supabase。</Text>
+      <Text style={styles.placeholder}>拉取云端最新备课内容并写入离线缓存，同时检查 Obsidian 目录可达性。</Text>
+      <TouchableOpacity style={styles.syncBtn} onPress={runSync} disabled={syncing}>
+        {syncing ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Text style={styles.syncBtnText}>🔄 立即同步</Text>
+        )}
+      </TouchableOpacity>
+      {!!syncResult && <Text style={styles.syncResult}>{syncResult}</Text>}
     </ScrollView>
   );
 }
@@ -354,4 +414,32 @@ const styles = StyleSheet.create({
   },
   reminderItemText: { fontSize: 14, color: '#333', flex: 1 },
   reminderDelete: { color: '#999', fontSize: 16, paddingHorizontal: 8 },
+  reminderExpired: { color: '#aaa' },
+  // 月历红点视图
+  calCard: { backgroundColor: '#fff', borderRadius: 12, padding: 12 },
+  calHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  calNav: { fontSize: 22, color: '#333', paddingHorizontal: 12 },
+  calTitle: { fontSize: 15, fontWeight: '600', color: '#333' },
+  calWeek: { flexDirection: 'row' },
+  calWeekText: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 11, color: '#999', paddingVertical: 4 },
+  calWeekend: { color: '#c0392b' },
+  calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calCell: {
+    width: `${100 / 7}%`,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+  },
+  calCellToday: { borderWidth: 1, borderColor: '#1a73e8' },
+  calCellSelected: { backgroundColor: '#111' },
+  calDay: { fontSize: 13, color: '#333' },
+  calDayToday: { color: '#1a73e8', fontWeight: '700' },
+  calDaySelected: { color: '#fff', fontWeight: '700' },
+  calDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#e53935', marginTop: 2 },
+  calHint: { fontSize: 12, color: '#999', marginTop: 8, lineHeight: 18 },
+  // 手动同步
+  syncBtn: { backgroundColor: '#111', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 10 },
+  syncBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  syncResult: { fontSize: 13, color: '#333', lineHeight: 21, marginTop: 10 },
 });
