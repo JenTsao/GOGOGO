@@ -16,6 +16,7 @@ export function CodeSandbox() {
   const [status, setStatus] = useState<RunStatus>('loading');
   const [logs, setLogs] = useState<string[]>([]);
   const [name, setName] = useState('');
+  const [saveHint, setSaveHint] = useState<string | null>(null); // 保存成功反馈（异步回传后才算落盘）
   const { snippets, save, remove } = useSandboxStore();
 
   // 熔断：Run 后 5 秒无任何输出/完成消息 → 杀进程（reload WebView）
@@ -63,6 +64,7 @@ export function CodeSandbox() {
           break;
         case 'code-value':
           save(nameRef.current, msg.code ?? '');
+          setSaveHint(`已保存「${nameRef.current.trim() || '未命名片段'}」`);
           break;
       }
     },
@@ -143,6 +145,7 @@ export function CodeSandbox() {
           <Text style={styles.saveBtnText}>💾 保存片段</Text>
         </TouchableOpacity>
       </View>
+      {saveHint && <Text style={styles.saveHint}>{saveHint}</Text>}
 
       {/* 片段列表 */}
       {snippets.map((s) => (
@@ -190,6 +193,7 @@ const styles = StyleSheet.create({
   },
   saveBtn: { backgroundColor: '#111', borderRadius: 10, paddingHorizontal: 14, justifyContent: 'center' },
   saveBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  saveHint: { marginTop: 6, fontSize: 12, color: '#1c5d2c' },
   snippetRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
   snippetMain: { flex: 1 },
   snippetName: { fontSize: 14, color: '#333', paddingVertical: 4 },
