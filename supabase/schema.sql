@@ -233,3 +233,11 @@ as $$
     and d.date = target_date
   limit 1;
 $$;
+
+-- ============================================================
+-- 错题本存储桶：图片压缩 + 语音反思
+-- 写入仅经管理台 /api/mistakes（service role + x-access-key 鉴权），桶本身不开放匿名写
+-- ============================================================
+insert into storage.buckets (id, name, public)
+values ('mistakes', 'mistakes', true)
+on conflict (id) do nothing;

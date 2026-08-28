@@ -16,6 +16,7 @@ export interface Settings {
   supabaseAnonKey: string;
   accessKey: string; // 与 profiles.access_key 一致的设备访问密钥
   tavilyKey: string; // 联网搜索（AI searchWeb 工具用）
+  webApiUrl: string; // 管理台地址（错题云同步走 /api/mistakes 代理）
 }
 
 const SETTINGS_KEY = 'settings';
@@ -34,6 +35,7 @@ const DEFAULTS: Settings = {
   supabaseAnonKey: '',
   accessKey: '',
   tavilyKey: '',
+  webApiUrl: '',
 };
 
 function loadSettings(): Settings {

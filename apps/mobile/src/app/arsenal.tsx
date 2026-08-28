@@ -3,12 +3,13 @@ import { useState } from 'react';
 import { useAiStore } from '@/store/aiStore';
 import { CodeSandbox } from '@/components/CodeSandbox';
 import { KnowledgeView } from '@/components/KnowledgeView';
+import { MistakeView } from '@/components/MistakeView';
 
 // Tab 2：弹药库（工具与知识）
-// 顶部切换：[💻 代码沙盒] | [📓 知识库]
+// 顶部切换：[💻 代码沙盒] | [📓 知识库] | [📕 错题本]
 // 业务入口：一键生成错题本 / 编译输出（驱动 AI 表情状态）
 export default function ArsenalScreen() {
-  const [tab, setTab] = useState<'code' | 'knowledge'>('code');
+  const [tab, setTab] = useState<'code' | 'knowledge' | 'mistake'>('code');
   const runAction = useAiStore((s) => s.runAction);
 
   return (
@@ -18,7 +19,7 @@ export default function ArsenalScreen() {
           style={[styles.tab, tab === 'code' && styles.tabActive]}
           onPress={() => setTab('code')}
         >
-          <Text style={[styles.tabText, tab === 'code' && styles.tabTextActive]}>💻 代码沙盒</Text>
+          <Text style={[styles.tabText, tab === 'code' && styles.tabTextActive]}>💻 沙盒</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, tab === 'knowledge' && styles.tabActive]}
@@ -26,13 +27,21 @@ export default function ArsenalScreen() {
         >
           <Text style={[styles.tabText, tab === 'knowledge' && styles.tabTextActive]}>📓 知识库</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, tab === 'mistake' && styles.tabActive]}
+          onPress={() => setTab('mistake')}
+        >
+          <Text style={[styles.tabText, tab === 'mistake' && styles.tabTextActive]}>📕 错题本</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.body}>
         {tab === 'code' ? (
           <CodeSandbox />
-        ) : (
+        ) : tab === 'knowledge' ? (
           <KnowledgeView />
+        ) : (
+          <MistakeView />
         )}
 
         {/* 业务入口：生成错题本 / 编译输出 */}

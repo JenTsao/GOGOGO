@@ -11,6 +11,14 @@ interface TreeEntry {
   type: 'blob' | 'tree';
 }
 
+interface MistakeItem {
+  id: string;
+  subject: string;
+  tags: string[];
+  image_urls: string[];
+  created_at: string;
+}
+
 interface CompileJob {
   id: string;
   type: 'pdf' | 'anki' | 'outline';
@@ -128,8 +136,9 @@ function toPrintHtml(docs: { path: string; content: string }[]): string {
 
 export default function CompilePage() {
   const [entries, setEntries] = useState<TreeEntry[]>([]);
+  const [mistakes, setMistakes] = useState<MistakeItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set()); // "note:" / "mistake:" 前缀区分来源
   const [type, setType] = useState<'pdf' | 'anki' | 'outline'>('outline');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -144,6 +153,13 @@ export default function CompilePage() {
         setEntries((data.entries as TreeEntry[]) ?? []);
       })
       .catch((e) => setError((e as Error).message));
+    // 错题资源池（失败静默：不影响笔记编译）
+    fetch('/api/mistakes/pool')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.error) setMistakes((data.mistakes as MistakeItem[]) ?? []);
+      })
+      .catch(() => {});
   }, []);
 
   const toggle = (path: string) => {
@@ -292,17 +308,4 @@ export default function CompilePage() {
         </div>
         {history.length > 0 && (
           <button
-            className="btn btn-ghost"
-            style={{ marginTop: 10 }}
-            onClick={() => {
-              saveHistory([]);
-              setHistory([]);
-            }}
-          >
-            清空历史
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
+            classNa

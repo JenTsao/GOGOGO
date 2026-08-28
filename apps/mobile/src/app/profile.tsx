@@ -9,7 +9,7 @@ export default function ProfileScreen() {
   const {
     weatherKey, weatherCity, targetUniversity, githubRepo, githubBranch,
     llmProvider, llmBaseUrl, llmModel, llmApiKey,
-    supabaseUrl, supabaseAnonKey, accessKey, tavilyKey, update,
+    supabaseUrl, supabaseAnonKey, accessKey, tavilyKey, webApiUrl, update,
   } = useSettingsStore();
   const { reminders, addReminder, removeReminder } = useReminderStore();
 
@@ -89,6 +89,17 @@ export default function ProfileScreen() {
 
       <Text style={styles.sectionTitle}>☁️ 云端（每日备课内容）</Text>
       <Text style={styles.placeholder}>与 Supabase 项目对应；访问密钥需先在 SQL 编辑器设置：update profiles set access_key = '...' where user_id = '...'</Text>
+
+      <Text style={styles.label}>管理台地址（错题云同步代理）</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="https://你的项目.vercel.app"
+        placeholderTextColor="#999"
+        value={webApiUrl}
+        onChangeText={(v) => update({ webApiUrl: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
 
       <Text style={styles.label}>Supabase URL</Text>
       <TextInput
