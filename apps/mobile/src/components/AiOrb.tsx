@@ -1,28 +1,33 @@
 import { View, StyleSheet, Modal, Text, TextInput } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { useRef, useState } from 'react';
-import { useAiStore } from '@/store/aiStore';
+import { useEffect, useRef, useState } from 'react';
+import { useAiStore, STATUS_EMOTION, AiStatus } from '@/store/aiStore';
 
 // grok-ball 资产由 Expo 打包（引擎已内联进 ball.html，零外部依赖）
 const BALL_HTML = require('../../assets/grok-ball/ball.html');
 
-// AI 状态 → grok-ball 表情映射（emotionId 见 grok-ball 文档）
-function emotionForAssistant(): string {
-  return '30'; // 思考中
-}
-function emotionForIdle(): string {
-  return '02'; // 待机放空
+// 根据消息内容推断 AI 正处于哪种工作状态（用于演示态映射表情）
+function statusFromIntent(text: string): AiStatus {
+  const t = text.toLowerCase();
+  if (/搜|查|找|分数|资料|检索|网上|资讯/.test(t)) return 'searching';
+  if (/错题|生成|编译|整理|总结|大纲|anki|pdf/.test(t)) return 'generating';
+  return 'thinking';
 }
 
 // AI 悬浮球：用 grok-ball 项目渲染会跟随、可切换 32 种表情的表情球
 export function AiOrb() {
-  const { visible, open, close, messages, pushMessage } = useAiStore();
+  const { visible, status, open, close, setStatus, messages, pushMessage } = useAiStore();
   const webviewRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const inputRef = { current: '' } as { current: string };
 
   const post = (obj: Record<string, unknown>) =>
     webviewRef.current?.postMessage(JSON.stringify(obj));
+
+  // 状态变化 → 切换 grok-ball 表情
+  useEffect(() => {
+    if (ready) post({ type: 'emotion', id: STATUS_EMOTION[status] });
+  }, [status, ready]);
 
   return (
     <>
@@ -44,7 +49,7 @@ export function AiOrb() {
             if (msg.type === 'tap') open();
             if (msg.type === 'ready') {
               setReady(true);
-              post({ type: 'emotion', id: emotionForIdle() });
+              post({ type: 'emotion', id: STATUS_EMOTION.idle });
             }
           }}
         />
@@ -85,9 +90,13 @@ export function AiOrb() {
               if (!text) return;
               pushMessage({ role: 'user', content: text });
               // TODO: Phase 2 接入 DeepSeek，识别工具意图并执行
-              if (ready) post({ type: 'emotion', id: emotionForAssistant() });
-              pushMessage({ role: 'assistant', content: '（演示）已收到，AI 引擎将在 Phase 2 接入。' });
-              if (ready) post({ type: 'emotion', id: emotionForIdle() });
+              // 演示态：接收 → 按意图进入搜索/生成/思考 → 完成
+              setStatus('receiving');
+              setTimeout(() => setStatus(statusFromIntent(text)), 220);
+              setTimeout(() => {
+                pushMessage({ role: 'assistant', content: '（演示）已收到，AI 引擎将在 Phase 2 接入。' });
+                setStatus('done');
+              }, 900);
               inputRef.current = '';
             }}
           />
