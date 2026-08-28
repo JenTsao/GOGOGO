@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveAccessKey } from '@/lib/access';
+import { getUserByAccessKey } from '@/lib/access';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export const dynamic = 'force-dynamic';
@@ -14,10 +14,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '请求体不是合法 JSON' }, { status: 400 });
   }
 
-  const auth = req.headers.get('x-access-key');
-  if (!auth) return NextResponse.json({ error: '缺少 x-access-key' }, { status: 401 });
-  const owner = await resolveAccessKey(auth);
-  if (!owner) return NextResponse.json({ error: '访问密钥无效' }, { status: 401 });
+  const user = await getUserByAccessKey(req.headers.get('x-access-key'));
+  if (!user) return NextResponse.json({ error: '访问密钥无效或缺失' }, { status: 401 });
+  const owner = user.userId;
 
   const date = typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : null;
   const emojiCode = typeof body.emojiCode === 'string' && body.emojiCode.length <= 8 ? body.emojiCode : null;
