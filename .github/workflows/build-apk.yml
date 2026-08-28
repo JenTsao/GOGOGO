@@ -58,23 +58,25 @@ jobs:
           fi
           # 统一全模块 JVM 目标：expo-av 等三方库 Kotlin jvmTarget(11) 与 Java(17) 不一致会报
           # Inconsistent JVM-target compatibility；android/ 是 prebuild 生成目录，只能在 CI 注入补丁
+          # 注意：不能用 subprojects + afterEvaluate（部分时序下子项目已评估完，注册监听器直接抛异常），
+          # 改用 plugins.withId 在插件应用时配置，Kotlin 任务用 configureEach 惰性注册
           cat >> build.gradle <<'EOF'
 
           // CI 注入：强制所有子模块 Java/Kotlin 统一 JVM 17（与 RN 0.74 / AGP 8 模板一致）
-          subprojects {
-              afterEvaluate { project ->
-                  if (project.hasProperty("android")) {
-                      project.android {
+          subprojects { sub ->
+              ["com.android.application", "com.android.library"].each { pid ->
+                  sub.plugins.withId(pid) {
+                      sub.android {
                           compileOptions {
                               sourceCompatibility JavaVersion.VERSION_17
                               targetCompatibility JavaVersion.VERSION_17
                           }
                       }
                   }
-                  project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-                      kotlinOptions {
-                          jvmTarget = "17"
-                      }
+              }
+              sub.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                  kotlinOptions {
+                      jvmTarget = "17"
                   }
               }
           }
