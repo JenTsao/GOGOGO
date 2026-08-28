@@ -31,6 +31,42 @@ export function imageTextContent(text: string, imageUrl: string): ChatContentPar
   ];
 }
 
+export interface MistakeRecognition {
+  subject: string;
+  tags: string[];
+  summary: string;
+}
+
+// 错题图片多模态识别：视觉模型读照片 → 学科判定 + 卡壳标签 + 题面摘要（JSON 容错解析）
+export async function recognizeMistake(
+  cfg: { baseUrl: string; apiKey: string; model: string },
+  imageDataUrl: string
+): Promise<MistakeRecognition> {
+  const res = await chatWithLlm(cfg, [
+    {
+      role: 'system',
+      content:
+        '你是错题整理助手。识别用户发来的错题照片，只输出一个 JSON 对象（不要 markdown 代码块、不要多余文字）：' +
+        '{"subject":"学科","tags":["卡壳点"],"summary":"题面与作答情况摘要，80字内"}。' +
+        'subject 必须从：数学/语文/英语/物理/化学/生物/历史/地理/政治 中选一个；' +
+        'tags 提取 2-4 个卡壳术语（如：导数、设辅助函数、计算失误、单位换算）；' +
+        'summary 简述题目考的知识点和学生作答/错误情况（照片可见时）。照片模糊或不是题目时，subject 给"数学"，tags 为空，summary 说明情况。',
+    },
+    { role: 'user', content: imageTextContent('识别这张错题照片并输出 JSON。', imageDataUrl) },
+  ]);
+  // 容错解析：剥掉可能的 ```json 围栏，截取第一个 {...}
+  const raw = res.content.replace(/```(?:json)?/g, '');
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start === -1 || end === -1) throw new Error('识别结果无法解析');
+  const parsed = JSON.parse(raw.slice(start, end + 1)) as Partial<MistakeRecognition>;
+  return {
+    subject: typeof parsed.subject === 'string' ? parsed.subject : '数学',
+    tags: Array.isArray(parsed.tags) ? parsed.tags.filter((t) => typeof t === 'string').slice(0, 4) : [],
+    summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+  };
+}
+
 // OpenAI 兼容工具定义（L4 调度用；主流供应商均支持）
 export interface ToolDef {
   type: 'function';

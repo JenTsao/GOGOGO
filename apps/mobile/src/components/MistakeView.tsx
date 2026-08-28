@@ -19,6 +19,7 @@ import { useMistakeStore, Mistake } from '@/store/mistakeStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAiStore } from '@/store/aiStore';
 import { transcribeAudio } from '@/lib/stt';
+import { recognizeMistake } from '@/lib/llm';
 
 // 错题本：拍照/相册 → 压缩 → 学科/标签/语音反思 → 本地入库 + 云端同步
 const SUBJECTS = ['数学', '语文', '英语', '物理', '化学', '生物', '历史', '地理', '政治'] as const;
@@ -45,7 +46,7 @@ async function persistAudio(tempUri: string): Promise<string> {
 
 export function MistakeView() {
   const { mistakes, addMistake, removeMistake, syncAll, markCorrect, setTranscript } = useMistakeStore();
-  const { webApiUrl, accessKey, llmBaseUrl, llmApiKey, sttBaseUrl, sttApiKey, sttModel, visionApiKey } = useSettingsStore();
+  const { webApiUrl, accessKey, llmBaseUrl, llmApiKey, sttBaseUrl, sttApiKey, sttModel, visionBaseUrl, visionApiKey, visionModel } = useSettingsStore();
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -58,6 +59,8 @@ export function MistakeView() {
   const [detail, setDetail] = useState<Mistake | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [transcribing, setTranscribing] = useState(false);
+  const [summaryDraft, setSummaryDraft] = useState(''); // 视觉识别的题面摘要（可手改）
+  const [recognizing, setRecognizing] = useState(false);
 
   // 语音备忘转文字：结果落 mistakeStore（AI 讲解上下文 + 画像情绪词来源）
   const transcribe = async (m: Mistake) => {
@@ -82,6 +85,7 @@ export function MistakeView() {
   // 错题 AI 讲解：优先走视觉模型直接读图（GLM-4.6V-Flash），未配置视觉时回退文本讲解
   const askAi = async (m: Mistake) => {
     const parts = [`学科：${m.subject}`];
+    if (m.summary) parts.push(`题面摘要：${m.summary}`);
     if (m.tags.length > 0) parts.push(`卡壳点：${m.tags.join('、')}`);
     if (m.transcript) parts.push(`我的语音反思：${m.transcript}`);
     if (m.correct) parts.push(`重做结果：${m.correct === 'right' ? '重做已能做对' : '重做仍然做错'}`);
@@ -105,6 +109,30 @@ export function MistakeView() {
 
     ai.open();
     ai.ask(`${prompt}\n（注：你看不到错题图片本身，请基于以上信息与该学科常见题型讲解）`);
+  };
+
+  // 错题图片多模态识别：视觉模型读照片 → 自动填学科 + 卡壳标签 + 题面摘要（均可手改）
+  const recognize = async () => {
+    if (!imageUri) return;
+    if (!visionApiKey) {
+      Alert.alert('未配置视觉模型', '请到「我的」→ 👁️ 视觉模型 填写智谱 API Key（GLM-4.6V-Flash）');
+      return;
+    }
+    setRecognizing(true);
+    try {
+      const b64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
+      const rec = await recognizeMistake(
+        { baseUrl: visionBaseUrl, apiKey: visionApiKey, model: visionModel },
+        `data:image/jpeg;base64,${b64}`
+      );
+      if ((SUBJECTS as readonly string[]).includes(rec.subject)) setSubject(rec.subject);
+      if (rec.tags.length > 0) setTagsDraft(rec.tags.join(' '));
+      if (rec.summary) setSummaryDraft(rec.summary);
+    } catch (e) {
+      Alert.alert('识别失败', (e as Error).message);
+    } finally {
+      setRecognizing(false);
+    }
   };
 
   const unsynced = mistakes.filter((m) => !m.synced).length;
@@ -171,11 +199,13 @@ export function MistakeView() {
         tags,
         imageUri: persisted,
         voiceUri: voiceUri ?? undefined,
+        summary: summaryDraft.trim() || undefined,
         createdAt: new Date().toISOString(),
       });
       // 重置表单
       setImageUri(null);
       setTagsDraft('');
+      setSummaryDraft('');
       setVoiceUri(null);
       setPickerOpen(false);
       setDetail(null);
@@ -258,6 +288,12 @@ export function MistakeView() {
                 {detail.subject} · {detail.createdAt.slice(0, 10)}
                 {detail.synced ? ' · 已同步' : ' · 未同步'}
               </Text>
+              {!!detail.summary && (
+                <View style={styles.transcriptBox}>
+                  <Text style={styles.transcriptLabel}>题面摘要（AI 识别）</Text>
+                  <Text style={styles.transcriptText}>{detail.summary}</Text>
+                </View>
+              )}
               <View style={styles.tagRow}>
                 {detail.tags.map((t) => (
                   <View key={t} style={styles.tag}>
@@ -340,7 +376,16 @@ export function MistakeView() {
             <Text style={styles.closeBtnText}>← 取消</Text>
           </TouchableOpacity>
           {imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.detailImage} resizeMode="contain" />
+            <>
+              <Image source={{ uri: imageUri }} style={styles.detailImage} resizeMode="contain" />
+              <TouchableOpacity style={[styles.playBtn, recognizing && { opacity: 0.6 }]} onPress={recognize} disabled={recognizing}>
+                {recognizing ? (
+                  <ActivityIndicator size="small" color="#111" />
+                ) : (
+                  <Text style={styles.playBtnText}>🔍 AI 识别题面（自动填学科/标签/摘要）</Text>
+                )}
+              </TouchableOpacity>
+            </>
           ) : (
             <View style={styles.pickRow}>
               <TouchableOpacity style={styles.pickBtn} onPress={() => pick(true)}>
@@ -368,6 +413,16 @@ export function MistakeView() {
             placeholderTextColor="#999"
             value={tagsDraft}
             onChangeText={setTagsDraft}
+            multiline
+          />
+
+          <Text style={styles.fieldLabel}>题面摘要（可选，AI 识别可自动填写）</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="如：考查导数单调性，我在第二问设辅助函数处卡住"
+            placeholderTextColor="#999"
+            value={summaryDraft}
+            onChangeText={setSummaryDraft}
             multiline
           />
 

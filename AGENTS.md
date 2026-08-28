@@ -71,6 +71,7 @@ pnpm lint         # 全 workspace 类型检查
 - ✅ 知识库 [[双链]] 跳转：wikilink → `wiki:` 链接，onLinkPress 按精确路径/后缀/文件名三级解析跳转，未命中提示
 - ✅ 语音转文字 + 错题 AI 讲解：`src/lib/stt.ts`（OpenAI 兼容 /audio/transcriptions，中文锁定；DeepSeek 无 ASR，settingsStore 提供 sttBaseUrl/sttApiKey/sttModel 独立配置，留空回退 LLM 配置）；转写结果存 mistake.transcript（AI 讲解上下文 + 仪表盘情绪信号：countNegativeWords 消极词扫描「搞不懂即时加权」）；MistakeView 详情页 🤖 AI 讲解入口（优先视觉读图，未配置回退文本）
 - ✅ 视觉讲解：GLM-4.6V-Flash 接入（settingsStore visionBaseUrl/visionApiKey/visionModel，默认智谱 OpenAI 兼容）；llm.ts 支持 OpenAI 视觉 content 数组（ChatContentPart + imageTextContent）；aiStore.askVision（不传工具，历史文本照带）；MistakeView AI 讲解优先读图（本地图 → base64 data URL），未配 Key 回退文本讲解
+- ✅ 错题多模态识别：llm.ts `recognizeMistake`（视觉模型 → JSON {subject,tags,summary} 容错解析）；收录弹窗「🔍 AI 识别题面」自动填学科/卡壳标签/题面摘要（summary 存 mistake.summary，可手改），讲解上下文与详情页均携带
 - ⏳ 可继续增强：Supabase Auth 正式登录（多设备一致）
 
 ## LLM 适配层

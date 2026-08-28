@@ -16,6 +16,7 @@ export interface Mistake {
   cloudId?: string; // 云端 mistakes.id（同步成功后回填，供重做结果 PATCH）
   correct?: 'right' | 'wrong'; // 重做结果：喂画像「学科掌握」维度
   transcript?: string; // 语音反思转写文本：AI 讲解上下文 + 画像情绪词来源
+  summary?: string; // 视觉模型识别的题面摘要：AI 讲解上下文
 }
 
 interface MistakeState {
