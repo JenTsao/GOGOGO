@@ -12,6 +12,7 @@ export default function ProfileScreen() {
   const {
     weatherKey, weatherCity, targetUniversity, githubRepo, githubBranch,
     llmProvider, llmBaseUrl, llmModel, llmApiKey,
+    sttBaseUrl, sttApiKey, sttModel,
     supabaseUrl, supabaseAnonKey, accessKey, tavilyKey, webApiUrl, update,
   } = useSettingsStore();
   const { reminders, addReminder, removeReminder } = useReminderStore();
@@ -147,6 +148,43 @@ export default function ProfileScreen() {
         placeholderTextColor="#999"
         value={llmModel}
         onChangeText={(v) => update({ llmModel: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <Text style={styles.sectionTitle}>🎤 语音转文字（错题语音反思 → AI 讲解 / 画像情绪词）</Text>
+      <Text style={styles.placeholder}>需 OpenAI / Groq / SiliconFlow 等支持 ASR 的服务（DeepSeek 不支持）。Base URL / Key 留空时回退上面的 AI 模型配置。</Text>
+
+      <Text style={styles.label}>转写 Base URL（可选）</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="留空回退 AI 模型 Base URL"
+        placeholderTextColor="#999"
+        value={sttBaseUrl}
+        onChangeText={(v) => update({ sttBaseUrl: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <Text style={styles.label}>转写 API Key（可选）</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="留空回退 AI 模型 Key"
+        placeholderTextColor="#999"
+        value={sttApiKey}
+        onChangeText={(v) => update({ sttApiKey: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+      />
+
+      <Text style={styles.label}>转写模型名</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="whisper-1（Groq 用 whisper-large-v3）"
+        placeholderTextColor="#999"
+        value={sttModel}
+        onChangeText={(v) => update({ sttModel: v })}
         autoCapitalize="none"
         autoCorrect={false}
       />

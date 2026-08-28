@@ -15,6 +15,7 @@ export interface Mistake {
   synced: boolean;
   cloudId?: string; // 云端 mistakes.id（同步成功后回填，供重做结果 PATCH）
   correct?: 'right' | 'wrong'; // 重做结果：喂画像「学科掌握」维度
+  transcript?: string; // 语音反思转写文本：AI 讲解上下文 + 画像情绪词来源
 }
 
 interface MistakeState {
@@ -24,6 +25,8 @@ interface MistakeState {
   markSynced: (id: string, imageUrl: string, voiceUrl?: string, cloudId?: string) => void;
   // 重做结果：本地即时更新；已同步的条目同时 PATCH 云端（失败静默，下次同步重试）
   markCorrect: (id: string, correct: 'right' | 'wrong', webApiUrl: string, accessKey: string) => void;
+  // 语音转写结果落库（本地）
+  setTranscript: (id: string, text: string) => void;
   // 全量同步：未同步的逐条上传（图片 base64），成功回填 URL
   syncAll: (webApiUrl: string, accessKey: string) => Promise<{ ok: number; fail: number }>;
 }
@@ -89,6 +92,11 @@ export const useMistakeStore = create<MistakeState>((set, get) => ({
       headers: { 'Content-Type': 'application/json', 'x-access-key': accessKey },
       body: JSON.stringify({ id: m.cloudId, isMastered: correct === 'right' }),
     }).catch(() => {}); // 云端回写失败不影响本地画像
+  },
+  setTranscript: (id, text) => {
+    const next = get().mistakes.map((m) => (m.id === id ? { ...m, transcript: text } : m));
+    persist(next);
+    set({ mistakes: next });
   },
   syncAll: async (webApiUrl, accessKey) => {
     if (!webApiUrl || !accessKey) throw new Error('请在「我的」配置管理台地址与访问密钥');

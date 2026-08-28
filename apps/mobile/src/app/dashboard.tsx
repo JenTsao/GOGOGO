@@ -8,6 +8,7 @@ import { useSandboxStore } from '@/store/sandboxStore';
 import { useMistakeStore } from '@/store/mistakeStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { localDateStr } from '@/store/reminderStore';
+import { countNegativeWords } from '@/lib/stt';
 
 // Tab 3：仪表盘 —— 激进模式画像
 // 六维雷达基于可计算数据（专注/任务/知识积累 + 错题重做正确率的学科掌握）
@@ -65,6 +66,12 @@ export default function DashboardScreen() {
     return (graded.filter((m) => m.correct === 'right').length / graded.length) * 100;
   }, [mistakes]);
   const gradedCount = mistakes.filter((m) => m.correct).length;
+
+  // 情绪信号：语音反思转写中的消极词 top3（蓝皮书「搞不懂即时加权」）
+  const moodSignals = useMemo(
+    () => [...countNegativeWords(mistakes.map((m) => m.transcript ?? ''))].sort((a, b) => b[1] - a[1]).slice(0, 3),
+    [mistakes]
+  );
 
   const [benchmark, setBenchmark] = useState<string | null>(null);
   const [benchmarkBusy, setBenchmarkBusy] = useState(false);
@@ -193,6 +200,20 @@ export default function DashboardScreen() {
             🔥 危险学科：<Text style={styles.weakness}>{dangerSubject[0]}</Text>
             <Text style={styles.placeholder}>（{dangerSubject[1]} 道错题）</Text>
           </Text>
+        )}
+        {moodSignals.length > 0 && (
+          <>
+            <Text style={styles.profileText}>😤 情绪信号（语音反思中的消极词，即时加权）</Text>
+            <View style={styles.cloudRow}>
+              {moodSignals.map(([word, n]) => (
+                <View key={word} style={styles.cloudChip}>
+                  <Text style={styles.cloudChipText}>
+                    {word} <Text style={styles.cloudCount}>×{n}</Text>
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </>
         )}
         {sessions.length === 0 && top3.length === 0 ? (
           <Text style={styles.placeholder}>先开始一次专注或创建任务，画像会随数据积累逐渐清晰</Text>

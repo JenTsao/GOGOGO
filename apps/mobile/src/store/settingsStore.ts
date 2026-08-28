@@ -17,6 +17,9 @@ export interface Settings {
   accessKey: string; // 与 profiles.access_key 一致的设备访问密钥
   tavilyKey: string; // 联网搜索（AI searchWeb 工具用）
   webApiUrl: string; // 管理台地址（错题云同步走 /api/mistakes 代理）
+  sttBaseUrl: string; // 语音转写（留空回退 LLM baseUrl；DeepSeek 无 ASR 需单独配）
+  sttApiKey: string;
+  sttModel: string; // whisper-1 / whisper-large-v3（Groq）/ SenseVoice 等
 }
 
 const SETTINGS_KEY = 'settings';
@@ -36,6 +39,9 @@ const DEFAULTS: Settings = {
   accessKey: '',
   tavilyKey: '',
   webApiUrl: '',
+  sttBaseUrl: '',
+  sttApiKey: '',
+  sttModel: 'whisper-1',
 };
 
 function loadSettings(): Settings {

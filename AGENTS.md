@@ -69,7 +69,8 @@ pnpm lint         # 全 workspace 类型检查
 - ✅ 错题本（Phase 4）：弹药库第3子Tab `MistakeView`（拍照/相册 → image-manipulator 压缩 1080px/JPEG → 学科/标签/语音反思 expo-av → 本地 MMKV 优先）；云同步经管理台 `/api/mistakes` 代理（x-access-key 反查 profiles.access_key，service role 写 Storage `mistakes` 桶，无匿名写策略）；画像接入危险学科 + 卡壳词云（mistakeStore tags）；编译资源池 `/api/mistakes/pool`（OWNER 归属元数据）
 - ✅ 错题重做结果：detail 标记 ✅正确/❌仍错 → 雷达第 6 维「学科掌握」（重做正确率）；云端 `mistakes.is_mastered`（POST 携带 / PATCH 回写）
 - ✅ 知识库 [[双链]] 跳转：wikilink → `wiki:` 链接，onLinkPress 按精确路径/后缀/文件名三级解析跳转，未命中提示
-- ⏳ 可继续增强：Supabase Auth 正式登录（多设备一致）、语音备忘转文字、错题 AI 讲解
+- ✅ 语音转文字 + 错题 AI 讲解：`src/lib/stt.ts`（OpenAI 兼容 /audio/transcriptions，中文锁定；DeepSeek 无 ASR，settingsStore 提供 sttBaseUrl/sttApiKey/sttModel 独立配置，留空回退 LLM 配置）；转写结果存 mistake.transcript（AI 讲解上下文 + 仪表盘情绪信号：countNegativeWords 消极词扫描「搞不懂即时加权」）；MistakeView 详情页 🤖 AI 讲解 = aiStore.ask + open 唤起悬浮球（局限：多模态未接，AI 看不到图片）
+- ⏳ 可继续增强：Supabase Auth 正式登录（多设备一致）、错题图片多模态识别（gpt-4o-mini/glm-4v 视觉讲解）
 
 ## LLM 适配层
 

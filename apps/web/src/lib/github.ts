@@ -50,3 +50,68 @@ export async function fetchRawFile(path: string): Promise<string> {
   if (!res.ok) throw new Error(`GitHub raw ${res.status}`);
   return res.text();
 }
+
+// ---------- 写路径（保存 / 传图）：走 contents API，需 GITHUB_TOKEN 具备 repo 写权限 ----------
+
+export function isGithubWritable(): boolean {
+  return isGithubConfigured() && !!githubConfig.token;
+}
+
+// 防路径穿越：统一校验写入目标
+function assertSafePath(path: string): void {
+  const clean = path.replace(/^\/+/, '');
+  if (!clean || clean.includes('..') || clean.includes('\\')) throw new Error('非法路径');
+}
+
+// 取文件当前 SHA（不存在返回 null，供新建文件）
+export async function getFileSha(path: string): Promise<string | null> {
+  assertSafePath(path);
+  const res = await fetch(
+    `https://api.github.com/repos/${githubConfig.repo}/contents/${encodeURIComponent(path)}?ref=${githubConfig.branch}`,
+    { headers: headers(), cache: 'no-store' }
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+  const data = (await res.json()) as { sha?: string };
+  return data.sha ?? null;
+}
+
+// 提交文本文件（Markdown 编辑保存）
+export async function commitMarkdown(path: string, content: string, message: string): Promise<void> {
+  assertSafePath(path);
+  const sha = await getFileSha(path);
+  const res = await fetch(`https://api.github.com/repos/${githubConfig.repo}/contents/${encodeURIComponent(path)}`, {
+    method: 'PUT',
+    headers: { ...headers(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message,
+      content: Buffer.from(content, 'utf8').toString('base64'),
+      branch: githubConfig.branch,
+      ...(sha ? { sha } : {}),
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`提交失败 ${res.status}${detail ? `：${detail.slice(0, 200)}` : ''}`);
+  }
+}
+
+// 提交二进制文件（拖拽上传的 WebP 图片），content 为 base64
+export async function commitBinary(path: string, base64: string, message: string): Promise<void> {
+  assertSafePath(path);
+  const sha = await getFileSha(path);
+  const res = await fetch(`https://api.github.com/repos/${githubConfig.repo}/contents/${encodeURIComponent(path)}`, {
+    method: 'PUT',
+    headers: { ...headers(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, content: base64, branch: githubConfig.branch, ...(sha ? { sha } : {}) }),
+  });
+  if (!res.ok) throw new Error(`图片提交失败 ${res.status}`);
+}
+
+// 原始文件直链（图片在 Markdown 中引用）
+export function rawUrl(path: string): string {
+  return `https://raw.githubusercontent.com/${githubConfig.repo}/${githubConfig.branch}/${path
+    .split('/')
+    .map(encodeURIComponent)
+    .join('/')}`;
+}

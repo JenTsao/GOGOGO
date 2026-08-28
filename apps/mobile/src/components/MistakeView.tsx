@@ -17,6 +17,8 @@ import * as FileSystem from 'expo-file-system';
 import { Audio } from 'expo-av';
 import { useMistakeStore, Mistake } from '@/store/mistakeStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useAiStore } from '@/store/aiStore';
+import { transcribeAudio } from '@/lib/stt';
 
 // 错题本：拍照/相册 → 压缩 → 学科/标签/语音反思 → 本地入库 + 云端同步
 const SUBJECTS = ['数学', '语文', '英语', '物理', '化学', '生物', '历史', '地理', '政治'] as const;
@@ -42,8 +44,8 @@ async function persistAudio(tempUri: string): Promise<string> {
 }
 
 export function MistakeView() {
-  const { mistakes, addMistake, removeMistake, syncAll, markCorrect } = useMistakeStore();
-  const { webApiUrl, accessKey } = useSettingsStore();
+  const { mistakes, addMistake, removeMistake, syncAll, markCorrect, setTranscript } = useMistakeStore();
+  const { webApiUrl, accessKey, llmBaseUrl, llmApiKey, sttBaseUrl, sttApiKey, sttModel } = useSettingsStore();
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -55,6 +57,41 @@ export function MistakeView() {
   const [syncing, setSyncing] = useState(false);
   const [detail, setDetail] = useState<Mistake | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
+
+  // 语音备忘转文字：结果落 mistakeStore（AI 讲解上下文 + 画像情绪词来源）
+  const transcribe = async (m: Mistake) => {
+    const uri = m.voiceUri ?? m.voiceUrl;
+    if (!uri) return;
+    setTranscribing(true);
+    try {
+      const text = await transcribeAudio(uri, {
+        baseUrl: sttBaseUrl || llmBaseUrl, // 未单独配置时回退 LLM 服务（DeepSeek 无 ASR，需另配）
+        apiKey: sttApiKey || llmApiKey,
+        model: sttModel,
+      });
+      setTranscript(m.id, text);
+      setDetail(useMistakeStore.getState().mistakes.find((x) => x.id === m.id) ?? null);
+    } catch (e) {
+      Alert.alert('转写失败', (e as Error).message);
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  // 错题 AI 讲解：学科/卡壳标签/语音反思转写/重做结果 组装上下文，唤起悬浮球对话
+  // 局限：当前多模态未接入，AI 看不到错题图片，讲解质量依赖转写与标签
+  const askAi = (m: Mistake) => {
+    const parts = [`学科：${m.subject}`];
+    if (m.tags.length > 0) parts.push(`卡壳点：${m.tags.join('、')}`);
+    if (m.transcript) parts.push(`我的语音反思：${m.transcript}`);
+    if (m.correct) parts.push(`重做结果：${m.correct === 'right' ? '重做已能做对' : '重做仍然做错'}`);
+    const ai = useAiStore.getState();
+    ai.open();
+    ai.ask(
+      `我在一道${m.subject}错题上卡住了，请讲解这类题的解题思路、常见陷阱，并给 2 个针对性练习方向。信息如下：\n${parts.join('\n')}\n（注：你看不到错题图片本身，请基于以上信息与该学科常见题型讲解）`
+    );
+  };
 
   const unsynced = mistakes.filter((m) => !m.synced).length;
 
@@ -220,6 +257,31 @@ export function MistakeView() {
                 </TouchableOpacity>
               )}
 
+              {/* 语音备忘转文字 + AI 讲解 */}
+              {(detail.voiceUri || detail.voiceUrl || detail.transcript) && (
+                <>
+                  {(detail.voiceUri || detail.voiceUrl) && (
+                    <TouchableOpacity style={styles.playBtn} onPress={() => transcribe(detail)} disabled={transcribing}>
+                      {transcribing ? (
+                        <ActivityIndicator size="small" color="#111" />
+                      ) : (
+                        <Text style={styles.playBtnText}>{detail.transcript ? '🔁 重新转写语音' : '📝 语音转文字'}</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                  {!!detail.transcript && (
+                    <View style={styles.transcriptBox}>
+                      <Text style={styles.transcriptLabel}>语音反思转写</Text>
+                      <Text style={styles.transcriptText}>{detail.transcript}</Text>
+                    </View>
+                  )}
+                </>
+              )}
+              <TouchableOpacity style={styles.aiBtn} onPress={() => askAi(detail)}>
+                <Text style={styles.aiBtnText}>🤖 AI 讲解这道错题</Text>
+                <Text style={styles.aiHint}>{detail.transcript ? '基于转写反思 + 卡壳标签' : '建议先语音转文字，讲解更精准'}</Text>
+              </TouchableOpacity>
+
               <Text style={styles.fieldLabel}>重做结果（喂画像「学科掌握」维度）</Text>
               <View style={styles.resultRow}>
                 <TouchableOpacity
@@ -329,6 +391,13 @@ const styles = StyleSheet.create({
   tagText: { color: '#3730a3', fontSize: 12 },
   playBtn: { backgroundColor: '#fff', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 14, borderWidth: 1, borderColor: '#e5e7eb' },
   playBtnText: { fontSize: 14, color: '#111' },
+  // 语音转写结果
+  transcriptBox: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginTop: 10, borderLeftWidth: 3, borderLeftColor: '#2563eb' },
+  transcriptLabel: { fontSize: 12, color: '#888', marginBottom: 4 },
+  transcriptText: { fontSize: 14, color: '#333', lineHeight: 22 },
+  aiBtn: { backgroundColor: '#111', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
+  aiBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  aiHint: { color: '#999', fontSize: 11, marginTop: 4 },
   deleteBtn: { alignItems: 'center', padding: 14, marginTop: 24 },
   deleteBtnText: { color: '#c0392b', fontSize: 14 },
   // 重做结果
