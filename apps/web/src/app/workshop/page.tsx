@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Editor, { type OnMount } from '@monaco-editor/react';
 
 // 菜单1：知识工坊（Phase 1：文件树预览 + 只读编辑器）
@@ -84,6 +85,16 @@ function TreeItem({
 }
 
 export default function WorkshopPage() {
+  // useSearchParams 需要 Suspense 边界（Next.js CSR bailout 约束）
+  return (
+    <Suspense fallback={<h1 className="page-title">知识工坊</h1>}>
+      <WorkshopInner />
+    </Suspense>
+  );
+}
+
+function WorkshopInner() {
+  const searchParams = useSearchParams();
   const [paths, setPaths] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -115,6 +126,12 @@ export default function WorkshopPage() {
       setLoading(false);
     }
   }, []);
+
+  // 支持从语义检索中心带 ?path= 直达某篇笔记
+  const pathParam = searchParams.get('path');
+  useEffect(() => {
+    if (pathParam) openFile(pathParam);
+  }, [pathParam, openFile]);
 
   const onMount: OnMount = (editor) => {
     editor.updateOptions({ readOnly: true });

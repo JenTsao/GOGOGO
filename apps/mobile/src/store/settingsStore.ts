@@ -9,6 +9,10 @@ export interface Settings {
   targetUniversity: string;
   githubRepo: string; // Obsidian 仓库，格式 owner/repo（知识库用）
   githubBranch: string;
+  llmProvider: string; // deepseek | openai | moonshot | glm | custom
+  llmBaseUrl: string;
+  llmModel: string;
+  llmApiKey: string;
 }
 
 const SETTINGS_KEY = 'settings';
@@ -20,6 +24,10 @@ const DEFAULTS: Settings = {
   targetUniversity: '',
   githubRepo: '',
   githubBranch: 'main',
+  llmProvider: 'deepseek',
+  llmBaseUrl: 'https://api.deepseek.com',
+  llmModel: 'deepseek-chat',
+  llmApiKey: '',
 };
 
 function loadSettings(): Settings {

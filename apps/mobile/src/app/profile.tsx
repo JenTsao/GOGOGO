@@ -2,11 +2,21 @@ import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity } from 
 import { useState } from 'react';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
+import { LLM_PRESETS } from '@/lib/llm';
 
 // Tab 4：我的（配置与调度）
 export default function ProfileScreen() {
-  const { deepseekKey, weatherKey, weatherCity, targetUniversity, githubRepo, githubBranch, update } = useSettingsStore();
+  const {
+    weatherKey, weatherCity, targetUniversity, githubRepo, githubBranch,
+    llmProvider, llmBaseUrl, llmModel, llmApiKey, update,
+  } = useSettingsStore();
   const { reminders, addReminder, removeReminder } = useReminderStore();
+
+  // 切换预设自动填充默认 baseUrl / 模型；custom 留空由用户自填
+  const pickPreset = (key: string) => {
+    const preset = LLM_PRESETS[key];
+    update({ llmProvider: key, llmBaseUrl: preset.baseUrl || '', llmModel: preset.model || '' });
+  };
 
   const [reminderDate, setReminderDate] = useState('');
   const [reminderText, setReminderText] = useState('');
@@ -29,16 +39,51 @@ export default function ProfileScreen() {
     <ScrollView style={styles.container}>
       <Text style={styles.sectionTitle}>⚙️ 配置（保存到本地 MMKV）</Text>
 
-      <Text style={styles.label}>DeepSeek API Key</Text>
+      <Text style={styles.sectionTitle}>🤖 AI 模型（OpenAI 兼容协议）</Text>
+      <View style={styles.presetRow}>
+        {Object.entries(LLM_PRESETS).map(([key, preset]) => (
+          <TouchableOpacity
+            key={key}
+            style={[styles.presetChip, llmProvider === key && styles.presetChipActive]}
+            onPress={() => pickPreset(key)}
+          >
+            <Text style={[styles.presetText, llmProvider === key && styles.presetTextActive]}>{preset.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={styles.label}>API Key</Text>
       <TextInput
         style={styles.input}
         placeholder="sk-…"
         placeholderTextColor="#999"
-        value={deepseekKey}
-        onChangeText={(v) => update({ deepseekKey: v })}
+        value={llmApiKey}
+        onChangeText={(v) => update({ llmApiKey: v })}
         autoCapitalize="none"
         autoCorrect={false}
         secureTextEntry
+      />
+
+      <Text style={styles.label}>Base URL{llmProvider === 'custom' ? '（自定义）' : ''}</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="https://api.deepseek.com"
+        placeholderTextColor="#999"
+        value={llmBaseUrl}
+        onChangeText={(v) => update({ llmBaseUrl: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <Text style={styles.label}>模型名</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="deepseek-chat"
+        placeholderTextColor="#999"
+        value={llmModel}
+        onChangeText={(v) => update({ llmModel: v })}
+        autoCapitalize="none"
+        autoCorrect={false}
       />
 
       <Text style={styles.label}>OpenWeather API Key</Text>
@@ -155,6 +200,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   placeholder: { color: '#999', fontSize: 14, lineHeight: 22, marginTop: 4 },
+  presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  presetChip: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#fff',
+  },
+  presetChipActive: { backgroundColor: '#111', borderColor: '#111' },
+  presetText: { fontSize: 13, color: '#555' },
+  presetTextActive: { color: '#fff', fontWeight: '700' },
   reminderRow: { flexDirection: 'row', gap: 8 },
   reminderDateInput: { width: 110 },
   reminderAddBtn: { backgroundColor: '#111', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginTop: 10 },

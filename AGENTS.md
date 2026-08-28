@@ -47,7 +47,10 @@ pnpm lint         # 全 workspace 类型检查
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` / `ANON_KEY` | web | Supabase 客户端 |
 | `GITHUB_REPO` / `GITHUB_BRANCH` / `GITHUB_TOKEN` | web 服务端 | 知识工坊读取 Obsidian 仓库 |
-| DeepSeek / OpenWeather Key | mobile MMKV | 用户在「我的」Tab 自填 |
+| `LLM_PROVIDER` / `LLM_MODEL` / 各供应商 `*_API_KEY` | web 服务端 | 备课流水线 / 语义检索（见 `apps/web/src/lib/llm.ts`） |
+| `EMBEDDING_PROVIDER` / `EMBEDDING_MODEL` | web 服务端 | 向量化（维度锁 1536） |
+| `CRON_SECRET` / `OWNER_USER_ID` | web 服务端 | Cron 鉴权 / 数据归属用户 UUID |
+| DeepSeek / OpenWeather / LLM Key | mobile MMKV | 用户在「我的」Tab 自填 |
 
 ## 当前进度（Phase 1 完成，Phase 2 进行中）
 
@@ -55,8 +58,17 @@ pnpm lint         # 全 workspace 类型检查
 - ✅ 移动端 4 Tab；驾驶舱：倒计时 / 自动定位天气（expo-location，坐标优先、配置城市兜底）/ 今日三件事 + 后备箱（MMKV 持久化）；全屏心流计时器（会话记录持久化）
 - ✅ 管理台知识工坊：文件树预览 + Monaco 只读编辑器
 - ✅ 弹药库：代码沙盒（WebView 内 Monaco + Pyodide，5 秒无响应熔断，片段 MMKV 保存）+ 知识库（GitHub 目录树按需下载，react-native-markdown-display 渲染，[[双链]] 暂渲染为加粗）
-- ⏳ Phase 2 剩余：DeepSeek 对话（L1-L3）、凌晨备课流水线、pgvector 语义检索
+- ✅ AI 悬浮球对话（L1-L3）：多供应商 OpenAI 兼容协议（DeepSeek/OpenAI/Kimi/GLM/自定义），BYOK 存 MMKV
+- ✅ 凌晨备课流水线：`/api/cron/daily`（vercel.json 每日 04:00 北京时间），service role 写 daily_learning，幂等
+- ✅ 语义检索中心：`/api/knowledge/sync`（内容哈希增量向量化）+ `/api/search`（关键词 ilike + pgvector rpc match_notes 混合检索），schema.sql 已补 match_notes + hnsw 索引
+- ⏳ Phase 2 剩余：驾驶舱消费 daily_learning（每日知识点卡片/每日一题）
 - ⏳ Phase 3：L4 工具调度（6 大工具 + 确认卡片）、编译输出（PDF/Anki）、画像系统、后台唤醒
+
+## LLM 适配层
+
+- Web 服务端：`apps/web/src/lib/llm.ts`（chatCompletion / embedTexts / parseJsonLoose），供应商注册表新增 = 加一行
+- 移动端 BYOK：`apps/mobile/src/lib/llm.ts`（LLM_PRESETS + chatWithLlm），配置存 settingsStore（llmProvider/llmBaseUrl/llmModel/llmApiKey）
+- Embedding 维度锁定 1536（与 knowledge_embeddings.vector(1536)、match_notes 一致），换供应商必须保持 1536
 
 ## 代码风格
 

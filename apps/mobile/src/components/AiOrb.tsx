@@ -1,25 +1,26 @@
-import { View, StyleSheet, Modal, Text, TextInput } from 'react-native';
+import { View, StyleSheet, Modal, Text, TextInput, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useEffect, useRef, useState } from 'react';
-import { useAiStore, STATUS_EMOTION, AiStatus } from '@/store/aiStore';
+import { useAiStore, STATUS_EMOTION } from '@/store/aiStore';
+import { useSettingsStore } from '@/store/settingsStore';
+import { chatWithLlm, ChatMessage } from '@/lib/llm';
 
 // grok-ball 资产由 Expo 打包（引擎已内联进 ball.html，零外部依赖）
 const BALL_HTML = require('../../assets/grok-ball/ball.html');
 
-// 根据消息内容推断 AI 正处于哪种工作状态（用于演示态映射表情）
-function statusFromIntent(text: string): AiStatus {
-  const t = text.toLowerCase();
-  if (/搜|查|找|分数|资料|检索|网上|资讯/.test(t)) return 'searching';
-  if (/错题|生成|编译|整理|总结|大纲|anki|pdf/.test(t)) return 'generating';
-  return 'thinking';
-}
+// L1-L3 级对话：多轮上下文 + 人设系统提示（L4 工具调度在 Phase 3）
+const SYSTEM_PROMPT =
+  '你是「高考副驾驶」，一名陪伴高三学生备考的 AI 助手。要求：回答简洁、鼓励但不灌鸡汤；' +
+  '学科问题给出清晰步骤；能识别用户想记录任务、查资料等意图时，提示可以使用对应功能（工具调度将在后续版本上线）。';
 
-// AI 悬浮球：用 grok-ball 项目渲染会跟随、可切换 32 种表情的表情球
+// AI 悬浮球：grok-ball 表情球 + 多供应商 LLM 对话
 export function AiOrb() {
-  const { visible, status, open, close, setStatus, runAction, messages, pushMessage } = useAiStore();
+  const { visible, status, open, close, setStatus, messages, pushMessage } = useAiStore();
+  const { llmBaseUrl, llmModel, llmApiKey } = useSettingsStore();
   const webviewRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
-  const inputRef = { current: '' } as { current: string };
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const post = (obj: Record<string, unknown>) =>
     webviewRef.current?.postMessage(JSON.stringify(obj));
@@ -28,6 +29,34 @@ export function AiOrb() {
   useEffect(() => {
     if (ready) post({ type: 'emotion', id: STATUS_EMOTION[status] });
   }, [status, ready]);
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || busy) return;
+    pushMessage({ role: 'user', content: text });
+    setInput('');
+    setBusy(true);
+    setStatus('thinking');
+
+    try {
+      // 最近 12 条作为上下文（当前 user 消息已在 store 中）
+      const history: ChatMessage[] = [...useAiStore.getState().messages.slice(-12)].map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+      const reply = await chatWithLlm(
+        { baseUrl: llmBaseUrl, apiKey: llmApiKey, model: llmModel },
+        [{ role: 'system', content: SYSTEM_PROMPT }, ...history]
+      );
+      pushMessage({ role: 'assistant', content: reply });
+      setStatus('done');
+    } catch (e) {
+      pushMessage({ role: 'assistant', content: `请求失败：${(e as Error).message}` });
+      setStatus('error');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <>
@@ -57,16 +86,16 @@ export function AiOrb() {
       <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.title}>高考副驾驶 · AI</Text>
+            <Text style={styles.title}>高考副驾驶 · {llmModel || 'AI'}</Text>
             <Text style={styles.close} onPress={close}>
               ✕
             </Text>
           </View>
 
-          <View style={styles.messages}>
+          <ScrollView style={styles.messages}>
             {messages.length === 0 && (
               <Text style={styles.placeholder}>
-                随点随到。试试：“把每日一题加到明天后备箱”或“查一下今年物理分数线”。
+                随点随到。先在「我的」Tab 配置 API Key；试试：“帮我规划今晚的数学复习”或“讲讲导数构造函数”。
               </Text>
             )}
             {messages.map((m, i) => (
@@ -77,35 +106,17 @@ export function AiOrb() {
                 {m.content}
               </Text>
             ))}
-          </View>
+          </ScrollView>
 
           <TextInput
             style={styles.input}
-            placeholder="问问 AI…"
+            placeholder={busy ? '思考中…' : '问问 AI…'}
             placeholderTextColor="#888"
-            onChangeText={(t) => (inputRef.current = t)}
-            onSubmitEditing={({ nativeEvent }) => {
-              const text = nativeEvent.text.trim();
-              if (!text) return;
-              pushMessage({ role: 'user', content: text });
-              // TODO: Phase 2 接入 DeepSeek，识别工具意图并执行
-              // 演示态：接收 → 按意图进入搜索/生成/思考 → 完成
-              setStatus('receiving');
-              setTimeout(() => {
-                const s = statusFromIntent(text);
-                if (s === 'generating') {
-                  // “生成错题本/编译输出”类指令统一走 runAction
-                  runAction('智能生成');
-                } else {
-                  setStatus(s);
-                  setTimeout(() => {
-                    pushMessage({ role: 'assistant', content: '（演示）已收到，AI 引擎将在 Phase 2 接入。' });
-                    setStatus('done');
-                  }, 900);
-                }
-              }, 220);
-              inputRef.current = '';
-            }}
+            value={input}
+            onChangeText={setInput}
+            editable={!busy}
+            onSubmitEditing={send}
+            returnKeyType="send"
           />
         </View>
       </Modal>
