@@ -529,6 +529,8 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#fafafa' },
+  button: { backgroundColor: '#111', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 12 },
+  buttonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginTop: 16, marginBottom: 8 },
   label: { fontSize: 13, color: '#666', marginTop: 10, marginBottom: 4 },
   input: {

@@ -94,7 +94,8 @@ APK 打包：GitHub Actions「Build APK」workflow（手动 dispatch 或推送 `
 - ✅ correctCode 实时读取：sandbox.html onDidChangeModelContent 防抖 400ms 上报 editor-change → CodeSandbox 写 sandboxStore.liveCode（不持久化）→ aiTools.correctCode 优先实时内容、回退 snippets[0]，代码以 markdown 代码块注入对话
 - ✅ Obsidian 向量化 Cron：`/api/cron/knowledge`（每日 04:10 北京时间，CRON_SECRET Bearer）——同步核心抽至 `lib/knowledgeSync.ts`（syncKnowledge(limit)，手动按钮与 cron 共用）；每轮 30 篇哈希增量，笔记多时数天收敛全量
 - ✅ DND 屏蔽：focusStore.suppressNotifications（内存态）→ background.ts 通知 handler 心流期间抑制横幅/声音（App 自身通知真屏蔽）；心流界面 Android 深链 ZEN_MODE_SETTINGS（expo-intent-launcher，其他 App 的通知需系统 DND，App 层无法代办，诚实引导）
-- ⏳ 可继续增强：Supabase Auth 正式登录（多设备一致）
+- ✅ Supabase Auth 正式登录（多设备一致）：`lib/supabase.ts`（懒创建客户端，MMKV 会话持久化适配器，url/anonKey 来自 settingsStore，配置变更重建）+ `authStore`（init 恢复会话+幂等订阅 / signInWithPassword / signUp / signOut）；登录后 bootstrap 调 `ensure_access_key` RPC（security definer：无 profiles 行则建+生成 access_key，兼容手工建档老用户）回填 settingsStore.accessKey——**登录即身份引导，既有 access-key 同步链路全部自动归属账号，多设备登录即收敛**；profile.tsx 登录区（邮箱/密码/注册/退出）；schema 补 pgcrypto + handle_new_user 触发器 + ensure_access_key（Supabase 重跑一次）
+- ⏳ 可继续增强：无（蓝皮书主干全部完成，见 README 待办清单）
 
 ## LLM 适配层
 

@@ -94,9 +94,10 @@ pnpm dev:mobile   # 手机端（Expo Go）
 **定时任务（蓝皮书 7 管道已完成 3）**
 - [x] `/api/cron/daily` 每日 04:00 备课流水线
 - [x] `/api/cron/weekly` 每周一 04:30：周数据聚合 + Tavily 双检索（考纲变动/资讯）→ LLM 教练复盘 → `weekly_reviews` → 画像详情弹窗展示
-- [ ] 其余管道（如定时同步 Obsidian 增量向量化 Cron，现手动触发）
+- [x] `/api/cron/knowledge` 每日 04:10：Obsidian 笔记哈希增量向量化（每轮 30 篇，自动收敛全量）
 
 **其他**
 - [x] 横向对标数值化：目标总分 vs 检索分数线（启发式提取，省份/批次需人工核对）
 - [x] APK 构建：`.github/workflows/build-apk.yml`（手动 dispatch 或 `v*` tag 触发，debug 签名可侧载）
-- [ ] Supabase Auth 正式登录（多设备一致，替代设备访问密钥方案）
+- [x] Supabase Auth 正式登录：邮箱密码登录/注册，自动生成并回填访问密钥（多设备登录同一账号即数据收敛）
+- [ ] 错题正确率按科目细分进雷达（现为整体掌握维度）

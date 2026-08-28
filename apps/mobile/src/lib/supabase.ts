@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { storage } from '@/store/taskStore';
+import { storage } from '@/store/storage';
 import { useSettingsStore } from '@/store/settingsStore';
 
 // 移动端 Supabase 客户端（懒创建）：
