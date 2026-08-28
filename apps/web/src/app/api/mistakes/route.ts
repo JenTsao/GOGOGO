@@ -11,16 +11,21 @@ const BUCKET = 'mistakes';
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const MAX_VOICE_BYTES = 3 * 1024 * 1024;
 
-// PATCH /api/mistakes —— 重做结果回写（喂画像学科掌握维度）：body: { id, isMastered }
+// PATCH /api/mistakes —— 重做结果/转写/摘要回写（多端回填）：body: { id, isMastered?, transcript?, summary? }
 export async function PATCH(req: Request) {
   const user = await getUserByAccessKey(accessKeyFromRequest(req));
   if (!user) return NextResponse.json({ error: '访问密钥无效' }, { status: 401 });
   try {
-    const body = (await req.json()) as { id?: string; isMastered?: boolean };
+    const body = (await req.json()) as { id?: string; isMastered?: boolean; transcript?: string; summary?: string };
     if (!body.id) return NextResponse.json({ error: '缺少错题 id' }, { status: 400 });
+    const patch: Record<string, unknown> = {};
+    if (body.isMastered !== undefined) patch.is_mastered = body.isMastered;
+    if (body.transcript !== undefined) patch.transcript = body.transcript.slice(0, 5000);
+    if (body.summary !== undefined) patch.summary = body.summary.slice(0, 2000);
+    if (Object.keys(patch).length === 0) return NextResponse.json({ error: '无可更新字段' }, { status: 400 });
     const { error } = await supabaseAdmin()
       .from('mistakes')
-      .update({ is_mastered: body.isMastered ?? null })
+      .update(patch)
       .eq('id', body.id)
       .eq('user_id', user.userId);
     if (error) throw new Error(error.message);
@@ -36,10 +41,10 @@ export async function GET(req: Request) {
   try {
     const { data, error } = await supabaseAdmin()
       .from('mistakes')
-      .select('id, subject, tags, image_urls, voice_note_url, created_at')
+      .select('id, subject, tags, image_urls, voice_note_url, is_mastered, transcript, summary, created_at')
       .eq('user_id', user.userId)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(200); // 双向同步按全量拉取合并，上限与本地 MMKV 容量一致
     if (error) throw new Error(error.message);
     return NextResponse.json({ mistakes: data });
   } catch (e) {
@@ -63,6 +68,8 @@ export async function POST(req: Request) {
       voiceMime?: string;
       createdAt?: string;
       isMastered?: boolean;
+      transcript?: string;
+      summary?: string;
     };
     const subject = (body.subject ?? '').trim();
     if (!subject) return NextResponse.json({ error: '缺少学科' }, { status: 400 });
@@ -111,6 +118,8 @@ export async function POST(req: Request) {
         image_urls: [imageUrl],
         voice_note_url: voiceUrl,
         is_mastered: body.isMastered ?? null,
+        transcript: body.transcript?.slice(0, 5000) ?? null,
+        summary: body.summary?.slice(0, 2000) ?? null,
       })
       .select('id')
       .single();

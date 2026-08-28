@@ -107,6 +107,9 @@ export default function MoodCheckin() {
         void stopRecording();
       }, 61000);
     } catch (e) {
+      // 防御性重置：当前赋值在 await 成功之后理论上不会污染 ref，此处兜底防未来代码重排
+      recordingRef.current = null;
+      setRecording(null);
       Alert.alert('录音失败', (e as Error).message);
     }
   };

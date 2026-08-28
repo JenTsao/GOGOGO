@@ -86,6 +86,7 @@ APK 打包：GitHub Actions「Build APK」workflow（手动 dispatch 或推送 `
 - ✅ 情绪打卡：`MoodCheckin` 组件（仪表盘顶部，emoji 5 档 + 备注 + 语音备忘 ≤1min + 转写）；`moodStore`（MMKV 本地优先，同日覆盖，经管理台 `/api/mood` 云同步：x-access-key 鉴权 → mood 桶语音上传 → mood_checkins upsert，schema 已补 date 列 + user_id,date 唯一索引 + mood 桶）；画像联动：近 7 天情绪轨迹行 + 情绪信号合并错题转写与打卡转写/备注的消极词
 - ✅ tasks/timer 云同步：`/api/tasks/sync`（并集合并 + 墓碑删除：removeTask/swap/complete 记墓碑 {content,status}，云端按墓碑删行后并集插入 missing，返回规范池云端 id 重建本地；已知取舍：A 端删除后 B 端未拉到合并结果再推同任务会复活，无版本向量）+ `/api/timer/sync`（append-only 并集：按 duration+started_at 精确去重，双端差集收敛，focusStore 上限提至 200）；驾驶舱挂载时静默触发（tasks/focus/mood/mistake 全量 sync，失败静默）
 - ✅ 周复盘/资讯 Cron：`/api/cron/weekly`（vercel.json 每周一 04:30 北京时间）——近 7 天全量数据（专注按天聚合/任务完成/错题/情绪）+ Tavily 双检索（考纲变动 + 高考资讯）→ LLM 教练复盘 JSON {summary, risks, focusAdvice, syllabusAlert, news} → upsert `weekly_reviews`（第 11 张表，user_id+week_start 唯一幂等 + RLS）；移动端经 `get_weekly_by_key` RPC 免登录读取，画像详情弹窗展示（考纲警示/权重建议/资讯可点开）；TAVILY_API_KEY 在 web 服务端 env
+- ✅ mistakes 双向同步：`/api/mistakes` GET（全量 200 条含 transcript/summary/is_mastered）+ POST 携带 transcript/summary + PATCH 支持三字段回写；mistakeStore.syncAll = 推（未同步上传）→ 拉（云端差集 downloadAsync 落文档目录离线可用，cloudId=c.id）→ 回填（本地有云端无的转写/摘要/重做结果逐条 PATCH）；schema 已补 mistakes.transcript/summary 列
 - ⏳ 可继续增强：Supabase Auth 正式登录（多设备一致）
 
 ## LLM 适配层

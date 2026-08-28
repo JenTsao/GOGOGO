@@ -89,7 +89,7 @@ pnpm dev:mobile   # 手机端（Expo Go）
 
 **云端同步**
 - [x] tasks（并集合并 + 墓碑删除）/ timer_sessions（append-only 并集）双向同步，驾驶舱启动静默触发
-- [ ] mistakes 双向同步（现单向上传）+ 语音转写/重做结果回填云端
+- [x] mistakes 双向同步：推 → 拉（差集下载离线可用）→ 转写/摘要/重做结果回填
 
 **定时任务（蓝皮书 7 管道已完成 3）**
 - [x] `/api/cron/daily` 每日 04:00 备课流水线

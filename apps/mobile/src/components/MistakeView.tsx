@@ -190,20 +190,31 @@ export function MistakeView() {
       await stopRecording();
       return;
     }
-    const perm = await Audio.requestPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('需要权限', '请在系统设置中允许录音');
-      return;
+    try {
+      const perm = await Audio.requestPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('需要权限', '请在系统设置中允许录音');
+        return;
+      }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      recordingRef.current = rec;
+      setRecording(rec);
+      // 60 秒兜底自动停（与 UI「≤1 分钟」标注一致）
+      recordTimerRef.current = setTimeout(() => {
+        recordTimerRef.current = null;
+        void stopRecording();
+      }, 61000);
+    } catch (e) {
+      // 创建失败必须清干净 ref/state，否则下次 toggleRecord 误判为「正在录音」而无法重新开始
+      recordingRef.current = null;
+      setRecording(null);
+      if (recordTimerRef.current) {
+        clearTimeout(recordTimerRef.current);
+        recordTimerRef.current = null;
+      }
+      Alert.alert('录音失败', (e as Error).message);
     }
-    await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-    const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-    recordingRef.current = rec;
-    setRecording(rec);
-    // 60 秒兜底自动停（与 UI「≤1 分钟」标注一致）
-    recordTimerRef.current = setTimeout(() => {
-      recordTimerRef.current = null;
-      void stopRecording();
-    }, 61000);
   };
 
   const playVoice = async (m: Mistake) => {

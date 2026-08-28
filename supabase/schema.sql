@@ -261,6 +261,10 @@ on conflict (id) do nothing;
 alter table public.mood_checkins add column if not exists date date;
 create unique index if not exists idx_mood_checkins_user_date on public.mood_checkins (user_id, date);
 
+-- mistakes 补转写/摘要列：多端同步时语音转写与 AI 识别摘要可回填云端
+alter table public.mistakes add column if not exists transcript text;
+alter table public.mistakes add column if not exists summary text;
+
 -- weekly_reviews：每周画像复盘 + 资讯检索产物（周 Cron 写入，移动端 RPC 读取）
 create table if not exists public.weekly_reviews (
   id uuid primary key default gen_random_uuid(),

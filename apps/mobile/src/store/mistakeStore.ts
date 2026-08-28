@@ -28,8 +28,8 @@ interface MistakeState {
   markCorrect: (id: string, correct: 'right' | 'wrong', webApiUrl: string, accessKey: string) => void;
   // 语音转写结果落库（本地）
   setTranscript: (id: string, text: string) => void;
-  // 全量同步：未同步的逐条上传（图片 base64），成功回填 URL
-  syncAll: (webApiUrl: string, accessKey: string) => Promise<{ ok: number; fail: number }>;
+  // 双向同步：推（未同步条目上传，携带 transcript/summary）→ 拉（云端条目差集下载到本地）→ 回填（本地有而云端无的转写/摘要 PATCH 上去）
+  syncAll: (webApiUrl: string, accessKey: string) => Promise<{ ok: number; fail: number; pulled: number }>;
 }
 
 const KEY = 'mistakes';
@@ -58,6 +58,31 @@ async function fileToBase64(uri: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+// 云端文件落地：下载到文档目录，保证拉取的条目离线可看可播（失败返回 undefined 走在线 URL 兜底）
+async function downloadToDoc(url: string, ext: string): Promise<string | undefined> {
+  try {
+    const dir = `${FileSystem.documentDirectory}mistakes`;
+    await FileSystem.makeDirectoryAsync(dir, { intermediates: true }).catch(() => {});
+    const dest = `${dir}${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+    const { uri } = await FileSystem.downloadAsync(url, dest);
+    return uri;
+  } catch {
+    return undefined;
+  }
+}
+
+interface CloudMistake {
+  id: string;
+  subject: string;
+  tags: string[] | null;
+  image_urls: string[] | null;
+  voice_note_url: string | null;
+  is_mastered: boolean | null;
+  transcript: string | null;
+  summary: string | null;
+  created_at: string;
 }
 
 export const useMistakeStore = create<MistakeState>((set, get) => ({
@@ -116,24 +141,100 @@ export const useMistakeStore = create<MistakeState>((set, get) => ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-access-key': accessKey },
           body: JSON.stringify({
-            subject: m.subject,
-            tags: m.tags,
-            imageBase64,
-            imageMime: 'image/jpeg',
-            voiceBase64: voiceBase64 ?? undefined,
-            voiceMime: 'audio/mp4',
-            createdAt: m.createdAt,
-            isMastered: m.correct ? m.correct === 'right' : undefined,
-          }),
+          subject: m.subject,
+          tags: m.tags,
+          imageBase64,
+          imageMime: 'image/jpeg',
+          voiceBase64: voiceBase64 ?? undefined,
+          voiceMime: 'audio/mp4',
+          createdAt: m.createdAt,
+          isMastered: m.correct ? m.correct === 'right' : undefined,
+          transcript: m.transcript,
+          summary: m.summary,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { id?: string; imageUrl: string; voiceUrl?: string };
+      get().markSynced(m.id, data.imageUrl, data.voiceUrl, data.id);
+      ok++;
+    } catch {
+      fail++; // 单条失败不阻断其余条目
+    }
+  }
+
+  // ---------- 拉：云端条目差集合入本地（他端新增） ----------
+  let pulled = 0;
+  try {
+    const res = await fetch(`${webApiUrl.replace(/\/+$/, '')}/api/mistakes`, {
+      headers: { 'x-access-key': accessKey },
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { mistakes?: CloudMistake[] };
+      const local = get().mistakes;
+      const knownCloudIds = new Set(local.map((m) => m.cloudId).filter(Boolean));
+      const remote = data.mistakes ?? [];
+      const additions: Mistake[] = [];
+      for (const c of remote) {
+        if (knownCloudIds.has(c.id)) continue;
+        const imgUrl = c.image_urls?.[0];
+        if (!imgUrl) continue;
+        // 图片下载到本地（离线可看）；失败则直接用云端 URL
+        const imageUri = (await downloadToDoc(imgUrl, 'jpg')) ?? imgUrl;
+        const voiceUri = c.voice_note_url ? await downloadToDoc(c.voice_note_url, 'm4a') : undefined;
+        additions.push({
+          id: `c-${c.id}`,
+          subject: c.subject,
+          tags: c.tags ?? [],
+          imageUri,
+          imageUrl: imgUrl,
+          voiceUri,
+          voiceUrl: c.voice_note_url ?? undefined,
+          createdAt: c.created_at,
+          synced: true,
+          cloudId: c.id,
+          correct: c.is_mastered === null || c.is_mastered === undefined ? undefined : c.is_mastered ? 'right' : 'wrong',
+          transcript: c.transcript ?? undefined,
+          summary: c.summary ?? undefined,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as { id?: string; imageUrl: string; voiceUrl?: string };
-        get().markSynced(m.id, data.imageUrl, data.voiceUrl, data.id);
-        ok++;
-      } catch {
-        fail++; // 单条失败不阻断其余条目
+        pulled++;
+      }
+      if (additions.length > 0) {
+        const merged = [...additions, ...local].slice(0, 200);
+        persist(merged);
+        set({ mistakes: merged });
       }
     }
-    return { ok, fail };
+  } catch {
+    // 拉取失败不影响推送结果
+  }
+
+  // ---------- 回填：已同步条目中本地有而云端缺的转写/摘要/重做结果 ----------
+  try {
+    const res = await fetch(`${webApiUrl.replace(/\/+$/, '')}/api/mistakes`, {
+      headers: { 'x-access-key': accessKey },
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { mistakes?: CloudMistake[] };
+      const cloudById = new Map((data.mistakes ?? []).map((c) => [c.id, c]));
+      for (const m of get().mistakes) {
+        if (!m.cloudId || !m.synced) continue;
+        const c = cloudById.get(m.cloudId);
+        const patch: Record<string, unknown> = {};
+        if (m.transcript && !c?.transcript) patch.transcript = m.transcript;
+        if (m.summary && !c?.summary) patch.summary = m.summary;
+        if (m.correct && c?.is_mastered !== (m.correct === 'right')) patch.isMastered = m.correct === 'right';
+        if (Object.keys(patch).length === 0) continue;
+        await fetch(`${webApiUrl.replace(/\/+$/, '')}/api/mistakes`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'x-access-key': accessKey },
+          body: JSON.stringify({ id: m.cloudId, ...patch }),
+        }).catch(() => {}); // 单条回填失败静默，下次同步重试
+      }
+    }
+  } catch {
+    // 回填失败静默
+  }
+
+  return { ok, fail, pulled };
   },
 }));
