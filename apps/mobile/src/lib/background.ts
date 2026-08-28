@@ -2,6 +2,7 @@
 // 1) 当日提醒 → 本地通知（去重）
 // 2) 每日备课内容预取 → MMKV 离线缓存（驾驶舱云读取失败时兜底）
 import * as BackgroundFetch from 'expo-background-fetch';
+import * as TaskManager from 'expo-task-manager'; // defineTask 在 TaskManager 包中，BackgroundFetch 只负责注册执行
 import * as Notifications from 'expo-notifications';
 import { storage } from '@/store/taskStore';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
@@ -84,7 +85,7 @@ export async function initBackgroundSync(): Promise<void> {
   }
 
   try {
-    BackgroundFetch.defineTask(BACKGROUND_TASK, syncOnce);
+    TaskManager.defineTask(BACKGROUND_TASK, syncOnce);
     await BackgroundFetch.registerTaskAsync(BACKGROUND_TASK, {
       minimumInterval: 15 * 60, // 系统保证不小于该间隔；实际由 OS 节流决定
       stopOnTerminate: false, // APP 被杀后继续
