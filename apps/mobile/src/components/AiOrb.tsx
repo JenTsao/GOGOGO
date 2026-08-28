@@ -1,26 +1,62 @@
-import { View, TouchableOpacity, StyleSheet, Modal, Text, TextInput } from 'react-native';
+import { View, StyleSheet, Modal, Text, TextInput } from 'react-native';
+import { WebView } from 'react-native-webview';
+import { useRef, useState } from 'react';
 import { useAiStore } from '@/store/aiStore';
 
-// 磨砂玻璃 AI 悬浮球（直径 56pt），点击弹出 L4 级智能体对话窗口
+// grok-ball 资产由 Expo 打包（引擎已内联进 ball.html，零外部依赖）
+const BALL_HTML = require('../../assets/grok-ball/ball.html');
+
+// AI 状态 → grok-ball 表情映射（emotionId 见 grok-ball 文档）
+function emotionForAssistant(): string {
+  return '30'; // 思考中
+}
+function emotionForIdle(): string {
+  return '02'; // 待机放空
+}
+
+// AI 悬浮球：用 grok-ball 项目渲染会跟随、可切换 32 种表情的表情球
 export function AiOrb() {
   const { visible, open, close, messages, pushMessage } = useAiStore();
+  const webviewRef = useRef<WebView>(null);
+  const [ready, setReady] = useState(false);
   const inputRef = { current: '' } as { current: string };
+
+  const post = (obj: Record<string, unknown>) =>
+    webviewRef.current?.postMessage(JSON.stringify(obj));
 
   return (
     <>
+      {/* 角标球：Web 端 grok-ball，固定右下角，点击唤起 AI 对话 */}
       <View style={styles.orbWrap} pointerEvents="box-none">
-        <TouchableOpacity style={styles.orb} onPress={open} activeOpacity={0.8}>
-          <Text style={styles.orbText}>🤖</Text>
-        </TouchableOpacity>
+        <WebView
+          ref={webviewRef}
+          source={BALL_HTML}
+          style={styles.orb}
+          transparent
+          originWhitelist={['*']}
+          onMessage={(e) => {
+            let msg: { type: string };
+            try {
+              msg = JSON.parse(e.nativeEvent.data);
+            } catch {
+              return;
+            }
+            if (msg.type === 'tap') open();
+            if (msg.type === 'ready') {
+              setReady(true);
+              post({ type: 'emotion', id: emotionForIdle() });
+            }
+          }}
+        />
       </View>
 
       <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={styles.title}>高考副驾驶 · AI</Text>
-            <TouchableOpacity onPress={close}>
-              <Text style={styles.close}>✕</Text>
-            </TouchableOpacity>
+            <Text style={styles.close} onPress={close}>
+              ✕
+            </Text>
           </View>
 
           <View style={styles.messages}>
@@ -49,7 +85,9 @@ export function AiOrb() {
               if (!text) return;
               pushMessage({ role: 'user', content: text });
               // TODO: Phase 2 接入 DeepSeek，识别工具意图并执行
+              if (ready) post({ type: 'emotion', id: emotionForAssistant() });
               pushMessage({ role: 'assistant', content: '（演示）已收到，AI 引擎将在 Phase 2 接入。' });
+              if (ready) post({ type: 'emotion', id: emotionForIdle() });
               inputRef.current = '';
             }}
           />
@@ -62,25 +100,17 @@ export function AiOrb() {
 const styles = StyleSheet.create({
   orbWrap: {
     position: 'absolute',
-    bottom: 28,
-    alignSelf: 'center',
+    right: 16,
+    bottom: 24,
+    width: 75,
+    height: 75,
     zIndex: 100,
   },
   orb: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.65)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 8,
+    width: 75,
+    height: 75,
+    backgroundColor: 'transparent',
   },
-  orbText: { fontSize: 26 },
   sheet: {
     flex: 1,
     marginTop: 80,

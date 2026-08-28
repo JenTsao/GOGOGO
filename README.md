@@ -22,7 +22,8 @@
 │   ├── mobile/            # Expo 移动端：4 Tab + AI 悬浮球
 │   │   └── src/
 │   │       ├── app/       # 驾驶舱 / 弹药库 / 仪表盘 / 我的
-│   │       ├── components/ # AiOrb 磨砂玻璃悬浮球
+│   │       ├── components/AiOrb.tsx # AI 悬浮球（基于 grok-ball 项目）
+│   │       ├── assets/grok-ball/ball.html # 内联引擎的表情球，零外部依赖
 │   │       └── store/     # taskStore / aiStore / focusStore (Zustand)
 │   └── web/               # Next.js 管理台：知识工坊 / 语义检索 / 编译输出
 │       └── src/app/
@@ -69,4 +70,4 @@ pnpm dev:mobile
 - **Phase 2（智能核心）**：Pyodide + Obsidian 下载渲染；AI 悬浮球接入 DeepSeek；凌晨备课流水线；语义检索中心（pgvector）。
 - **Phase 3（专业化与后台）**：L4 跨模块调度；PDF/Anki 编译；激进画像系统；后台唤醒（expo-background-fetch）。
 
-> 当前框架已完成：Monorepo 骨架、Supabase Schema、移动端 4 Tab + AI 悬浮球 + 状态管理占位、管理台 3 大菜单骨架。各业务模块已标注 `TODO` 待对应阶段填充。
+> 当前框架已完成：Monorepo 骨架、Supabase Schema、移动端 4 Tab + AI 悬浮球（基于 [grok-ball](https://github.com/tycoding/grok-ball)，经 WebView 嵌入，支持 32 种表情跟随与状态联动）+ 状态管理占位、管理台 3 大菜单骨架。各业务模块已标注 `TODO` 待对应阶段填充。
