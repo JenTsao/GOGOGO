@@ -36,6 +36,9 @@ supabase/    # schema.sql（10 张表 + pgvector + RLS 全部 user_id = auth.uid
 1b. **全仓 React 锁 18.2.0**（Expo SDK 51 上限；Next 14.2 兼容），由根 `pnpm.overrides` 强制。
    禁止单边升级——双版本 React 在 hoisted 安装下会产生嵌套副本，Next 预渲染 /404 /500 时报
    `Cannot read properties of null (reading 'useRef')`。
+1c. **react-native-screens 锁 ~3.31.1**（Expo SDK 51 官方配套；4.x 需 RN 0.76+）。expo-router 3.5 把它声明为
+   peer `"*"`，pnpm 自动装 peer 会解析到最新 4.x，RN 0.74 Codegen 解析其 Fabric 类型即崩溃
+   （ScreenStackHeaderSubviewNativeComponent.ts `type` = undefined）。已用直接依赖 + `pnpm.overrides` 双重钉死。
 2. **RLS 是数据安全命门**：所有 Supabase 表必须启用行级安全且 `user_id = auth.uid()`。
 3. **Secrets 不进代码仓库**：web 用 `.env.local`（参考 `.env.example`）；GITHUB\_TOKEN 仅服务端 Route Handler 使用；移动端用户密钥存 MMKV（settingsStore）。
 4. **提交前确认 CI 会跑过**：`pnpm --filter @gk/mobile lint`、`pnpm --filter @gk/web lint`、`pnpm --filter @gk/web build`。
@@ -88,6 +91,7 @@ APK 打包：GitHub Actions「Build APK」workflow（手动 dispatch 或推送 `
 - ✅ 周复盘/资讯 Cron：`/api/cron/weekly`（vercel.json 每周一 04:30 北京时间）——近 7 天全量数据（专注按天聚合/任务完成/错题/情绪）+ Tavily 双检索（考纲变动 + 高考资讯）→ LLM 教练复盘 JSON {summary, risks, focusAdvice, syllabusAlert, news} → upsert `weekly_reviews`（第 11 张表，user_id+week_start 唯一幂等 + RLS）；移动端经 `get_weekly_by_key` RPC 免登录读取，画像详情弹窗展示（考纲警示/权重建议/资讯可点开）；TAVILY_API_KEY 在 web 服务端 env
 - ✅ mistakes 双向同步：`/api/mistakes` GET（全量 200 条含 transcript/summary/is_mastered）+ POST 携带 transcript/summary + PATCH 支持三字段回写；mistakeStore.syncAll = 推（未同步上传）→ 拉（云端差集 downloadAsync 落文档目录离线可用，cloudId=c.id）→ 回填（本地有云端无的转写/摘要/重做结果逐条 PATCH）；schema 已补 mistakes.transcript/summary 列
 - ✅ 横向对标数值化：settingsStore.targetScore（目标总分 0–750，「我的」输入）+ dashboard runBenchmark——Tavily answer/results.content 提取「XXX分」（480–700 可信区间滤年份/页码噪声）取最低估 ≈ 最低录取线，与目标分算差距（≥20 分联动 dangerSubject 给专项建议）；诚实标注：解析为启发式，省份/批次差异需人工核对来源
+- ✅ correctCode 实时读取：sandbox.html onDidChangeModelContent 防抖 400ms 上报 editor-change → CodeSandbox 写 sandboxStore.liveCode（不持久化）→ aiTools.correctCode 优先实时内容、回退 snippets[0]，代码以 markdown 代码块注入对话
 - ⏳ 可继续增强：Supabase Auth 正式登录（多设备一致）
 
 ## LLM 适配层

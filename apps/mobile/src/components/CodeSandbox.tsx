@@ -69,6 +69,10 @@ export function CodeSandbox() {
           setName('');
           nameRef.current = '';
           break;
+        case 'editor-change':
+          // 编辑器实时内容 → store（correctCode 等 AI 工具免保存直读）
+          useSandboxStore.getState().setLiveCode(msg.code ?? '');
+          break;
       }
     },
     [armFuse, disarmFuse, save]

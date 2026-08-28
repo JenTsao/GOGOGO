@@ -46,6 +46,14 @@
       automaticLayout: true,
       tabSize: 4
     });
+    // 编辑内容实时上报（防抖 400ms）：correctCode 等工具读取最新代码，不必先保存
+    var changeTimer = null;
+    editor.onDidChangeModelContent(function () {
+      if (changeTimer) clearTimeout(changeTimer);
+      changeTimer = setTimeout(function () {
+        send({ type: 'editor-change', code: editor.getValue() });
+      }, 400);
+    });
     send({ type: 'editor-ready' });
   });
 

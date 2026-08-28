@@ -23,12 +23,17 @@ function load(): Snippet[] {
 
 interface SandboxState {
   snippets: Snippet[];
+  // 编辑器实时内容（WebView 防抖上报，不持久化）：供 correctCode 等 AI 工具读取当前代码
+  liveCode: string | null;
+  setLiveCode: (code: string) => void;
   save: (name: string, code: string) => void;
   remove: (id: string) => void;
 }
 
 export const useSandboxStore = create<SandboxState>((set, get) => ({
   snippets: load(),
+  liveCode: null,
+  setLiveCode: (code) => set({ liveCode: code }),
   save: (name, code) => {
     const trimmed = name.trim() || '未命名片段';
     const snippets = get().snippets;

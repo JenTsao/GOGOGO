@@ -226,13 +226,30 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         };
       }
       case 'correctCode': {
-        const snippet = useSandboxStore.getState().snippets[0];
+        const sandbox = useSandboxStore.getState();
+        // 优先读编辑器实时内容（防抖上报，无需保存）；沙盒未打开时回退最近保存片段
+        const live = sandbox.liveCode?.trim();
+        if (live) {
+          return {
+            ok: true,
+            text: `🛠 已实时读取编辑器当前代码（${live.split('\n').length} 行）：
+\`\`\`python
+${live.slice(0, 3000)}
+\`\`\`
+请把报错信息发给我（或直接说"修复这个报错"，我结合输出诊断）。`,
+          };
+        }
+        const snippet = sandbox.snippets[0];
         if (!snippet) {
-          return { ok: false, text: '沙盒中还没有已保存的片段。请先在弹药库保存代码，再把报错信息发给我。' };
+          return { ok: false, text: '沙盒编辑器为空且没有已保存片段。先在弹药库写点代码，再让我修复。' };
         }
         return {
           ok: true,
-          text: `🛠 已读取最近片段「${snippet.name}」（${snippet.code.split('\n').length} 行）。请把完整报错信息粘贴到对话中，我来诊断修复。`,
+          text: `🛠 已读取最近保存片段「${snippet.name}」（${snippet.code.split('\n').length} 行）：
+\`\`\`python
+${snippet.code.slice(0, 3000)}
+\`\`\`
+请把完整报错信息粘贴到对话中，我来诊断修复。`,
         };
       }
       default:
