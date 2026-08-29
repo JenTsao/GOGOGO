@@ -35,9 +35,8 @@ import {
 
 const ORB_SIZE = 75;
 const SHEET_ORB_SIZE = 44;
-/** 跳跃最高段约 48px，WebView 需留出上方空间避免裁掉身体细节 */
+/** 仅悬浮球需要：跳跃最高约 48px，WebView 上方留白避免裁身体 */
 const JUMP_PAD = 52;
-const SHEET_JUMP_PAD = 28;
 const EDGE = 8;
 
 const BALL_URLS = [
@@ -97,7 +96,7 @@ function prepareBallHtml(raw: string, mode: OrbMode, size: number): string {
 type BallViewProps = {
   html: string;
   size: number;
-  /** 顶部为跳跃预留的高度，避免动画裁切 */
+  /** 顶部为跳跃预留的高度，避免动画裁切（仅悬浮球使用） */
   pad?: number;
   emotionId: string;
   mode: OrbMode;
@@ -369,7 +368,6 @@ export function AiOrb() {
                         key={`sheet-${mode}`}
                         html={sheetHtml}
                         size={SHEET_ORB_SIZE}
-                        pad={SHEET_JUMP_PAD}
                         emotionId={emotionId}
                         mode={mode}
                       />
@@ -555,11 +553,11 @@ const STYLES = themedStyles((C) => ({
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   sheetOrbFrame: {
     width: SHEET_ORB_SIZE,
-    height: SHEET_ORB_SIZE + SHEET_JUMP_PAD,
+    height: SHEET_ORB_SIZE,
     borderRadius: SHEET_ORB_SIZE / 2,
-    overflow: 'visible',
+    overflow: 'hidden',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
   },
   sheetOrbFrameDark: { backgroundColor: '#1a1a1a' },
   sheetOrbFrameLight: { backgroundColor: '#F3F0EA' },
