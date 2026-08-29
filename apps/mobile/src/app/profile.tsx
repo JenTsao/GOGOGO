@@ -11,7 +11,7 @@ import { LLM_PRESETS } from '@/lib/llm';
 import { fetchDaily } from '@/lib/cloud';
 import { writeDailyCache } from '@/lib/background';
 import { fetchRepoPaths } from '@/lib/github';
-import { C, R, cardShadow } from '@/theme';
+import { C, R, cardShadow, HIT_SLOP } from '@/theme';
 
 // Tab 4：我的（配置与调度）
 export default function ProfileScreen() {
@@ -401,7 +401,7 @@ export default function ProfileScreen() {
                 disabled={authBusy}
                 activeOpacity={0.85}
               >
-                {authBusy ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.buttonText}>登录</Text>}
+                {authBusy ? <ActivityIndicator size="small" color={C.onPrimary} /> : <Text style={styles.buttonText}>登录</Text>}
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.buttonGhost, { flex: 1 }]}
@@ -520,13 +520,13 @@ export default function ProfileScreen() {
         {/* 月历红点视图（蓝皮书：点击日期添加提醒，红点标记） */}
         <View style={styles.calCard}>
           <View style={styles.calHeader}>
-            <TouchableOpacity onPress={() => shiftMonth(-1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={() => shiftMonth(-1)} hitSlop={HIT_SLOP}>
               <Ionicons name="chevron-back" size={20} color={C.text2} />
             </TouchableOpacity>
             <Text style={styles.calTitle}>
               {viewYear} 年 {viewMonth + 1} 月
             </Text>
-            <TouchableOpacity onPress={() => shiftMonth(1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={() => shiftMonth(1)} hitSlop={HIT_SLOP}>
               <Ionicons name="chevron-forward" size={20} color={C.text2} />
             </TouchableOpacity>
           </View>
@@ -601,7 +601,7 @@ export default function ProfileScreen() {
                 {r.date < today ? '（已过期）' : ''}
                 {r.date} · {r.content}
               </Text>
-              <TouchableOpacity onPress={() => removeReminder(r.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={() => removeReminder(r.id)} hitSlop={HIT_SLOP} accessibilityLabel={`删除提醒 ${r.content}`}>
                 <Ionicons name="close" size={16} color={C.text3} />
               </TouchableOpacity>
             </View>
@@ -617,10 +617,10 @@ export default function ProfileScreen() {
         <Text style={styles.placeholder}>拉取云端最新备课内容并写入离线缓存，同时检查 Obsidian 目录可达性。</Text>
         <TouchableOpacity style={styles.button} onPress={runSync} disabled={syncing} activeOpacity={0.85}>
           {syncing ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={C.onPrimary} />
           ) : (
             <>
-              <Ionicons name="cloud-download-outline" size={16} color="#fff" />
+              <Ionicons name="cloud-download-outline" size={16} color={C.onPrimary} />
               <Text style={styles.buttonText}>立即同步</Text>
             </>
           )}
@@ -638,7 +638,7 @@ export default function ProfileScreen() {
           OriginOS 默认管控后台：若当日提醒、凌晨备课预取不生效，请允许本应用「自启动」并关闭后台高耗电限制。
         </Text>
         <TouchableOpacity style={styles.button} onPress={openKeepAlive} activeOpacity={0.85}>
-          <Ionicons name="open-outline" size={16} color="#fff" />
+          <Ionicons name="open-outline" size={16} color={C.onPrimary} />
           <Text style={styles.buttonText}>去设置自启动</Text>
         </TouchableOpacity>
       </View>
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
   },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  buttonText: { color: C.onPrimary, fontSize: 15, fontWeight: '700' },
   buttonGhost: {
     borderWidth: 1,
     borderColor: C.border,
@@ -705,7 +705,7 @@ const styles = StyleSheet.create({
   },
   presetChipActive: { backgroundColor: C.primary, borderColor: C.primary },
   presetText: { fontSize: 13, color: C.text2, fontWeight: '500' },
-  presetTextActive: { color: '#fff', fontWeight: '700' },
+  presetTextActive: { color: C.onPrimary, fontWeight: '700' },
   reminderRow: { flexDirection: 'row', gap: 8 },
   reminderDateInput: { width: 110 },
   reminderItem: {
@@ -739,7 +739,7 @@ const styles = StyleSheet.create({
   calCellSelected: { backgroundColor: C.primary },
   calDay: { fontSize: 13, color: C.text, fontVariant: ['tabular-nums'] },
   calDayToday: { color: C.primary, fontWeight: '700' },
-  calDaySelected: { color: '#fff', fontWeight: '700' },
+  calDaySelected: { color: C.onPrimary, fontWeight: '700' },
   calDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.red, marginTop: 2 },
   calHint: { fontSize: 12, color: C.text3, marginTop: 8, lineHeight: 18 },
   syncResult: { fontSize: 13, color: C.text2, lineHeight: 21, marginTop: 10 },

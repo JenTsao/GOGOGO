@@ -20,7 +20,7 @@ import * as FileSystem from 'expo-file-system';
 import { useAiStore, STATUS_EMOTION } from '@/store/aiStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { describeToolCall } from '@/lib/aiTools';
-import { C, R, cardShadow } from '@/theme';
+import { C, R, cardShadow, HIT_SLOP } from '@/theme';
 
 const ORB_SIZE = 75;
 const EDGE = 8;
@@ -169,9 +169,9 @@ export function AiOrb() {
           <View style={styles.orbFallback}>
             <View style={styles.orbLoading}>
               {!orbFailed ? (
-                <ActivityIndicator size="small" color="#f5f5f5" />
+                <ActivityIndicator size="small" color={C.onPrimary} />
               ) : (
-                <Ionicons name="sparkles" size={30} color="#f5f5f5" />
+                <Ionicons name="sparkles" size={30} color={C.onPrimary} />
               )}
             </View>
           </View>
@@ -241,7 +241,7 @@ export function AiOrb() {
               <TouchableOpacity
                 style={styles.closeBtn}
                 onPress={close}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                hitSlop={HIT_SLOP}
               >
                 <Ionicons name="close" size={22} color={C.text2} />
               </TouchableOpacity>
@@ -284,7 +284,7 @@ export function AiOrb() {
                           style={styles.confirmBtnOk}
                           onPress={() => confirmToolCall(m.toolCall!.id)}
                         >
-                          <Ionicons name="checkmark" size={15} color="#fff" />
+                          <Ionicons name="checkmark" size={15} color={C.onPrimary} />
                           <Text style={styles.confirmBtnOkText}>确认执行</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -344,7 +344,7 @@ export function AiOrb() {
                 disabled={!input.trim() || busy}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               >
-                <Ionicons name="arrow-up" size={20} color="#fff" />
+                <Ionicons name="arrow-up" size={20} color={C.onPrimary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     width: ORB_SIZE,
     height: ORB_SIZE,
     borderRadius: ORB_SIZE / 2,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: C.ink, // orb 降级底色（深色球体观感，图标近白保证对比）
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
   rowAssistant: { flexDirection: 'row', justifyContent: 'flex-start', marginBottom: 10 },
   bubble: { borderRadius: R.md, paddingVertical: 10, paddingHorizontal: 14, maxWidth: '86%' },
   bubbleUser: { backgroundColor: C.primary, borderBottomRightRadius: 4 },
-  bubbleUserText: { color: '#fff', fontSize: 14, lineHeight: 21 },
+  bubbleUserText: { color: C.onPrimary, fontSize: 14, lineHeight: 21 },
   bubbleAssistant: { backgroundColor: C.card, borderBottomLeftRadius: 4, ...cardShadow },
   bubbleAssistantText: { color: C.text, fontSize: 14, lineHeight: 21 },
   typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
   },
   confirmHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   confirmTitle: { fontSize: 12, fontWeight: '700', color: C.orange },
-  confirmText: { fontSize: 14, color: '#6b5414', lineHeight: 20 },
+  confirmText: { fontSize: 14, color: C.warnDeep, lineHeight: 20 },
   confirmRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
   confirmBtnOk: {
     flex: 1,
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: C.primary,
   },
-  confirmBtnOkText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  confirmBtnOkText: { color: C.onPrimary, fontSize: 13, fontWeight: '700' },
   confirmBtnNo: {
     flex: 1,
     borderRadius: R.sm,

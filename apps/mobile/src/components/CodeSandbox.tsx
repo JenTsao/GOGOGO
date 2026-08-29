@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { useSandboxStore } from '@/store/sandboxStore';
-import { C, R, cardShadow } from '@/theme';
+import { C, R, cardShadow, HIT_SLOP } from '@/theme';
 
 // 资产由 Expo 打包（Monaco + Pyodide 从 CDN 加载，postMessage 双向桥接）
 const SANDBOX_HTML = require('../../assets/sandbox/sandbox.html');
@@ -129,7 +129,7 @@ export function CodeSandbox() {
           activeOpacity={0.85}
           accessibilityLabel="运行代码"
         >
-          <Ionicons name="play" size={13} color="#fff" />
+          <Ionicons name="play" size={13} color={C.onPrimary} />
           <Text style={styles.runBtnText}>{status === 'running' ? '运行中…' : '运行'}</Text>
         </TouchableOpacity>
       </View>
@@ -170,7 +170,7 @@ export function CodeSandbox() {
             webRef.current?.postMessage(JSON.stringify({ type: 'export' }));
           }}
         >
-          <Ionicons name="save" size={14} color="#fff" />
+          <Ionicons name="save" size={14} color={C.onPrimary} />
           <Text style={styles.saveBtnText}>保存片段</Text>
         </TouchableOpacity>
       </View>
@@ -192,6 +192,7 @@ export function CodeSandbox() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.snippetDel}
+            hitSlop={HIT_SLOP}
             onPress={() => remove(s.id)}
             activeOpacity={0.85}
             accessibilityLabel={`删除片段 ${s.name}`}
@@ -225,14 +226,14 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   runBtnBusy: { backgroundColor: C.primaryDeep },
-  runBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  runBtnText: { color: C.onPrimary, fontWeight: '700', fontSize: 13 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, marginBottom: 6 },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
   label: { fontSize: 12, color: C.text2, fontWeight: '500' },
   // 控制台保留终端深底（代码语境），但换成与紫罗兰色板呼应的深墨紫
-  console: { flex: 2, backgroundColor: '#241F3A', borderRadius: R.md, padding: 12 },
-  logLine: { color: '#C7E8D5', fontFamily: 'monospace', fontSize: 12, lineHeight: 18 },
-  logEmpty: { color: '#6A6489', fontSize: 12 },
+  console: { flex: 2, backgroundColor: C.consoleBg, borderRadius: R.md, padding: 12 },
+  logLine: { color: C.consoleText, fontFamily: 'monospace', fontSize: 12, lineHeight: 18 },
+  logEmpty: { color: C.consoleDim, fontSize: 12 },
   saveRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   saveInput: {
     flex: 1,
@@ -254,7 +255,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     justifyContent: 'center',
   },
-  saveBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  saveBtnText: { color: C.onPrimary, fontSize: 13, fontWeight: '600' },
   saveHintRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
   saveHint: { fontSize: 12, color: C.green, fontWeight: '500' },
   snippetRow: {

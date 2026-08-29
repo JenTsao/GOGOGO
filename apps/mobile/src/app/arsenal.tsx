@@ -33,7 +33,7 @@ export default function ArsenalScreen() {
             onPress={() => setTab(t.key)}
             activeOpacity={0.85}
           >
-            <Ionicons name={t.icon as keyof typeof Ionicons.glyphMap} size={15} color={tab === t.key ? '#fff' : C.text2} />
+            <Ionicons name={t.icon as keyof typeof Ionicons.glyphMap} size={15} color={tab === t.key ? C.onPrimary : C.text2} />
             <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 16,
     gap: 6,
-    backgroundColor: '#EBE7F4',
+    backgroundColor: C.surfaceAlt,
     borderRadius: R.sm,
     padding: 4,
   },
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
   tabActive: { backgroundColor: C.primary, ...cardShadow },
   tabText: { color: C.text2, fontWeight: '600', fontSize: 13 },
-  tabTextActive: { color: '#fff' },
+  tabTextActive: { color: C.onPrimary },
   body: { flex: 1 },
   bodyContent: { padding: 16, paddingBottom: 96 },
   sectionTitle: { fontSize: 17, fontWeight: '700', marginTop: 24, marginBottom: 10, color: C.text },

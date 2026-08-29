@@ -14,7 +14,7 @@ import { localDateStr } from '@/store/reminderStore';
 import { countNegativeWords } from '@/lib/stt';
 import { fetchWeekly, WeeklyReview } from '@/lib/cloud';
 import MoodCheckin from '@/components/MoodCheckin';
-import { C as CLR, R as RAD, cardShadow } from '@/theme';
+import { C as CLR, R as RAD, cardShadow, HEAT_SCALE, HIT_SLOP } from '@/theme';
 
 // Tab 3：仪表盘 —— 激进模式画像
 // 六维雷达基于可计算数据（专注/任务/知识积累 + 错题重做正确率的学科掌握）
@@ -190,9 +190,9 @@ export default function DashboardScreen() {
     .filter(Boolean)
     .join(' ');
 
-  // 热力色阶（绿色 = 专注量，语义与主题 green 对齐）
+  // 热力色阶（绿色 = 专注量，语义与主题 green 对齐，色阶集中管理在 theme）
   const heatColor = (min: number) =>
-    min <= 0 ? '#EEEBF4' : min < 10 ? '#D5EBDD' : min < 25 ? '#9CD3AA' : min < 45 ? '#4E9A5F' : '#1C5D2C';
+    min <= 0 ? HEAT_SCALE[0] : min < 10 ? HEAT_SCALE[1] : min < 25 ? HEAT_SCALE[2] : min < 45 ? HEAT_SCALE[3] : HEAT_SCALE[4];
 
   // 横向对标数值化：Tavily 检索分数线 → 从摘要/正文提取可信分数 → 与目标总分计算差距
   const runBenchmark = async () => {
@@ -502,7 +502,7 @@ export default function DashboardScreen() {
               <Ionicons name="compass" size={20} color={CLR.primary} />
               <Text style={styles.modalTitle}>画像详情</Text>
             </View>
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setDetailOpen(false)}>
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setDetailOpen(false)} hitSlop={HIT_SLOP} accessibilityLabel="关闭画像详情">
               <Ionicons name="close" size={20} color={CLR.text2} />
             </TouchableOpacity>
           </View>
@@ -602,10 +602,10 @@ export default function DashboardScreen() {
             <Text style={styles.placeholder}>目标：{targetUniversity || '尚未在「我的」设定目标大学'}</Text>
             <TouchableOpacity style={styles.benchBtn} onPress={runBenchmark} disabled={benchmarkBusy} activeOpacity={0.85}>
               {benchmarkBusy ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={CLR.onPrimary} />
               ) : (
                 <>
-                  <Ionicons name="search" size={15} color="#fff" />
+                  <Ionicons name="search" size={15} color={CLR.onPrimary} />
                   <Text style={styles.benchBtnText}>搜索分数线差距</Text>
                 </>
               )}
@@ -648,7 +648,7 @@ const styles = StyleSheet.create({
   detailHint: { fontSize: 12, color: CLR.primary, fontWeight: '600' },
   barRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-end', height: 120 },
   barCol: { flex: 1, alignItems: 'center', height: 120 },
-  barTrack: { flex: 1, width: '60%', backgroundColor: '#EEEBF4', borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' },
+  barTrack: { flex: 1, width: '60%', backgroundColor: CLR.surfaceAlt, borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' },
   barFill: { backgroundColor: CLR.primary, borderRadius: 6 },
   barMin: { fontSize: 10, color: CLR.text2, marginTop: 2, minHeight: 14, fontVariant: ['tabular-nums'] },
   barLabel: { fontSize: 10, color: CLR.text3 },
@@ -662,7 +662,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  benchBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  benchBtnText: { color: CLR.onPrimary, fontSize: 14, fontWeight: '700' },
   benchResult: { fontSize: 13, color: CLR.text, lineHeight: 21, marginTop: 12, alignSelf: 'stretch' },
   peakRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 },
   peakText: { fontSize: 13, fontWeight: '600', color: CLR.green },
@@ -684,12 +684,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginTop: 8,
   },
-  syllabusAlertText: { fontSize: 13, color: '#8c6b1f', fontWeight: '600', flex: 1, lineHeight: 19 },
+  syllabusAlertText: { fontSize: 13, color: CLR.amberDeep, fontWeight: '600', flex: 1, lineHeight: 19 },
   newsLink: { fontSize: 13, color: CLR.blue, textDecorationLine: 'underline', marginTop: 4, lineHeight: 19 },
   cloudRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   cloudChip: { backgroundColor: CLR.redSoft, borderRadius: RAD.sm, paddingHorizontal: 10, paddingVertical: 4 },
   cloudChipText: { color: CLR.red, fontSize: 13 },
-  cloudCount: { color: '#e08a8a', fontSize: 11 },
+  cloudCount: { color: CLR.roseDeep, fontSize: 11 },
   // 全屏画像详情
   modalWrap: { flex: 1, backgroundColor: CLR.bg },
   modalContent: { padding: 16, paddingTop: 16, paddingBottom: 48 }, // paddingTop 由 insets 动态覆盖

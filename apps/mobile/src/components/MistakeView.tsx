@@ -285,7 +285,7 @@ export function MistakeView() {
     <ScrollView showsVerticalScrollIndicator={false}>
       {/* 新增入口 */}
       <TouchableOpacity style={styles.addBtn} onPress={() => setPickerOpen(true)} activeOpacity={0.85}>
-        <Ionicons name="camera" size={20} color="#fff" />
+        <Ionicons name="camera" size={20} color={C.onPrimary} />
         <Text style={styles.addBtnText}>收录错题</Text>
         <Text style={styles.addHint}>拍照或相册 → 学科标签 → 语音反思</Text>
       </TouchableOpacity>
@@ -298,10 +298,10 @@ export function MistakeView() {
         activeOpacity={0.85}
       >
         {syncing ? (
-          <ActivityIndicator size="small" color="#fff" />
+          <ActivityIndicator size="small" color={C.onPrimary} />
         ) : (
           <>
-            <Ionicons name="cloud-upload" size={15} color="#fff" />
+            <Ionicons name="cloud-upload" size={15} color={C.onPrimary} />
             <Text style={styles.syncBtnText}>
               {unsynced > 0 ? `同步到云端（${unsynced} 条待传）` : '已全部同步'}
             </Text>
@@ -419,7 +419,7 @@ export function MistakeView() {
                 </>
               )}
               <TouchableOpacity style={styles.aiBtn} onPress={() => askAi(detail)} activeOpacity={0.85}>
-                <Ionicons name="sparkles" size={17} color="#fff" />
+                <Ionicons name="sparkles" size={17} color={C.onPrimary} />
                 <Text style={styles.aiBtnText}>AI 讲解这道错题</Text>
                 <Text style={styles.aiHint}>
                   {detail.imageUri && visionApiKey
@@ -558,10 +558,10 @@ export function MistakeView() {
 
           <TouchableOpacity style={styles.saveBtn} onPress={save} disabled={saving} activeOpacity={0.85}>
             {saving ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={C.onPrimary} />
             ) : (
               <>
-                <Ionicons name="checkmark" size={17} color="#fff" />
+                <Ionicons name="checkmark" size={17} color={C.onPrimary} />
                 <Text style={styles.saveBtnText}>保存错题</Text>
               </>
             )}
@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
     gap: 4,
     ...cardShadow,
   },
-  addBtnText: { color: '#fff', fontSize: 16, fontWeight: '700', marginTop: 2 },
+  addBtnText: { color: C.onPrimary, fontSize: 16, fontWeight: '700', marginTop: 2 },
   addHint: { color: 'rgba(255,255,255,0.75)', fontSize: 12 },
   syncBtn: {
     flexDirection: 'row',
@@ -594,7 +594,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   syncBtnDone: { backgroundColor: C.text3 },
-  syncBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  syncBtnText: { color: C.onPrimary, fontSize: 13, fontWeight: '600' },
   emptyCard: {
     alignItems: 'center',
     gap: 10,
@@ -660,7 +660,7 @@ const styles = StyleSheet.create({
   transcriptLabel: { fontSize: 12, color: C.text3, marginBottom: 4 },
   transcriptText: { fontSize: 14, color: C.text, lineHeight: 22 },
   aiBtn: { backgroundColor: C.primary, borderRadius: R.md, paddingVertical: 14, alignItems: 'center', marginTop: 14, gap: 5, ...cardShadow },
-  aiBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  aiBtnText: { color: C.onPrimary, fontSize: 15, fontWeight: '700' },
   aiHint: { color: 'rgba(255,255,255,0.75)', fontSize: 11 },
   deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 14, marginTop: 24 },
   deleteBtnText: { color: C.red, fontSize: 14, fontWeight: '500' },
@@ -703,7 +703,7 @@ const styles = StyleSheet.create({
   subjectChip: { borderWidth: 1, borderColor: C.border, borderRadius: R.pill, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: C.card },
   subjectChipActive: { backgroundColor: C.primary, borderColor: C.primary },
   subjectText: { fontSize: 13, color: C.text2 },
-  subjectTextActive: { color: '#fff', fontWeight: '600' },
+  subjectTextActive: { color: C.onPrimary, fontWeight: '600' },
   input: {
     borderWidth: 1,
     borderColor: C.border,
@@ -740,5 +740,5 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     ...cardShadow,
   },
-  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  saveBtnText: { color: C.onPrimary, fontSize: 15, fontWeight: '700' },
 });

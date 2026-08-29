@@ -9,26 +9,46 @@ export const C = {
   // 表面
   bg: '#F6F4FA', // 页面底色（淡紫灰）
   card: '#FFFFFF',
+  surfaceAlt: '#EBE7F4', // 次级表面：分段控件轨道 / 进度条底 / 禁用底
   // 主色（教育紫）
   primary: '#7C3AED',
   primaryDeep: '#6D28D9',
   primarySoft: '#F1EAFC', // 主色浅底：选中态 / 用户气泡
+  onPrimary: '#FFFFFF', // 主色之上的内容（按钮文字/图标/加载圈），替代散落的 '#fff'
   // 文字
   text: '#211D33',
   text2: '#6A647F',
   text3: '#9B95AE',
   // 线
   border: '#E9E4F3',
-  // 语义色（soft 为对应浅底）
+  // 语义色（soft 为对应浅底，deep 为 soft 底上的文字——对比度均 ≥ 4.5:1）
   green: '#0F9D6E',
   greenSoft: '#E8F7F0',
+  greenDeep: '#0B6B4A',
   orange: '#D97706',
   orangeSoft: '#FDF3E3',
+  amberDeep: '#7A5A10', // orangeSoft 底上的警示正文（原 #8c6b1f 对比不足）
+  warnDeep: '#6B5414', // 暖黄提示底上的文字
   red: '#DC2626',
   redSoft: '#FDECEC',
+  roseDeep: '#B04A4A', // redSoft 底上的文字（原 #e08a8a 仅 2.6:1，不达标）
   blue: '#2563EB',
   blueSoft: '#EAF1FE',
+  // 心流沉浸场景（黑底专属场景色，集中管理避免散落）
+  ink: '#0D0B14',
+  inkBorder: '#2A2440',
+  inkBorderStrong: '#3A3355',
+  inkText: '#9D93BD',
+  inkSub: '#8B7FC7',
+  inkDim: '#AAA6B5',
+  // 代码沙盒控制台
+  consoleBg: '#241F3A',
+  consoleText: '#C7E8D5',
+  consoleDim: '#6A6489',
 } as const;
+
+/** 专注热力阶梯（近端深、远端浅，语义化数据色，仅用于热力图） */
+export const HEAT_SCALE = ['#EEEBF4', '#D5EBDD', '#9CD3AA', '#4E9A5F', '#1C5D2C'] as const;
 
 /** 圆角阶梯（4pt 节奏） */
 export const R = { sm: 12, md: 16, lg: 20, pill: 999 } as const;
@@ -49,6 +69,9 @@ export const cardShadow: ViewStyle = StyleSheet.create({
 
 /** 主按钮按压反馈 */
 export const press = { activeOpacity: 0.85 } as const;
+
+/** 小于 44dp 的可点元素统一外扩热区（WCAG/平台触控目标下限） */
+export const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 } as const;
 
 /** 章节标题统一样式 */
 export const sectionTitle: TextStyle = {

@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   recBtn: { backgroundColor: C.redSoft },
   miniBtnText: { fontSize: 13, color: C.text2 },
   saveBtn: { backgroundColor: C.primary, paddingHorizontal: 18, paddingVertical: 9, borderRadius: R.sm },
-  saveText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  saveText: { color: C.onPrimary, fontSize: 13, fontWeight: '700' },
   transcriptRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginTop: 10 },
   transcript: { flex: 1, fontSize: 12, color: C.text2, fontStyle: 'italic', lineHeight: 17 },
 });

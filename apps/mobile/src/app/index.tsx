@@ -15,7 +15,7 @@ import { useMistakeStore } from '@/store/mistakeStore';
 import { useAuthStore } from '@/store/authStore';
 import { fetchDaily, DailyLearning } from '@/lib/cloud';
 import { readDailyCache } from '@/lib/background';
-import { C, R, cardShadow } from '@/theme';
+import { C, R, cardShadow, HIT_SLOP } from '@/theme';
 
 // Tab 1：驾驶舱（时间线与当下）——布局严格按蓝皮书顺序：
 // 日期天气 → 信仰级倒计时 → 今日提醒横幅 → 每日知识点 → 每日一题 → 今日三件事 → 专注启动器
@@ -358,7 +358,7 @@ export default function CockpitScreen() {
                   );
                 }}
               >
-                <Ionicons name="sparkles" size={15} color="#fff" />
+                <Ionicons name="sparkles" size={15} color={C.onPrimary} />
                 <Text style={[styles.qBtnText, styles.qBtnTextDark]}>AI 讲题</Text>
               </TouchableOpacity>
             </View>
@@ -401,10 +401,10 @@ export default function CockpitScreen() {
                   {t.content}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.taskBtn} onPress={() => swapWithBacklog(t.id)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+              <TouchableOpacity style={styles.taskBtn} onPress={() => swapWithBacklog(t.id)} hitSlop={HIT_SLOP}>
                 <Ionicons name="swap-horizontal" size={16} color={C.text3} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.taskBtn} onPress={() => removeTask(t.id)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+              <TouchableOpacity style={styles.taskBtn} onPress={() => removeTask(t.id)} hitSlop={HIT_SLOP}>
                 <Ionicons name="close" size={16} color={C.text3} />
               </TouchableOpacity>
             </View>
@@ -443,7 +443,7 @@ export default function CockpitScreen() {
                   >
                     <Text style={styles.taskItemBacklog} numberOfLines={1}>↩ {t.content}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskBtn} onPress={() => removeTask(t.id)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                  <TouchableOpacity style={styles.taskBtn} onPress={() => removeTask(t.id)} hitSlop={HIT_SLOP}>
                     <Ionicons name="close" size={16} color={C.text3} />
                   </TouchableOpacity>
                 </View>
@@ -467,7 +467,7 @@ export default function CockpitScreen() {
             )}
           </View>
           <TouchableOpacity style={styles.focusBtn} onPress={enterFlow} activeOpacity={0.9}>
-            <Ionicons name="play" size={18} color="#fff" />
+            <Ionicons name="play" size={18} color={C.onPrimary} />
             <Text style={styles.focusBtnText}>进入心流</Text>
           </TouchableOpacity>
           {sessions.length > 0 && (
@@ -487,13 +487,13 @@ export default function CockpitScreen() {
       >
         <View style={[styles.flow, { paddingTop: insets.top }]}>
           <View style={styles.flowBadge}>
-            <Ionicons name="moon" size={14} color="#8b7fc7" />
+            <Ionicons name="moon" size={14} color={C.inkSub} />
             <Text style={styles.flowHint}>心流进行中 · 通知已静默</Text>
           </View>
           <Text style={styles.flowTimer}>{fmt(seconds)}</Text>
           {Platform.OS === 'android' && (
             <TouchableOpacity style={styles.zenBtn} onPress={openZenMode}>
-              <Ionicons name="notifications-off-outline" size={16} color="#aaa" />
+              <Ionicons name="notifications-off-outline" size={16} color={C.inkDim} />
               <Text style={styles.zenBtnText}>开启系统免打扰（拦截其他应用）</Text>
             </TouchableOpacity>
           )}
@@ -551,9 +551,9 @@ const styles = StyleSheet.create({
   // 信仰级倒计时
   heroCard: { alignItems: 'center', paddingVertical: 26, backgroundColor: C.primary },
   heroLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 13, letterSpacing: 3, fontWeight: '600' },
-  heroDays: { color: '#fff', fontSize: 64, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 6 },
+  heroDays: { color: C.onPrimary, fontSize: 64, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 6 },
   heroUnit: { fontSize: 22, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
-  heroPrecise: { color: '#fff', fontSize: 36, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 12 },
+  heroPrecise: { color: C.onPrimary, fontSize: 36, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 12 },
   heroUnitSm: { fontSize: 16, fontWeight: '500', color: 'rgba(255,255,255,0.65)' },
   heroHint: { color: 'rgba(255,255,255,0.55)', fontSize: 11, marginTop: 10 },
 
@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   reminderRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  reminderText: { color: '#8c6b1f', fontSize: 14, lineHeight: 22, flex: 1 },
+  reminderText: { color: C.amberDeep, fontSize: 14, lineHeight: 22, flex: 1 },
 
   // 占位降级卡
   placeholderCard: { borderStyle: 'dashed', borderWidth: 1.5, borderColor: C.border, backgroundColor: 'transparent', elevation: 0, shadowOpacity: 0 },
@@ -588,7 +588,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 10,
   },
-  answerText: { fontSize: 14, color: '#0b6b4a', lineHeight: 21, flex: 1 },
+  answerText: { fontSize: 14, color: C.greenDeep, lineHeight: 21, flex: 1 },
   questionBtnRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
   qBtn: {
     flex: 1,
@@ -604,7 +604,7 @@ const styles = StyleSheet.create({
   },
   qBtnDark: { backgroundColor: C.primary, borderColor: C.primary },
   qBtnText: { fontSize: 14, fontWeight: '600', color: C.text2 },
-  qBtnTextDark: { color: '#fff' },
+  qBtnTextDark: { color: C.onPrimary },
 
   // 今日三件事
   empty: { color: C.text3, fontSize: 14, marginTop: 10 },
@@ -638,7 +638,7 @@ const styles = StyleSheet.create({
     color: C.text,
   },
   addBtn: { backgroundColor: C.primary, borderRadius: R.sm, paddingHorizontal: 14, justifyContent: 'center' },
-  addBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  addBtnText: { color: C.onPrimary, fontSize: 14, fontWeight: '600' },
   addBtnGhost: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
   addBtnTextGhost: { color: C.text2, fontSize: 14, fontWeight: '600' },
 
@@ -655,35 +655,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  focusBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  focusBtnText: { color: C.onPrimary, fontSize: 16, fontWeight: '700' },
   sessionHint: { marginTop: 10, color: C.text3, fontSize: 13, textAlign: 'center' },
 
   // 心流
-  flow: { flex: 1, backgroundColor: '#0d0b14', alignItems: 'center', justifyContent: 'center' },
+  flow: { flex: 1, backgroundColor: C.ink, alignItems: 'center', justifyContent: 'center' },
   flowBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: '#2a2440',
+    borderColor: C.inkBorder,
     borderRadius: R.pill,
     paddingHorizontal: 14,
     paddingVertical: 7,
   },
-  flowHint: { color: '#8b7fc7', fontSize: 13, letterSpacing: 2 },
-  flowTimer: { color: '#fff', fontSize: 72, fontWeight: '200', marginVertical: 36, fontVariant: ['tabular-nums'] },
-  flowStop: { borderWidth: 1, borderColor: '#3a3355', borderRadius: 24, paddingHorizontal: 32, paddingVertical: 12 },
-  flowStopText: { color: '#9d93bd', fontSize: 15 },
+  flowHint: { color: C.inkSub, fontSize: 13, letterSpacing: 2 },
+  flowTimer: { color: C.onPrimary, fontSize: 72, fontWeight: '200', marginVertical: 36, fontVariant: ['tabular-nums'] },
+  flowStop: { borderWidth: 1, borderColor: C.inkBorderStrong, borderRadius: 24, paddingHorizontal: 32, paddingVertical: 12 },
+  flowStopText: { color: C.inkText, fontSize: 15 },
   zenBtn: {
     marginTop: 20,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: '#2a2440',
+    borderColor: C.inkBorder,
     borderRadius: R.sm,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  zenBtnText: { color: '#aaa', fontSize: 13 },
+  zenBtnText: { color: C.inkDim, fontSize: 13 },
 });
