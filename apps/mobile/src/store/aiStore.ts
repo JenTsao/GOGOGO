@@ -97,7 +97,8 @@ export const useAiStore = create<AiState>((set, get) => ({
     set({ visible: false, status: 'idle' });
   },
   setStatus: (status) => set({ status }),
-  pushMessage: (m) => set((s) => ({ messages: [...s.messages, m] })),
+  // 保留最近 40 条，避免长对话无限堆积内存
+  pushMessage: (m) => set((s) => ({ messages: [...s.messages, m].slice(-40) })),
   ask: async (content) => {
     const text = content.trim();
     if (!text || get().status === 'thinking') return;
@@ -200,7 +201,7 @@ export const useAiStore = create<AiState>((set, get) => ({
     if (actionTimer) clearTimeout(actionTimer);
     set((s) => ({
       status: 'generating',
-      messages: [...s.messages, { role: 'assistant', content: `开始${label}…` }],
+      messages: [...s.messages, { role: 'assistant', content: `开始${label}…` }].slice(-40),
     }));
     actionTimer = setTimeout(() => {
       set((s) => ({
@@ -211,7 +212,7 @@ export const useAiStore = create<AiState>((set, get) => ({
             role: 'assistant',
             content: `${label}已完成（编译引擎上线后将产出 PDF / Anki / 大纲）。`,
           },
-        ],
+        ].slice(-40),
       }));
     }, durationMs);
   },
