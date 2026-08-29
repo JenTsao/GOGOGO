@@ -10,8 +10,6 @@ import { GlassCard } from '@/components/Glass';
 import { R, cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
 
 // Tab 2：弹药库（工具与知识）
-// 顶部切换：[代码沙盒] | [知识库] | [错题本]
-// 业务入口：一键生成错题本 / 编译输出（驱动 AI 表情状态）
 export default function ArsenalScreen() {
   const C = usePalette();
   const styles = STYLES[useScheme()];
@@ -26,8 +24,7 @@ export default function ArsenalScreen() {
   ];
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
-      {/* 分段控制器：滑动胶囊选中态 */}
+    <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
       <View style={styles.switch}>
         {TABS.map((t) => (
           <TouchableOpacity
@@ -36,7 +33,7 @@ export default function ArsenalScreen() {
             onPress={() => setTab(t.key)}
             activeOpacity={0.85}
           >
-            <Ionicons name={t.icon as keyof typeof Ionicons.glyphMap} size={15} color={tab === t.key ? C.onPrimary : C.text2} />
+            <Ionicons name={t.icon as keyof typeof Ionicons.glyphMap} size={14} color={tab === t.key ? C.onPrimary : C.text2} />
             <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
@@ -51,30 +48,29 @@ export default function ArsenalScreen() {
           <MistakeView />
         )}
 
-        {/* 业务入口：生成错题本 / 编译输出 */}
         <Text style={styles.sectionTitle}>快捷生成</Text>
         <TouchableOpacity onPress={() => runAction('生成错题本')} activeOpacity={0.85}>
           <GlassCard style={styles.actionBtn}>
             <View style={[styles.actionIcon, styles.iconRed]}>
-              <Ionicons name="library" size={18} color={C.red} />
+              <Ionicons name="library" size={17} color={C.red} />
             </View>
             <View style={styles.actionText}>
               <Text style={styles.actionBtnText}>生成错题本</Text>
-              <Text style={styles.actionHint}>汇总全部错题，AI 精炼成终极复习卡片</Text>
+              <Text style={styles.actionHint}>汇总全部错题，AI 精炼成复习卡片</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color={C.text3} />
+            <Ionicons name="chevron-forward" size={15} color={C.text3} />
           </GlassCard>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => runAction('编译输出')} activeOpacity={0.85}>
           <GlassCard style={styles.actionBtn}>
             <View style={[styles.actionIcon, styles.iconBlue]}>
-              <Ionicons name="archive" size={18} color={C.blue} />
+              <Ionicons name="archive" size={17} color={C.blue} />
             </View>
             <View style={styles.actionText}>
               <Text style={styles.actionBtnText}>编译输出</Text>
-              <Text style={styles.actionHint}>一键生成 PDF 复习 / Anki 卡片包 / 纯文本大纲</Text>
+              <Text style={styles.actionHint}>PDF 复习 / Anki 卡片 / 纯文本大纲</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color={C.text3} />
+            <Ionicons name="chevron-forward" size={15} color={C.text3} />
           </GlassCard>
         </TouchableOpacity>
       </ScrollView>
@@ -83,42 +79,43 @@ export default function ArsenalScreen() {
 }
 
 const STYLES = themedStyles((C) => ({
-  container: { flex: 1, paddingTop: 12, backgroundColor: C.bg },
+  container: { flex: 1, backgroundColor: C.bg },
   switch: {
     flexDirection: 'row',
     marginHorizontal: 16,
-    gap: 6,
+    gap: 4,
     backgroundColor: C.surfaceAlt,
     borderRadius: R.sm,
-    padding: 4,
+    padding: 3,
   },
   tab: {
     flex: 1,
     flexDirection: 'row',
-    paddingVertical: 9,
-    borderRadius: 9,
+    paddingVertical: 8,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 4,
   },
   tabActive: { backgroundColor: C.primary, ...cardShadow },
-  tabText: { color: C.text2, fontWeight: '600', fontSize: 13 },
+  tabText: { color: C.text2, fontWeight: '600', fontSize: 12 },
   tabTextActive: { color: C.onPrimary },
   body: { flex: 1 },
-  bodyContent: { padding: 16, paddingBottom: 96 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', marginTop: 24, marginBottom: 10, color: C.text },
+  bodyContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 104 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', marginTop: 18, marginBottom: 8, color: C.text },
   actionBtn: {
     borderRadius: R.md,
-    padding: 14,
-    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
-  actionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  actionIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   iconRed: { backgroundColor: C.redSoft },
   iconBlue: { backgroundColor: C.blueSoft },
   actionText: { flex: 1 },
-  actionBtnText: { fontSize: 15, fontWeight: '700', color: C.text },
-  actionHint: { marginTop: 3, fontSize: 12, color: C.text3, lineHeight: 17 },
+  actionBtnText: { fontSize: 14, fontWeight: '700', color: C.text },
+  actionHint: { marginTop: 2, fontSize: 12, color: C.text3, lineHeight: 16 },
 }));
