@@ -30,6 +30,18 @@ interface MoodState {
   syncAll: () => Promise<void>;
 }
 
+// 反序列化必须校验结构：旧版本/写盘中断可能留下非数组内容，
+// 直接 set 会让后续 .filter / .map 直接崩溃
+function parseList(raw: string | undefined): MoodCheckin[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as MoodCheckin[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 function persist(list: MoodCheckin[]): void {
   try {
     storage.set(KEY, JSON.stringify(list.slice(0, MAX)));
@@ -42,15 +54,11 @@ export const useMoodStore = create<MoodState>((set, get) => ({
   checkins: [],
   load: () => {
     try {
-      const raw = storage.getString(KEY);
-      if (raw) {
-        set({ checkins: JSON.parse(raw) as MoodCheckin[] });
-        return;
-      }
+      set({ checkins: parseList(storage.getString(KEY)) });
     } catch {
-      // 解析失败按空处理
+      // 读取失败按空处理
+      set({ checkins: [] });
     }
-    set({ checkins: [] });
   },
   // 打卡/重打：同日覆盖（保留云端 id 与旧转写直到重新录音转写）
   checkIn: (emojiCode, summary, voiceUri) => {
@@ -63,6 +71,8 @@ export const useMoodStore = create<MoodState>((set, get) => ({
       summary: summary?.trim() || undefined,
       voiceUri: voiceUri ?? prev?.voiceUri,
       transcript: prev?.transcript,
+      // 重新录音 → 旧云端语音已失效，清空等下次同步重传；未重新录音 → 继承原地址，否则他端拉取后无法播放
+      cloudUrl: voiceUri ? undefined : prev?.cloudUrl,
       synced: false,
       cloudId: prev?.cloudId,
     };

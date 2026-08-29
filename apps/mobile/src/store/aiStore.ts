@@ -81,8 +81,21 @@ export const useAiStore = create<AiState>((set, get) => ({
   visible: false,
   status: 'idle',
   messages: [],
-  open: () => set({ visible: true, status: 'listening' }),
-  close: () => set({ visible: false, status: 'idle' }),
+  open: () => {
+    // 上次业务动作的收尾定时器可能还挂着，不取消会在关闭后把状态强行改成 done 并追加一条消息
+    if (actionTimer) {
+      clearTimeout(actionTimer);
+      actionTimer = null;
+    }
+    set({ visible: true, status: 'listening' });
+  },
+  close: () => {
+    if (actionTimer) {
+      clearTimeout(actionTimer);
+      actionTimer = null;
+    }
+    set({ visible: false, status: 'idle' });
+  },
   setStatus: (status) => set({ status }),
   pushMessage: (m) => set((s) => ({ messages: [...s.messages, m] })),
   ask: async (content) => {

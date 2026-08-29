@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { commitBinary, isGithubWritable, rawUrl } from '@/lib/github';
+import { isAdminRequest, adminUnauthorized } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
 // POST /api/github/image { filename, base64 } → 提交 WebP 到 assets/ 并返回 raw 直链
 export async function POST(req: NextRequest) {
+  if (!isAdminRequest(req)) {
+    return NextResponse.json(adminUnauthorized(), { status: 401 });
+  }
   if (!isGithubWritable()) {
     return NextResponse.json({ error: '未配置 GITHUB_REPO / GITHUB_TOKEN（需具备 repo 写权限）' }, { status: 400 });
   }

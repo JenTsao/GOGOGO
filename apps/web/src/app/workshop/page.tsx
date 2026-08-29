@@ -192,9 +192,10 @@ function WorkshopInner() {
   useEffect(() => {
     fetch('/api/github/tree')
       .then(async (r) => {
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error ?? `HTTP ${r.status}`);
-        setPaths(data.entries.map((e: { path: string }) => e.path));
+        // 必须先判 r.ok：非 2xx 时 Vercel/网关返回的是 HTML，直接 json() 会抛出「Unexpected token '<'」掩盖真实原因
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = (await r.json()) as { entries?: { path: string }[] };
+        setPaths((data.entries ?? []).map((e) => e.path));
       })
       .catch((e) => setError((e as Error).message));
   }, []);
@@ -245,12 +246,17 @@ function WorkshopInner() {
     }
   }, [selected]);
 
-  // Ctrl/Cmd+S 快捷保存
+  // Ctrl/Cmd+S 快捷保存：
+  // onMount 只触发一次（编辑器首渲染即挂载，那时 selected 还是 null），
+  // 若直接闭包捕获 save，命令里永远是 selected=null 的旧版本，按 Ctrl+S 静默无反应。
+  // 用 ref 每次渲染同步最新闭包。
+  const saveRef = useRef(save);
+  saveRef.current = save;
   const onMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      void save();
+      void saveRef.current();
     });
   };
 
@@ -310,9 +316,11 @@ function WorkshopInner() {
   // 拖拽图片 → 压缩 WebP → 上传 → 光标处插入 Markdown
   const onDrop = useCallback(
     async (e: React.DragEvent<HTMLDivElement>) => {
+      // preventDefault 必须无条件先执行：放在提前 return 之后，拖入非图片文件时浏览器会
+      // 用该文件替换当前页，编辑器里未保存的内容直接丢失
+      e.preventDefault();
       const file = Array.from(e.dataTransfer.files).find((f) => f.type.startsWith('image/'));
       if (!file || !selected) return;
-      e.preventDefault();
       setUploading(true);
       setSaveMsg(null);
       try {

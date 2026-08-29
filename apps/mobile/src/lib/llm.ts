@@ -58,8 +58,14 @@ export async function recognizeMistake(
   const raw = res.content.replace(/```(?:json)?/g, '');
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('识别结果无法解析');
-  const parsed = JSON.parse(raw.slice(start, end + 1)) as Partial<MistakeRecognition>;
+  // end 必须严格大于 start：模型只回半个 JSON 时 slice 会得到空串，JSON.parse('') 抛 SyntaxError
+  if (start === -1 || end <= start) throw new Error('识别结果无法解析');
+  let parsed: Partial<MistakeRecognition> = {};
+  try {
+    parsed = JSON.parse(raw.slice(start, end + 1)) as Partial<MistakeRecognition>;
+  } catch {
+    throw new Error('识别结果不是合法 JSON');
+  }
   return {
     subject: typeof parsed.subject === 'string' ? parsed.subject : '数学',
     tags: Array.isArray(parsed.tags) ? parsed.tags.filter((t) => typeof t === 'string').slice(0, 4) : [],
@@ -97,18 +103,29 @@ export async function chatWithLlm(
   if (!cfg.baseUrl || !cfg.apiKey || !cfg.model) {
     throw new Error('请先在「我的」Tab 配置 AI 供应商、模型名与 API Key');
   }
-  const res = await fetch(`${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
-    body: JSON.stringify({
-      model: cfg.model,
-      messages,
-      temperature: 0.7,
-      ...(opts?.tools ? { tools: opts.tools } : {}),
-    }),
-  });
+  // 超时必须可中止：供应商挂起会让悬浮球永远停在「思考中」，用户只能杀 App
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  let res: Response;
+  try {
+    res = await fetch(`${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages,
+        temperature: 0.7,
+        ...(opts?.tools ? { tools: opts.tools } : {}),
+      }),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    throw (e as Error).name === 'AbortError' ? new Error('请求超时（60 秒），请检查网络或供应商地址') : (e as Error);
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
-    const text = await res.text();
+    const text = await res.text().catch(() => '');
     throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
   }
   const data = (await res.json()) as {

@@ -17,18 +17,28 @@ interface AuthState {
   signOut: () => Promise<void>;
 }
 
-let subscribed = false;
+// 订阅按「客户端实例」记录：用户在「我的」换 Supabase 项目后 getSupabase() 会重建客户端，
+// 若只用一个布尔量，新客户端永远拿不到订阅，登录后 email 不更新（旧客户端的回调已失效）
+let subscribedClient: unknown = null;
+let bootstrapToken = 0;
 
 // 登录/会话恢复后的引导：确保云端档案存在，access_key 回填本地
 async function bootstrap() {
   const sb = getSupabase();
   if (!sb) return;
-  const { data: sessionData } = await sb.auth.getSession();
-  if (!sessionData.session) return;
-  const { data, error } = await sb.rpc('ensure_access_key');
-  if (!error && typeof data === 'string' && data) {
-    const { accessKey, update } = useSettingsStore.getState();
-    if (accessKey !== data) update({ accessKey: data }); // 多设备：自动对齐到账号的 key
+  // 并发/重入保护：同一时刻只让最后一次 bootstrap 写 settingsStore
+  const token = ++bootstrapToken;
+  try {
+    const { data: sessionData } = await sb.auth.getSession();
+    if (!sessionData.session) return;
+    const { data, error } = await sb.rpc('ensure_access_key');
+    if (token !== bootstrapToken) return;
+    if (!error && typeof data === 'string' && data) {
+      const { accessKey, update } = useSettingsStore.getState();
+      if (accessKey !== data) update({ accessKey: data }); // 多设备：自动对齐到账号的 key
+    }
+  } catch {
+    // 档案引导失败不阻塞登录态展示，下次登录 / 重进 App 会重试
   }
 }
 
@@ -44,17 +54,21 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ ready: true }); // 未配置项目 → 视为就绪（登录区提示先配置）
       return;
     }
-    // 会话恢复
-    const { data } = await sb.auth.getSession();
-    set({ email: data.session?.user?.email ?? null, ready: true });
-    if (data.session) void bootstrap();
-    // 订阅变更（幂等：init 可能被多个页面调用）
-    if (!subscribed) {
-      subscribed = true;
+    // 订阅变更（按客户端实例幂等：init 可能被多个页面调用，换项目后会重建客户端）
+    if (subscribedClient !== sb) {
+      subscribedClient = sb;
       sb.auth.onAuthStateChange((event, session) => {
         set({ email: session?.user?.email ?? null });
         if (event === 'SIGNED_IN' && session) void bootstrap();
       });
+    }
+    // 会话恢复：必须放到 try 里——网络异常时若直接抛出，ready 永远不置位，UI 会卡在加载态
+    try {
+      const { data } = await sb.auth.getSession();
+      set({ email: data.session?.user?.email ?? null, ready: true });
+      if (data.session) void bootstrap();
+    } catch {
+      set({ ready: true }); // 恢复失败按未登录处理，仍让 UI 可用
     }
   },
 

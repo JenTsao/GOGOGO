@@ -74,7 +74,10 @@ export const useReminderStore = create<ReminderState>((set, get) => ({
           .filter((r) => !sig.has(`${r.date}|${r.content}`))
           .map((r) => ({ id: `c-${r.id}`, date: r.date, content: r.content }));
         if (missing.length > 0) {
-          const merged = [...local, ...missing];
+          // 必须用 await 之后的最新快照合并：请求飞行期间用户在本地新增的提醒若被旧 local 覆盖会双端同时丢失
+          const latest = get().reminders;
+          const sig2 = new Set(latest.map((r) => `${r.date}|${r.content}`));
+          const merged = [...latest, ...missing.filter((r) => !sig2.has(`${r.date}|${r.content}`))];
           persist(merged);
           set({ reminders: merged });
         }

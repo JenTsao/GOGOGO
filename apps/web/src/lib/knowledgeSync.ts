@@ -71,21 +71,35 @@ export async function syncKnowledge(limit: number): Promise<SyncResult> {
     .eq('user_id', owner);
   const byPath = new Map((metas ?? []).map((m) => [m.file_path, m]));
 
-  const entries = await fetchRepoTree();
+  const { entries, truncated } = await fetchRepoTree();
   let embeddedFiles = 0;
   let skipped = 0;
   let processed = 0;
 
-  for (const entry of entries) {
-    if (processed >= limit) break;
-    processed++;
+  // 未同步过的笔记排在前面：limit 每轮只够处理少量文件，
+  // 若按原顺序从头扫，靠后的新笔记永远排不到，全量永远无法收敛
+  const ordered = [...entries].sort((a, b) => {
+    const an = byPath.has(a.path) ? 1 : 0;
+    const bn = byPath.has(b.path) ? 1 : 0;
+    return an - bn;
+  });
+
+  // 扫描上限：哈希比对必须先取原文，无上限会让超大仓库每轮打爆 GitHub 速率限制
+  const SCAN_CAP = Math.max(limit * 10, 100);
+  let scanned = 0;
+
+  for (const entry of ordered) {
+    if (processed >= limit || scanned >= SCAN_CAP) break;
+    scanned++;
     const content = await fetchRawFile(entry.path);
     const hash = createHash('sha1').update(content).digest('hex');
     const existing = byPath.get(entry.path);
     if (existing && existing.content_hash === hash) {
+      // 内容未变的笔记不消耗预算：否则每轮都只检查最前面 limit 篇，后面的笔记永远同步不到
       skipped++;
       continue;
     }
+    processed++;
 
     // upsert 元数据（含标签提取），取回 note_id
     const { data: meta, error: metaErr } = await supabaseAdmin()
@@ -105,8 +119,8 @@ export async function syncKnowledge(limit: number): Promise<SyncResult> {
     }
     const vectors = await embedTexts(chunks);
 
-    // 旧向量清掉再写（内容已变更）
-    await supabaseAdmin().from('knowledge_embeddings').delete().eq('note_id', meta.id);
+    // 旧向量清掉再写（内容已变更）；带上 user_id 双保险，service role 绕过 RLS 不能只靠 note_id
+    await supabaseAdmin().from('knowledge_embeddings').delete().eq('note_id', meta.id).eq('user_id', owner);
     const { error: embErr } = await supabaseAdmin().from('knowledge_embeddings').insert(
       vectors.map((embedding) => ({ user_id: owner, note_id: meta.id, embedding }))
     );
@@ -115,7 +129,10 @@ export async function syncKnowledge(limit: number): Promise<SyncResult> {
   }
 
   // 清理幽灵笔记：仓库里已删除的文件，其元数据与向量一并移除（否则语义检索会继续命中已删内容）。
-  // entries 是仓库全量树，与 limit 截断无关，清理恒安全。
+  // 前提是本轮拿到的树是完整的：truncated 时树残缺，树外的笔记会被误判为幽灵而遭删除，必须跳过清理。
+  if (truncated) {
+    return { total: entries.length, processed, embeddedFiles, skipped };
+  }
   const livePaths = new Set(entries.map((e) => e.path));
   const ghosts = (metas ?? []).filter((m) => !livePaths.has(m.file_path));
   for (const g of ghosts) {

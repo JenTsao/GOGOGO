@@ -25,19 +25,21 @@ interface TagNode {
 function TagItem({
   node,
   depth,
-  active,
+  activePath,
   busy,
   onSelect,
   onAction,
 }: {
   node: TagNode;
   depth: number;
-  active: boolean;
+  // 传当前选中的路径而不是布尔量：布尔量在递归时只能原样透传，子节点无法自行判断高亮
+  activePath: string | null;
   busy: boolean;
   onSelect: (node: TagNode) => void;
   onAction: (action: 'rename' | 'merge' | 'delete', node: TagNode) => void;
 }) {
   const [open, setOpen] = useState(depth < 1);
+  const active = activePath === node.path;
   return (
     <div>
       <div
@@ -74,7 +76,7 @@ function TagItem({
             key={c.path}
             node={c}
             depth={depth + 1}
-            active={active}
+            activePath={activePath}
             busy={busy}
             onSelect={onSelect}
             onAction={onAction}
@@ -101,16 +103,25 @@ export default function SearchPage() {
   const loadTags = async () => {
     try {
       const r = await fetch('/api/tags');
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error ?? `HTTP ${r.status}`);
-      setTagTree(data.tree as TagNode[]);
-      setByPath((data.byPath as Record<string, string[]>) ?? {});
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = (await r.json()) as { tree?: TagNode[]; byPath?: Record<string, string[]> };
+      setTagTree(data.tree ?? []);
+      setByPath(data.byPath ?? {});
     } catch {
       // 标签树加载失败静默：检索功能不受影响
     }
   };
   useEffect(() => {
-    void loadTags();
+    // alive 标志：卸载后不再 setState（快速切页时会对已卸载组件 setState）
+    let alive = true;
+    const run = async () => {
+      if (!alive) return;
+      await loadTags();
+    };
+    void run();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // 标签筛选：笔记任一标签 === 选中路径 或 以其前缀开头（选中「数学」时含「数学/微积分」的笔记也命中）
@@ -218,7 +229,7 @@ export default function SearchPage() {
       key={node.path}
       node={node}
       depth={depth}
-      active={tagFilter === node.path}
+      activePath={tagFilter}
       busy={tagBusy}
       onSelect={() => setTagFilter(tagFilter === node.path ? null : node.path)}
       onAction={(a) => void tagAction(a, node)}

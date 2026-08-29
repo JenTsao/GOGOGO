@@ -74,17 +74,20 @@ export const useFocusStore = create<FocusState>((set, get) => ({
       });
       if (!res.ok) return;
       const data = (await res.json()) as { sessions?: { duration: number; started_at: string }[] };
-      const cloudSet = new Set(
-        (data.sessions ?? []).map((s) => `${s.duration}|${new Date(s.started_at).toISOString()}`)
-      );
+      // 云端时间戳规整：非法值（脏数据/空串）会让 new Date().toISOString() 抛 RangeError，整轮同步挂掉
+      const cloudTimes = (data.sessions ?? []).map((s) => {
+        const t = new Date(s.started_at).getTime();
+        return Number.isFinite(t) ? new Date(t).toISOString() : null;
+      });
       // 差集补本地：云端有而本地没有的会话（他端产生）
       const localSet = new Set(get().sessions.map((s) => `${s.duration}|${s.endedAt}`));
       const remote = (data.sessions ?? [])
-        .filter((s) => !localSet.has(`${s.duration}|${new Date(s.started_at).toISOString()}`))
-        .map((s, i) => ({
+        .map((s, i) => ({ s, iso: cloudTimes[i] }))
+        .filter(({ s, iso }) => iso !== null && !localSet.has(`${s.duration}|${iso}`))
+        .map(({ s, iso }, i) => ({
           id: `c-${Date.now()}-${i}`,
           duration: s.duration,
-          endedAt: new Date(s.started_at).toISOString(),
+          endedAt: iso as string,
         }));
       if (remote.length === 0) return;
       const merged = [...get().sessions, ...remote]

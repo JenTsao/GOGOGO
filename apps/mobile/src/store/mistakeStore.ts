@@ -63,9 +63,10 @@ async function fileToBase64(uri: string): Promise<string | null> {
 // 云端文件落地：下载到文档目录，保证拉取的条目离线可看可播（失败返回 undefined 走在线 URL 兜底）
 async function downloadToDoc(url: string, ext: string): Promise<string | undefined> {
   try {
-    const dir = `${FileSystem.documentDirectory}mistakes`;
+    const dir = `${FileSystem.documentDirectory ?? ''}mistakes`;
     await FileSystem.makeDirectoryAsync(dir, { intermediates: true }).catch(() => {});
-    const dest = `${dir}${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+    // 注意分隔符：documentDirectory 已以 / 结尾，dir 没有，拼文件名必须补 /
+    const dest = `${dir.replace(/\/+$/, '')}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
     const { uri } = await FileSystem.downloadAsync(url, dest);
     return uri;
   } catch {
@@ -216,25 +217,25 @@ export const useMistakeStore = create<MistakeState>((set, get) => ({
         current = current.map((m) => (fieldUpdates.has(m.id) ? { ...m, ...fieldUpdates.get(m.id)! } : m));
       }
       if (additions.length > 0) {
-        current = [...additions, ...current].slice(0, 200);
+        // 上限裁剪前先保住未同步条目：它们只存在于本地，被切掉就是永久丢失
+        const merged = [...additions, ...current];
+        if (merged.length > 200) {
+          const unsynced = merged.filter((m) => !m.synced);
+          const synced = merged.filter((m) => m.synced);
+          current = [...unsynced, ...synced].slice(0, 200);
+        } else {
+          current = merged;
+        }
       }
       if (current !== local) {
         persist(current);
         set({ mistakes: current });
       }
-    }
-  } catch {
-    // 拉取失败不影响推送结果
-  }
 
-  // ---------- 回填：已同步条目中本地有而云端缺的转写/摘要/重做结果 ----------
-  try {
-    const res = await fetch(`${webApiUrl.replace(/\/+$/, '')}/api/mistakes`, {
-      headers: { 'x-access-key': accessKey },
-    });
-    if (res.ok) {
-      const data = (await res.json()) as { mistakes?: CloudMistake[] };
-      const cloudById = new Map((data.mistakes ?? []).map((c) => [c.id, c]));
+      // ---------- 回填：已同步条目中本地有而云端缺的转写/摘要/重做结果 ----------
+      // 复用上面这一次 GET（原本会重复请求整张表，弱网下同步耗时翻倍）
+      const cloudById = new Map(remote.map((c) => [c.id, c]));
+      const backfills: Promise<unknown>[] = [];
       for (const m of get().mistakes) {
         if (!m.cloudId || !m.synced) continue;
         const c = cloudById.get(m.cloudId);
@@ -243,15 +244,18 @@ export const useMistakeStore = create<MistakeState>((set, get) => ({
         if (m.summary && !c?.summary) patch.summary = m.summary;
         if (m.correct && c?.is_mastered !== (m.correct === 'right')) patch.isMastered = m.correct === 'right';
         if (Object.keys(patch).length === 0) continue;
-        await fetch(`${webApiUrl.replace(/\/+$/, '')}/api/mistakes`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'x-access-key': accessKey },
-          body: JSON.stringify({ id: m.cloudId, ...patch }),
-        }).catch(() => {}); // 单条回填失败静默，下次同步重试
+        backfills.push(
+          fetch(`${webApiUrl.replace(/\/+$/, '')}/api/mistakes`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'x-access-key': accessKey },
+            body: JSON.stringify({ id: m.cloudId, ...patch }),
+          }).catch(() => {}) // 单条回填失败静默，下次同步重试
+        );
       }
+      await Promise.all(backfills);
     }
   } catch {
-    // 回填失败静默
+    // 拉取/回填失败不影响推送结果
   }
 
   return { ok, fail, pulled };

@@ -20,8 +20,9 @@ export async function PATCH(req: Request) {
     if (!body.id) return NextResponse.json({ error: '缺少错题 id' }, { status: 400 });
     const patch: Record<string, unknown> = {};
     if (body.isMastered !== undefined) patch.is_mastered = body.isMastered;
-    if (body.transcript !== undefined) patch.transcript = body.transcript.slice(0, 5000);
-    if (body.summary !== undefined) patch.summary = body.summary.slice(0, 2000);
+    // 显式传 null（清空转写/摘要）也要支持：直接 .slice 会抛 TypeError 返回 500
+    if (body.transcript !== undefined) patch.transcript = body.transcript ? body.transcript.slice(0, 5000) : null;
+    if (body.summary !== undefined) patch.summary = body.summary ? body.summary.slice(0, 2000) : null;
     if (Object.keys(patch).length === 0) return NextResponse.json({ error: '无可更新字段' }, { status: 400 });
     const { error } = await supabaseAdmin()
       .from('mistakes')

@@ -9,8 +9,9 @@ export async function GET() {
     return NextResponse.json({ error: '未配置 GITHUB_REPO（格式 owner/repo）' }, { status: 400 });
   }
   try {
-    const entries = await fetchRepoTree();
-    return NextResponse.json({ entries });
+    const { entries, truncated } = await fetchRepoTree();
+    // truncated 透传给前端：树残缺时目录会不完整，UI 需要提示而不是静默显示部分笔记
+    return NextResponse.json({ entries, truncated });
   } catch (e) {
     return NextResponse.json({ error: `拉取目录树失败：${(e as Error).message}` }, { status: 502 });
   }

@@ -18,3 +18,20 @@ export async function getUserByAccessKey(
 export function accessKeyFromRequest(req: Request): string | null {
   return req.headers.get('x-access-key');
 }
+
+// 管理台写接口鉴权（GitHub 提交 / 图片上传 / LLM 精炼 / 手动向量化）：
+// 这些接口一旦公开部署，任何人都能往你的 Obsidian 仓库写文件、烧 LLM 额度，必须可加闸。
+// 配置为可选：设置 ADMIN_TOKEN 后即强制校验；未设置时保持原行为（本地开发不被挡）。
+// 前端需带上 header：x-admin-key: <ADMIN_TOKEN>
+export function isAdminRequest(req: Request): boolean {
+  const adminToken = process.env.ADMIN_TOKEN;
+  if (!adminToken) return true; // 未启用：显式沿用旧行为
+  const header = req.headers.get('x-admin-key') ?? '';
+  const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+  return header === adminToken || bearer === adminToken;
+}
+
+// 统一 401 响应文案（不泄露 token 是否存在以外的信息）
+export function adminUnauthorized() {
+  return { error: '未授权：请配置并携带 ADMIN_TOKEN（x-admin-key）' };
+}

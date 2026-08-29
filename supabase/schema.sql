@@ -122,11 +122,15 @@ create table if not exists public.reminders (
 -- 索引
 -- ============================================================
 create index if not exists idx_tasks_user_status on public.tasks (user_id, status);
-create index if not exists idx_daily_learning_user_date on public.daily_learning (user_id, date);
 create index if not exists idx_knowledge_embeddings_user on public.knowledge_embeddings (user_id);
 create index if not exists idx_obsidian_metadata_user_path on public.obsidian_metadata (user_id, file_path);
 -- 标签树聚合/重写走 tags 数组过滤，GIN 加速
 create index if not exists idx_obsidian_metadata_tags on public.obsidian_metadata using gin (tags);
+-- 周复盘 / 同步 / 资源池都按 user_id 过滤排序，缺索引会全表扫描
+create index if not exists idx_timer_sessions_user_started on public.timer_sessions (user_id, started_at desc);
+create index if not exists idx_mistakes_user_created on public.mistakes (user_id, created_at desc);
+create index if not exists idx_reminders_user_date on public.reminders (user_id, date);
+create index if not exists idx_knowledge_compilations_user on public.knowledge_compilations (user_id, created_at desc);
 
 -- ============================================================
 -- 行级安全策略（RLS）— 云端数据安全的唯一命门
@@ -221,8 +225,14 @@ as $$
   join public.profiles p on p.user_id = d.user_id
   where p.access_key = get_daily_by_key.access_key
     and d.date = target_date
+  -- 无 order by 时返回哪一行不确定；重复行（cron 重投）会导致拿到旧内容
+  order by d.created_at desc
   limit 1;
 $$;
+
+-- 幂等唯一约束：cron 用「先 select 再 insert」做幂等，Vercel 重投/并发重试会写进同一 date 的多行，
+-- 必须有 DB 层兜底（配合 /api/cron/daily 的 upsert）
+create unique index if not exists idx_daily_learning_user_date_uni on public.daily_learning (user_id, date);
 
 -- ============================================================
 -- 错题本存储桶：图片压缩 + 语音反思
@@ -262,6 +272,9 @@ create table if not exists public.weekly_reviews (
   unique (user_id, week_start)
 );
 alter table public.weekly_reviews enable row level security;
+-- 全文其余 DDL 都可重跑，唯独这里原本裸 create policy：
+-- 在已有库上再跑一次 schema.sql 会报 policy already exists 并中断后续函数创建
+drop policy if exists "owners manage own weekly reviews" on public.weekly_reviews;
 create policy "owners manage own weekly reviews" on public.weekly_reviews
   for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 

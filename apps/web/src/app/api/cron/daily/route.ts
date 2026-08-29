@@ -89,13 +89,20 @@ export async function GET(req: NextRequest) {
       throw new Error(`生成结果无法解析：${raw.slice(0, 200)}`);
     }
 
-    const { error: insertErr } = await supabaseAdmin().from('daily_learning').insert({
-      user_id: owner,
-      date: today,
-      knowledge_body: String(json.knowledge_body),
-      question_text: String(json.question_text),
-      answer: String(json.answer ?? ''),
-    });
+    // upsert 而非 insert：唯一约束 (user_id, date) 已在 schema 中建立，
+    // 「先查后插」在 Cron 重投/并发重试下仍会撞车，交给 DB 冲突解决才是幂等的
+    const { error: insertErr } = await supabaseAdmin()
+      .from('daily_learning')
+      .upsert(
+        {
+          user_id: owner,
+          date: today,
+          knowledge_body: String(json.knowledge_body),
+          question_text: String(json.question_text),
+          answer: String(json.answer ?? ''),
+        },
+        { onConflict: 'user_id,date' }
+      );
     if (insertErr) throw new Error(`写入 daily_learning 失败：${insertErr.message}`);
 
     return NextResponse.json({ ok: true, date: today, knowledge: json.knowledge_body });

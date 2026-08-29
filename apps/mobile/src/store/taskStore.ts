@@ -126,9 +126,12 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   swapWithBacklog: (id) =>
     set((s) => {
       const task = s.top3.find((t) => t.id === id);
-      if (task) addTombstone(task.content, 'top3'); // 状态迁移 = 旧行墓碑 + 新行由并集插入
+      // id 不在 top3（重复点击 / 任务已被移除）时必须放弃：否则会写入 id/content 均为 undefined 的幽灵任务并落盘
+      if (!task) return {};
+      // 墓碑记的是「迁移前云端那一行」的状态，写死 'top3' 会让 done 态旧行留在云端导致任务复活
+      addTombstone(task.content, task.status);
       const top3 = s.top3.filter((t) => t.id !== id);
-      const backlog = [...s.backlog, { ...task!, status: 'backlog' as const }];
+      const backlog = [...s.backlog, { ...task, status: 'backlog' as const }];
       persist(top3, backlog);
       const history = snapshotToday(top3, s.history);
       storage.set(HISTORY_KEY, JSON.stringify(history));
@@ -137,7 +140,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   completeTask: (id) =>
     set((s) => {
       const task = s.top3.find((t) => t.id === id);
-      if (task && task.status !== 'done') addTombstone(task.content, 'top3');
+      if (task && task.status !== 'done') addTombstone(task.content, task.status);
       const top3 = s.top3.map((t) => (t.id === id ? { ...t, status: 'done' as const } : t));
       persist(top3, s.backlog);
       const history = snapshotToday(top3, s.history);
@@ -179,6 +182,18 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         };
         if (t.status === 'backlog') newBacklog.push(task);
         else newTop3.push(task);
+      }
+      // 竞态补偿：请求飞行期间新增/改动的本地任务既不在上传快照里、也不在云端返回中，
+      // 直接用云端覆盖会让它们本地+云端同时消失。按服务端去重键 (status|content|date) 补回本地独有的增量。
+      // 云端行的 date 是 string | null，本地是 string | undefined，键函数必须同时接受两者
+      const keyOf = (t: { status: string; content: string; date?: string | null }) => `${t.status}|${t.content}|${t.date ?? ''}`;
+      const cloudKeys = new Set(cloud.map(keyOf));
+      const after = get(); // 取 await 之后的最新快照，不能用请求前的 pool
+      for (const t of [...after.top3, ...after.backlog]) {
+        if (cloudKeys.has(keyOf(t))) continue;
+        if (t.status === 'backlog') newBacklog.push(t);
+        else newTop3.push(t);
+        cloudKeys.add(keyOf(t)); // 本地同键重复项只补一次
       }
       storage.set(TOMBSTONES_KEY, JSON.stringify([])); // 同步成功，清空墓碑
       persist(newTop3, newBacklog);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { commitMarkdown, isGithubWritable } from '@/lib/github';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { isAdminRequest, adminUnauthorized } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,9 @@ const MAX_VERSIONS = 20;
 
 // POST /api/github/save { path, content, message? } → 提交到 GitHub 并落版本快照
 export async function POST(req: NextRequest) {
+  if (!isAdminRequest(req)) {
+    return NextResponse.json(adminUnauthorized(), { status: 401 });
+  }
   if (!isGithubWritable()) {
     return NextResponse.json({ error: '未配置 GITHUB_REPO / GITHUB_TOKEN（需具备 repo 写权限）' }, { status: 400 });
   }

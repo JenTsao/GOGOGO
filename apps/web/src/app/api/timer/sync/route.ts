@@ -34,8 +34,15 @@ export async function POST(req: NextRequest) {
     .limit(1000);
   if (selErr) return NextResponse.json({ error: `会话读取失败：${selErr.message}` }, { status: 500 });
 
+  // 时间规整：脏数据（非法/空 started_at）会让 new Date().toISOString() 抛 RangeError，
+  // 整轮同步直接 500，客户端永远收敛不了
+  const toIso = (v: unknown): string | null => {
+    const t = new Date(v as string).getTime();
+    return Number.isFinite(t) ? new Date(t).toISOString() : null;
+  };
+
   const existing = new Set(
-    (cloud ?? []).map((r) => `${r.duration}|${new Date(r.started_at).toISOString()}`)
+    (cloud ?? []).map((r) => `${r.duration}|${toIso(r.started_at) ?? ''}`)
   );
 
   const incoming = (Array.isArray(body.sessions) ? (body.sessions as SessionIn[]) : [])
@@ -45,7 +52,12 @@ export async function POST(req: NextRequest) {
     )
     .map((s) => ({ user_id: owner, duration: Math.round(s.duration), started_at: s.endedAt }));
 
-  const missing = incoming.filter((s) => !existing.has(`${s.duration}|${new Date(s.started_at).toISOString()}`));
+  // 客户端时间同样要规整：非法 endedAt 会被原样写进 timestamptz 列导致整批 insert 失败
+  const missing = incoming
+    .map((s) => ({ ...s, started_at: toIso(s.started_at) }))
+    .filter((s): s is { user_id: string; duration: number; started_at: string } =>
+      s.started_at !== null && !existing.has(`${s.duration}|${s.started_at}`)
+    );
   if (missing.length > 0) {
     const { error: insErr } = await sb.from('timer_sessions').insert(missing.slice(0, 500));
     if (insErr) return NextResponse.json({ error: `会话写入失败：${insErr.message}` }, { status: 500 });

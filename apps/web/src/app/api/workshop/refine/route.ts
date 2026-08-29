@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchRawFile } from '@/lib/github';
 import { chatCompletion } from '@/lib/llm';
+import { isAdminRequest, adminUnauthorized } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,10 @@ const GRAPH_PROMPT = `你是知识图谱工程师。分析以下多篇 Obsidian 
 // 只输出 mermaid 代码的原因：客户端直接交给 mermaid.render，围栏会破坏解析
 
 export async function POST(req: NextRequest) {
+  // 精炼会消耗 LLM 额度，公开部署时必须鉴权（配置 ADMIN_TOKEN 后强制）
+  if (!isAdminRequest(req)) {
+    return NextResponse.json(adminUnauthorized(), { status: 401 });
+  }
   let body: { paths?: unknown; mode?: unknown };
   try {
     body = await req.json();

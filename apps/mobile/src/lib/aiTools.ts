@@ -166,7 +166,8 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         };
         const lines = (data.results ?? [])
           .slice(0, 3)
-          .map((r, i) => `${i + 1}. ${r.title}\n   ${r.content.slice(0, 120)}…\n   ${r.url}`);
+          // Tavily 对无摘要的结果会省略 content 字段，直接 slice 会抛
+          .map((r, i) => `${i + 1}. ${r.title ?? ''}\n   ${(r.content ?? '').slice(0, 120)}…\n   ${r.url ?? ''}`);
         return {
           ok: true,
           text: `🔍 「${query}」搜索结果：\n${data.answer ? `摘要：${data.answer}\n\n` : ''}${lines.join('\n') || '无结果'}`,

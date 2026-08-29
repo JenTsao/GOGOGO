@@ -102,8 +102,14 @@ export async function initBackgroundSync(): Promise<void> {
     // 模拟器/未配置环境可能直接失败，静默跳过
   }
 
+  // defineTask 对已定义的同名任务会直接抛（热重载 / 二次初始化时必然发生）。
+  // 必须单独 try：若与 registerTaskAsync 放在同一个 try 里，抛错会让注册永不执行，后台唤醒静默失效。
   try {
     TaskManager.defineTask(BACKGROUND_TASK, syncOnce);
+  } catch {
+    // 已定义过，忽略即可
+  }
+  try {
     await BackgroundFetch.registerTaskAsync(BACKGROUND_TASK, {
       minimumInterval: 15 * 60, // 系统保证不小于该间隔；实际由 OS 节流决定
       stopOnTerminate: false, // APP 被杀后继续

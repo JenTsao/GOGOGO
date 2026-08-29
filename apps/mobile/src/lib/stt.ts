@@ -19,11 +19,22 @@ export async function transcribeAudio(uri: string, cfg: SttConfig): Promise<stri
   formData.append('model', cfg.model || 'whisper-1');
   formData.append('language', 'zh'); // 高考场景锁定中文，减少误识别
 
-  const res = await fetch(`${cfg.baseUrl.replace(/\/+$/, '')}/audio/transcriptions`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
-    body: formData,
-  });
+  // 录音上传可能很大，供应商挂起会卡死录入流程，必须可中止
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  let res: Response;
+  try {
+    res = await fetch(`${cfg.baseUrl.replace(/\/+$/, '')}/audio/transcriptions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${cfg.apiKey}` },
+      body: formData,
+      signal: controller.signal,
+    });
+  } catch (e) {
+    throw (e as Error).name === 'AbortError' ? new Error('转写超时（60 秒），请检查网络或转写服务地址') : (e as Error);
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error(`转写失败 HTTP ${res.status}${detail ? `：${detail.slice(0, 120)}` : ''}`);
@@ -36,9 +47,11 @@ export async function transcribeAudio(uri: string, cfg: SttConfig): Promise<stri
 // 画像情绪词：语音反思中的消极信号即时加权（蓝皮书「激进模式画像」数据源）
 export const NEGATIVE_WORDS = ['搞不懂', '不会', '不理解', '崩溃', '烦', '太难', '卡住', '又错', '还是错', '记不住', '看不懂'] as const;
 
-export function countNegativeWords(texts: string[]): Map<string, number> {
+export function countNegativeWords(texts: (string | undefined | null)[]): Map<string, number> {
   const count = new Map<string, number>();
-  for (const text of texts) {
+  for (const raw of texts) {
+    // 云端回填的历史数据可能缺 transcript 字段，未判空会让整块画像崩溃
+    const text = raw ?? '';
     for (const word of NEGATIVE_WORDS) {
       const n = text.split(word).length - 1;
       if (n > 0) count.set(word, (count.get(word) ?? 0) + n);

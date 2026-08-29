@@ -173,17 +173,20 @@ export default function CompilePage() {
   useEffect(() => {
     setHistory(loadHistory());
     fetch('/api/github/tree')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) throw new Error(data.error);
-        setEntries((data.entries as TreeEntry[]) ?? []);
+      .then(async (r) => {
+        // 必须先判 ok 再 json()：网关/Vercel 的 500 返回 HTML，直接解析会抛「Unexpected token '<'」掩盖真实原因
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data: { entries?: TreeEntry[] }) => {
+        setEntries(data.entries ?? []);
       })
       .catch((e) => setError((e as Error).message));
     // 错题资源池（失败静默：不影响笔记编译）
     fetch('/api/mistakes/pool')
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) setMistakes((data.mistakes as MistakeItem[]) ?? []);
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data: { mistakes?: MistakeItem[] }) => {
+        setMistakes(data.mistakes ?? []);
       })
       .catch(() => {});
   }, []);
@@ -238,9 +241,10 @@ export default function CompilePage() {
               path: `[错题] ${m.subject} · ${m.created_at.slice(0, 10)}`,
               content: [
                 `学科：${m.subject}`,
-                `卡壳标签：${m.tags.map((t) => `#${t}`).join(' ') || '无'}`,
+                // tags / image_urls 在 schema 中可空，历史或手工插入的行可能为 null，裸 .map 会整页白屏
+                `卡壳标签：${(m.tags ?? []).map((t) => `#${t}`).join(' ') || '无'}`,
                 // Markdown 图片：PDF 打印视图内嵌、Anki 背面显示照片
-                m.image_urls[0] ? `![错题照片](${m.image_urls[0]})` : '无图片',
+                (m.image_urls ?? [])[0] ? `![错题照片](${(m.image_urls ?? [])[0]})` : '无图片',
               ].join('\n'),
             });
           }
@@ -343,7 +347,7 @@ export default function CompilePage() {
                       onChange={() => toggle(`mistake:${m.id}`)}
                     />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      📕 [{m.subject}] {m.tags.map((t) => `#${t}`).join(' ')} · {m.created_at.slice(0, 10)}
+                      📕 [{m.subject}] {(m.tags ?? []).map((t) => `#${t}`).join(' ')} · {(m.created_at ?? '').slice(0, 10)}
                     </span>
                   </label>
                 ))}

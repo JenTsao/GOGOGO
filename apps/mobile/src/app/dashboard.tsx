@@ -74,20 +74,22 @@ export default function DashboardScreen() {
   const gradedCount = mistakes.filter((m) => m.correct).length;
 
   // 情绪信号：错题语音反思 + 情绪打卡语音/备注转写中的消极词 top3（蓝皮书「搞不懂即时加权」）
-  const moodSignals = useMemo(
-    () =>
-      [
-        ...countNegativeWords(mistakes.map((m) => m.transcript ?? '')),
-        ...countNegativeWords(moodCheckins.map((c) => c.transcript ?? c.summary ?? '')),
-      ]
-        .reduce<Map<string, number>>((acc, [w, n]) => {
-          acc.set(w, (acc.get(w) ?? 0) + n);
-          return acc;
-        }, new Map())
-        .entries(),
-    [mistakes, moodCheckins]
+  // 必须返回数组：Map.entries() 是一次性迭代器，被 memo 缓存后首次渲染即耗尽，
+  // 之后任意重渲染（开弹窗/切 Tab）都会得到空数组，词云永久消失
+  const moodSignals = useMemo(() => {
+    const acc = new Map<string, number>();
+    for (const [w, n] of countNegativeWords(mistakes.map((m) => m.transcript))) {
+      acc.set(w, (acc.get(w) ?? 0) + n);
+    }
+    for (const [w, n] of countNegativeWords(moodCheckins.map((c) => c.transcript ?? c.summary))) {
+      acc.set(w, (acc.get(w) ?? 0) + n);
+    }
+    return [...acc.entries()];
+  }, [mistakes, moodCheckins]);
+  const moodTop3 = useMemo(
+    () => [...moodSignals].sort((a, b) => b[1] - a[1]).slice(0, 3),
+    [moodSignals]
   );
-  const moodTop3 = [...moodSignals].sort((a, b) => b[1] - a[1]).slice(0, 3);
 
   // 近 7 天情绪轨迹（emoji 行）：打卡越连续，画像情绪面越准
   const moodTrail = useMemo(() => {
@@ -500,37 +502,38 @@ export default function DashboardScreen() {
             {weeklyState === 'none' && (
               <Text style={styles.placeholder}>本周复盘还没生成（每周一凌晨自动产出，需在管理台配置 TAVILY_API_KEY 以获取考纲资讯）</Text>
             )}
-            {weeklyState === 'idle' && weekly && (
+            {weeklyState === 'idle' && weekly?.content && (
               <>
-                <Text style={styles.adviceText}>{weekly.content.summary}</Text>
+                {/* content 是 LLM 产出的 jsonb，字段缺失/null 都要兜住：裸取会让全屏 Modal 崩到只能杀 App */}
+                <Text style={styles.adviceText}>{weekly.content.summary ?? ''}</Text>
                 {!!weekly.content.syllabusAlert && (
                   <View style={styles.syllabusAlert}>
                     <Ionicons name="warning" size={13} color={CLR.orange} />
                     <Text style={styles.syllabusAlertText}>考纲警示：{weekly.content.syllabusAlert}</Text>
                   </View>
                 )}
-                {weekly.content.risks.length > 0 && (
+                {(weekly.content.risks?.length ?? 0) > 0 && (
                   <>
                     <Text style={styles.profileText}>薄弱点与下周权重建议</Text>
-                    {weekly.content.risks.map((r, i) => (
+                    {(weekly.content.risks ?? []).map((r, i) => (
                       <Text key={i} style={styles.adviceText}>· {r}</Text>
                     ))}
                   </>
                 )}
-                {weekly.content.focusAdvice.length > 0 && (
+                {(weekly.content.focusAdvice?.length ?? 0) > 0 && (
                   <>
                     <Text style={styles.profileText}>下周专注建议</Text>
-                    {weekly.content.focusAdvice.map((r, i) => (
+                    {(weekly.content.focusAdvice ?? []).map((r, i) => (
                       <Text key={i} style={styles.adviceText}>· {r}</Text>
                     ))}
                   </>
                 )}
-                {weekly.content.news.length > 0 && (
+                {(weekly.content.news?.length ?? 0) > 0 && (
                   <>
                     <Text style={styles.profileText}>本周高考资讯</Text>
-                    {weekly.content.news.map((n) => (
-                      <TouchableOpacity key={n.url} onPress={() => void Linking.openURL(n.url)}>
-                        <Text style={styles.newsLink}>· {n.title}</Text>
+                    {(weekly.content.news ?? []).map((n, i) => (
+                      <TouchableOpacity key={n?.url ?? i} onPress={() => n?.url && void Linking.openURL(n.url)}>
+                        <Text style={styles.newsLink}>· {n?.title ?? '（无标题）'}</Text>
                       </TouchableOpacity>
                     ))}
                   </>
