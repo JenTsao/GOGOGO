@@ -101,7 +101,7 @@ const dark: typeof light = {
   // 深色玻璃：低透白面 + 弱受光描边（AI 面板承载正文用近实底保证可读）
   glassSurface: 'rgba(255,255,255,0.07)',
   glassSurfaceStrong: 'rgba(30,27,46,0.88)',
-  glassDark: 'rgba(255,255,255,0.08)',
+  glassDark: 'rgba(255,255,255,0.08)', // 与 light 同值：心流恒深色场景，透光不随主题切换
   glassBorder: 'rgba(255,255,255,0.20)',
   glassBorderSoft: 'rgba(255,255,255,0.12)',
   glassDarkBorder: 'rgba(255,255,255,0.18)',
