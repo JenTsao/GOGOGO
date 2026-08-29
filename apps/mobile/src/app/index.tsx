@@ -29,12 +29,31 @@ function greetingByHour(h: number) {
   return '夜深了，注意休息';
 }
 
+/** 心流计时器独立订阅 seconds，避免每秒重绘驾驶舱整页 */
+function FlowTimerDisplay() {
+  const seconds = useFocusStore((s) => s.seconds);
+  const fmt = (s: number) =>
+    `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  return <Text style={STYLES[useScheme()].flowTimer}>{fmt(seconds)}</Text>;
+}
+
 export default function CockpitScreen() {
   const C = usePalette();
   const styles = STYLES[useScheme()];
-  const { top3, backlog, addTask, removeTask, swapWithBacklog, completeTask } = useTaskStore();
-  const { seconds, running, sessions, start, stop } = useFocusStore();
-  const { weatherKey, weatherCity, supabaseUrl, supabaseAnonKey, accessKey } = useSettingsStore();
+  // 细粒度订阅：避免 focus.tick 每秒拖动整页重渲染
+  const top3 = useTaskStore((s) => s.top3);
+  const backlog = useTaskStore((s) => s.backlog);
+  const addTask = useTaskStore((s) => s.addTask);
+  const removeTask = useTaskStore((s) => s.removeTask);
+  const swapWithBacklog = useTaskStore((s) => s.swapWithBacklog);
+  const completeTask = useTaskStore((s) => s.completeTask);
+  const running = useFocusStore((s) => s.running);
+  const sessions = useFocusStore((s) => s.sessions);
+  const weatherKey = useSettingsStore((s) => s.weatherKey);
+  const weatherCity = useSettingsStore((s) => s.weatherCity);
+  const supabaseUrl = useSettingsStore((s) => s.supabaseUrl);
+  const supabaseAnonKey = useSettingsStore((s) => s.supabaseAnonKey);
+  const accessKey = useSettingsStore((s) => s.accessKey);
   const reminders = useReminderStore((s) => s.reminders);
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -199,18 +218,17 @@ export default function CockpitScreen() {
     setDraft('');
   };
 
-  const fmt = (s: number) =>
-    `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-
   const enterFlow = () => {
-    useFocusStore.getState().reset();
-    start();
-    useFocusStore.getState().setSuppressNotifications(true);
+    const f = useFocusStore.getState();
+    f.reset();
+    f.start();
+    f.setSuppressNotifications(true);
     setInFlow(true);
   };
   const exitFlow = () => {
-    stop();
-    useFocusStore.getState().setSuppressNotifications(false);
+    const f = useFocusStore.getState();
+    f.stop();
+    f.setSuppressNotifications(false);
     setInFlow(false);
   };
 
@@ -490,7 +508,7 @@ export default function CockpitScreen() {
             <Ionicons name="moon" size={14} color={C.inkSub} />
             <Text style={styles.flowHint}>心流进行中 · 通知已静默</Text>
           </View>
-          <Text style={styles.flowTimer}>{fmt(seconds)}</Text>
+          <FlowTimerDisplay />
           {Platform.OS === 'android' && (
             <TouchableOpacity style={styles.zenBtn} onPress={openZenMode} activeOpacity={0.85}>
               <Ionicons name="notifications-off-outline" size={16} color={C.inkDim} />
