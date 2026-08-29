@@ -6,7 +6,7 @@ import { useAiStore } from '@/store/aiStore';
 import { CodeSandbox } from '@/components/CodeSandbox';
 import { KnowledgeView } from '@/components/KnowledgeView';
 import { MistakeView } from '@/components/MistakeView';
-import { C, R, cardShadow } from '@/theme';
+import { C, R, cardShadow, GLASS, glassEdge, glassShadow } from '@/theme';
 
 // Tab 2：弹药库（工具与知识）
 // 顶部切换：[代码沙盒] | [知识库] | [错题本]
@@ -101,14 +101,15 @@ const styles = StyleSheet.create({
   bodyContent: { padding: 16, paddingBottom: 96 },
   sectionTitle: { fontSize: 17, fontWeight: '700', marginTop: 24, marginBottom: 10, color: C.text },
   actionBtn: {
-    backgroundColor: C.card,
+    backgroundColor: GLASS.surface, // 液态玻璃卡：半透面 + 受光描边 + 液态柔影
     borderRadius: R.md,
     padding: 14,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    ...cardShadow,
+    ...glassEdge,
+    ...glassShadow,
   },
   actionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   iconRed: { backgroundColor: C.redSoft },

@@ -50,6 +50,37 @@ export const C = {
 /** 专注热力阶梯（近端深、远端浅，语义化数据色，仅用于热力图） */
 export const HEAT_SCALE = ['#EEEBF4', '#D5EBDD', '#9CD3AA', '#4E9A5F', '#1C5D2C'] as const;
 
+/**
+ * 液态玻璃（Liquid Glass）色层 —— 真模糊由 expo-blur（BlurView）承担，这里只管颜色与描边。
+ * 规范：blur 强度 10–20px（BlurView intensity 30–60）、玻璃面透出背景、1px 受光描边模拟顶缘高光。
+ * Android 无真模糊时自动降级为半透明染色（expo-blur 默认行为），观感仍成立。
+ */
+export const GLASS = {
+  surface: 'rgba(255,255,255,0.60)', // 玻璃面：浅色场景（卡片/分段控件）
+  surfaceStrong: 'rgba(255,255,255,0.78)', // 高可读玻璃面：承载正文的面板
+  dark: 'rgba(255,255,255,0.08)', // 玻璃面：深色场景（心流黑底靠受光描边成形）
+  border: 'rgba(255,255,255,0.65)', // 受光描边（顶缘高光）
+  borderSoft: 'rgba(255,255,255,0.28)',
+  darkBorder: 'rgba(255,255,255,0.18)',
+} as const;
+
+/** 玻璃面板统一受光描边 */
+export const glassEdge: ViewStyle = {
+  borderWidth: StyleSheet.hairlineWidth,
+  borderColor: GLASS.border,
+};
+
+/** 玻璃面板液态柔影（比卡片阴影更深更散，模拟玻璃悬浮） */
+export const glassShadow: ViewStyle = StyleSheet.create({
+  shadow: {
+    shadowColor: '#2A1E5C',
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+}).shadow;
+
 /** 圆角阶梯（4pt 节奏） */
 export const R = { sm: 12, md: 16, lg: 20, pill: 999 } as const;
 

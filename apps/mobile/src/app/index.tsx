@@ -15,7 +15,7 @@ import { useMistakeStore } from '@/store/mistakeStore';
 import { useAuthStore } from '@/store/authStore';
 import { fetchDaily, DailyLearning } from '@/lib/cloud';
 import { readDailyCache } from '@/lib/background';
-import { C, R, cardShadow, HIT_SLOP } from '@/theme';
+import { C, R, cardShadow, GLASS, HIT_SLOP } from '@/theme';
 
 // Tab 1：驾驶舱（时间线与当下）——布局严格按蓝皮书顺序：
 // 日期天气 → 信仰级倒计时 → 今日提醒横幅 → 每日知识点 → 每日一题 → 今日三件事 → 专注启动器
@@ -665,14 +665,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: C.inkBorder,
+    borderColor: GLASS.darkBorder,
+    backgroundColor: GLASS.dark, // 深色场景液态玻璃：微透光 + 受光描边
     borderRadius: R.pill,
     paddingHorizontal: 14,
     paddingVertical: 7,
   },
   flowHint: { color: C.inkSub, fontSize: 13, letterSpacing: 2 },
   flowTimer: { color: C.onPrimary, fontSize: 72, fontWeight: '200', marginVertical: 36, fontVariant: ['tabular-nums'] },
-  flowStop: { borderWidth: 1, borderColor: C.inkBorderStrong, borderRadius: 24, paddingHorizontal: 32, paddingVertical: 12 },
+  flowStop: {
+    borderWidth: 1,
+    borderColor: GLASS.darkBorder,
+    backgroundColor: GLASS.dark,
+    borderRadius: 24,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+  },
   flowStopText: { color: C.inkText, fontSize: 15 },
   zenBtn: {
     marginTop: 20,
@@ -680,7 +688,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: C.inkBorder,
+    borderColor: GLASS.darkBorder,
+    backgroundColor: GLASS.dark,
     borderRadius: R.sm,
     paddingHorizontal: 16,
     paddingVertical: 10,

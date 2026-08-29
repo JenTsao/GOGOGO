@@ -23,6 +23,7 @@
     "expo-notifications": "~0.28.16",
     "expo-task-manager": "~11.8.2",
     "expo-status-bar": "~1.12.1",
+    "expo-blur": "~13.0.1",
     "expo-image-picker": "~15.0.7",
     "expo-image-manipulator": "~12.0.5",
     "expo-file-system": "~17.0.1",

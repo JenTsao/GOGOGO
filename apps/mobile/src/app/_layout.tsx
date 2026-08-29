@@ -4,9 +4,21 @@ import { AiOrb } from '@/components/AiOrb';
 import { View, StyleSheet } from 'react-native';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { initBackgroundSync } from '@/lib/background';
-import { C } from '@/theme';
+import { C, GLASS } from '@/theme';
+
+// Tab 栏液态玻璃背景：真模糊（Android 经 dimezis 引擎；iOS 原生 UIVisualEffectView）
+// 半透明玻璃面叠在模糊层上，低性能设备自动降级为纯半透明染色
+const GLASS_TAB_BACKGROUND = () => (
+  <BlurView
+    intensity={40}
+    tint="light"
+    experimentalBlurMethod="dimezisBlurView"
+    style={StyleSheet.absoluteFill}
+  />
+);
 
 // Tab 图标映射：outline = 未选中，实心 = 选中（单一图标家族，视觉语言一致）
 const TAB_ICONS: Record<string, { on: keyof typeof Ionicons.glyphMap; off: keyof typeof Ionicons.glyphMap }> = {
@@ -39,9 +51,11 @@ export default function RootLayout() {
           tabBarActiveTintColor: C.primary,
           tabBarInactiveTintColor: C.text3,
           tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+          // 液态玻璃 Tab 栏：模糊背景 + 半透明玻璃面 + 受光描边
+          tabBarBackground: GLASS_TAB_BACKGROUND,
           tabBarStyle: {
-            backgroundColor: C.card,
-            borderTopColor: C.border,
+            backgroundColor: GLASS.surface,
+            borderTopColor: GLASS.border,
             borderTopWidth: StyleSheet.hairlineWidth,
             // 底部安全区自适应（全面屏手势条高度因机型而异，iQOO Neo10 约 24-27dp）
             height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,

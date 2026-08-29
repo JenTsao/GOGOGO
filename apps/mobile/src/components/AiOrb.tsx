@@ -17,10 +17,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
+import { BlurView } from 'expo-blur';
 import { useAiStore, STATUS_EMOTION } from '@/store/aiStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { describeToolCall } from '@/lib/aiTools';
-import { C, R, cardShadow, HIT_SLOP } from '@/theme';
+import { C, R, cardShadow, glassEdge, glassShadow, GLASS, HIT_SLOP } from '@/theme';
 
 const ORB_SIZE = 75;
 const EDGE = 8;
@@ -224,7 +225,13 @@ export function AiOrb() {
           style={styles.sheetWrap}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
+          {/* 液态玻璃面板：BlurView 直接作容器（模糊透出遮罩与下层页面），Android 降级为半透明染色 */}
+          <BlurView
+            intensity={55}
+            tint="light"
+            experimentalBlurMethod="dimezisBlurView"
+            style={[styles.sheet, glassEdge, glassShadow, { paddingBottom: insets.bottom + 12 }]}
+          >
             <View style={styles.gripBar}>
               <View style={styles.grip} />
             </View>
@@ -347,7 +354,7 @@ export function AiOrb() {
                 <Ionicons name="arrow-up" size={20} color={C.onPrimary} />
               </TouchableOpacity>
             </View>
-          </View>
+          </BlurView>
         </KeyboardAvoidingView>
       </Modal>
     </>
@@ -389,9 +396,10 @@ const styles = StyleSheet.create({
   sheetWrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(18,14,34,0.45)' },
   sheet: {
     maxHeight: '86%',
-    backgroundColor: C.bg,
+    backgroundColor: GLASS.surfaceStrong, // 高可读玻璃面：正文承载在 78% 白面上，对比度仍达标
     borderTopLeftRadius: R.lg,
     borderTopRightRadius: R.lg,
+    overflow: 'hidden', // 裁掉 BlurView 模糊边缘，玻璃圆角干净
     paddingHorizontal: 16,
     paddingTop: 8,
   },
