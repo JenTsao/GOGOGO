@@ -1,6 +1,7 @@
-import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform, StyleSheet } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform, StyleSheet, BackHandler } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import Constants from 'expo-constants';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -68,6 +69,19 @@ export default function ProfileScreen() {
   const toggleSec = (k: Sec) => setOpenSec((s) => ({ ...s, [k]: !s[k] }));
 
   useEffect(() => { void init(); }, [init]);
+
+  // 总设置是页内二级视图：拦截系统返回，回到「我的」中心，而不是跳出到驾驶舱 Tab
+  useFocusEffect(
+    useCallback(() => {
+      if (view !== 'settings') return undefined;
+      const onBack = () => {
+        setView('hub');
+        return true;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => sub.remove();
+    }, [view])
+  );
 
   const today = localDateStr(new Date());
   const gaokaoDays = useMemo(() => daysToGaokao(), []);
