@@ -6,7 +6,8 @@ import { useAiStore } from '@/store/aiStore';
 import { CodeSandbox } from '@/components/CodeSandbox';
 import { KnowledgeView } from '@/components/KnowledgeView';
 import { MistakeView } from '@/components/MistakeView';
-import { R, cardShadow, glassEdge, glassShadow, themedStyles, usePalette, useScheme } from '@/theme';
+import { GlassCard } from '@/components/Glass';
+import { R, cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
 
 // Tab 2：弹药库（工具与知识）
 // 顶部切换：[代码沙盒] | [知识库] | [错题本]
@@ -52,25 +53,29 @@ export default function ArsenalScreen() {
 
         {/* 业务入口：生成错题本 / 编译输出 */}
         <Text style={styles.sectionTitle}>快捷生成</Text>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => runAction('生成错题本')} activeOpacity={0.85}>
-          <View style={[styles.actionIcon, styles.iconRed]}>
-            <Ionicons name="library" size={18} color={C.red} />
-          </View>
-          <View style={styles.actionText}>
-            <Text style={styles.actionBtnText}>生成错题本</Text>
-            <Text style={styles.actionHint}>汇总全部错题，AI 精炼成终极复习卡片</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={C.text3} />
+        <TouchableOpacity onPress={() => runAction('生成错题本')} activeOpacity={0.85}>
+          <GlassCard style={styles.actionBtn}>
+            <View style={[styles.actionIcon, styles.iconRed]}>
+              <Ionicons name="library" size={18} color={C.red} />
+            </View>
+            <View style={styles.actionText}>
+              <Text style={styles.actionBtnText}>生成错题本</Text>
+              <Text style={styles.actionHint}>汇总全部错题，AI 精炼成终极复习卡片</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={C.text3} />
+          </GlassCard>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => runAction('编译输出')} activeOpacity={0.85}>
-          <View style={[styles.actionIcon, styles.iconBlue]}>
-            <Ionicons name="archive" size={18} color={C.blue} />
-          </View>
-          <View style={styles.actionText}>
-            <Text style={styles.actionBtnText}>编译输出</Text>
-            <Text style={styles.actionHint}>一键生成 PDF 复习 / Anki 卡片包 / 纯文本大纲</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={C.text3} />
+        <TouchableOpacity onPress={() => runAction('编译输出')} activeOpacity={0.85}>
+          <GlassCard style={styles.actionBtn}>
+            <View style={[styles.actionIcon, styles.iconBlue]}>
+              <Ionicons name="archive" size={18} color={C.blue} />
+            </View>
+            <View style={styles.actionText}>
+              <Text style={styles.actionBtnText}>编译输出</Text>
+              <Text style={styles.actionHint}>一键生成 PDF 复习 / Anki 卡片包 / 纯文本大纲</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={C.text3} />
+          </GlassCard>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -103,15 +108,12 @@ const STYLES = themedStyles((C) => ({
   bodyContent: { padding: 16, paddingBottom: 96 },
   sectionTitle: { fontSize: 17, fontWeight: '700', marginTop: 24, marginBottom: 10, color: C.text },
   actionBtn: {
-    backgroundColor: C.glassSurface, // 液态玻璃卡：半透面 + 受光描边 + 液态柔影
     borderRadius: R.md,
     padding: 14,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    ...glassEdge(C),
-    ...glassShadow,
   },
   actionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   iconRed: { backgroundColor: C.redSoft },
