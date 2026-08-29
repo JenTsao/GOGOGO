@@ -14,19 +14,20 @@ import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 import { useAiStore, STATUS_EMOTION } from '@/store/aiStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { describeToolCall } from '@/lib/aiTools';
 import { C, R, cardShadow } from '@/theme';
 
-// 本地 asset（需 metro.config.js 把 html 列入 assetExts）+ 远程兜底
-const BALL_MODULE = require('../../assets/grok-ball/ball.html');
-const BALL_REMOTE =
-  'https://raw.githubusercontent.com/JenTsao/GOGOGO/main/apps/mobile/assets/grok-ball/ball.html';
+// 完整 grok-ball（32 表情）HTML 源：优先国内可达 CDN，再 GitHub raw；首次成功后写入本地缓存
+const BALL_URLS = [
+  'https://cdn.jsdelivr.net/gh/JenTsao/GOGOGO@main/apps/mobile/assets/grok-ball/ball.html',
+  'https://fastly.jsdelivr.net/gh/JenTsao/GOGOGO@main/apps/mobile/assets/grok-ball/ball.html',
+  'https://raw.githubusercontent.com/JenTsao/GOGOGO/main/apps/mobile/assets/grok-ball/ball.html',
+];
+const BALL_CACHE = `${FileSystem.cacheDirectory}grok-ball.html`;
 
-// AI 悬浮球：完整 grok-ball（32 表情）+ 多供应商 LLM 对话
 export function AiOrb() {
   const { visible, status, open, close, messages, ask, confirmToolCall, cancelToolCall } = useAiStore();
   const { llmModel } = useSettingsStore();
@@ -34,10 +35,7 @@ export function AiOrb() {
   const scrollRef = useRef<ScrollView>(null);
   const [ready, setReady] = useState(false);
   const [orbFailed, setOrbFailed] = useState(false);
-  // html 字符串注入最稳；失败再退到 remote uri；再失败才静态占位
-  const [ballSource, setBallSource] = useState<
-    { html: string } | { uri: string } | null
-  >(null);
+  const [ballHtml, setBallHtml] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const insets = useSafeAreaInsets();
   const busy = status === 'thinking' || status === 'searching' || status === 'generating';
@@ -45,25 +43,42 @@ export function AiOrb() {
   const post = (obj: Record<string, unknown>) =>
     webviewRef.current?.postMessage(JSON.stringify(obj));
 
-  // 解析 ball：本地 asset → 读成字符串 → source={{ html }}；失败则用 GitHub raw
+  // 加载完整球：缓存 → CDN 拉取 → 写缓存；全程不 require .html，避免 Metro 打包失败
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const asset = Asset.fromModule(BALL_MODULE);
-        await asset.downloadAsync();
-        const uri = asset.localUri || asset.uri;
-        if (uri) {
-          const html = await FileSystem.readAsStringAsync(uri);
-          if (html && html.includes('GrokBall') && !cancelled) {
-            setBallSource({ html });
+        const info = await FileSystem.getInfoAsync(BALL_CACHE);
+        if (info.exists) {
+          const cached = await FileSystem.readAsStringAsync(BALL_CACHE);
+          if (cached.includes('GrokBall') && !cancelled) {
+            setBallHtml(cached);
             return;
           }
         }
       } catch {
-        // fall through to remote
+        // ignore cache miss
       }
-      if (!cancelled) setBallSource({ uri: BALL_REMOTE });
+
+      for (const url of BALL_URLS) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const html = await res.text();
+          if (!html.includes('GrokBall')) continue;
+          try {
+            await FileSystem.writeAsStringAsync(BALL_CACHE, html);
+          } catch {
+            // cache write optional
+          }
+          if (!cancelled) setBallHtml(html);
+          return;
+        } catch {
+          // try next url
+        }
+      }
+
+      if (!cancelled) setOrbFailed(true);
     })();
     return () => {
       cancelled = true;
@@ -83,18 +98,21 @@ export function AiOrb() {
   return (
     <>
       <View style={[styles.orbWrap, cardShadow]} pointerEvents="box-none">
-        {orbFailed || !ballSource ? (
+        {orbFailed || !ballHtml ? (
           <TouchableOpacity style={styles.orbFallback} onPress={open} activeOpacity={0.85}>
-            <Ionicons name="sparkles" size={30} color="#f5f5f5" />
+            {/* 加载中也显示黑球，避免长时间只见闪星 */}
+            <View style={styles.orbLoading}>
+              {!orbFailed ? (
+                <ActivityIndicator size="small" color="#f5f5f5" />
+              ) : (
+                <Ionicons name="sparkles" size={30} color="#f5f5f5" />
+              )}
+            </View>
           </TouchableOpacity>
         ) : (
           <WebView
             ref={webviewRef}
-            source={
-              'html' in ballSource
-                ? { html: ballSource.html, baseUrl: '' }
-                : { uri: ballSource.uri }
-            }
+            source={{ html: ballHtml, baseUrl: 'https://localhost/' }}
             style={styles.orb}
             containerStyle={styles.orbContainer}
             originWhitelist={['*']}
@@ -107,24 +125,10 @@ export function AiOrb() {
             overScrollMode="never"
             setSupportMultipleWindows={false}
             androidLayerType="hardware"
+            nestedScrollEnabled={false}
             {...(Platform.OS === 'android' ? { mixedContentMode: 'always' as const } : {})}
-            onError={() => {
-              // 本地 html 失败时再试远程；远程也失败才占位
-              if (ballSource && 'html' in ballSource) {
-                setBallSource({ uri: BALL_REMOTE });
-                setReady(false);
-              } else {
-                setOrbFailed(true);
-              }
-            }}
-            onHttpError={() => {
-              if (ballSource && 'html' in ballSource) {
-                setBallSource({ uri: BALL_REMOTE });
-                setReady(false);
-              } else {
-                setOrbFailed(true);
-              }
-            }}
+            onError={() => setOrbFailed(true)}
+            onHttpError={() => setOrbFailed(true)}
             onMessage={(e) => {
               let msg: { type: string };
               try {
@@ -302,6 +306,12 @@ const styles = StyleSheet.create({
     height: 75,
     borderRadius: 37.5,
     backgroundColor: '#1a1a1a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orbLoading: {
+    width: 75,
+    height: 75,
     alignItems: 'center',
     justifyContent: 'center',
   },
