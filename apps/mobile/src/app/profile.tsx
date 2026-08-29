@@ -1,6 +1,9 @@
 import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
+import Constants from 'expo-constants';
+import * as IntentLauncher from 'expo-intent-launcher';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAuthStore } from '@/store/authStore';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
@@ -20,6 +23,33 @@ export default function ProfileScreen() {
     supabaseUrl, supabaseAnonKey, accessKey, tavilyKey, webApiUrl, update,
   } = useSettingsStore();
   const { reminders, addReminder, removeReminder } = useReminderStore();
+  const insets = useSafeAreaInsets(); // 打孔屏/手势条安全区
+
+  // 后台保活：OriginOS 5（iQOO Neo10 等 vivo 系）默认管控自启动与后台耗电，
+  // 未加白名单时 expo-background-fetch / 当日提醒通知 / 凌晨备课预取都会被杀。
+  // 三级降级：vivo 自启动管理器（ComponentName 直启）→ 本应用详情页 → 系统应用列表
+  const openKeepAlive = async () => {
+    try {
+      await IntentLauncher.startActivityAsync('android.intent.action.MAIN', {
+        category: 'android.intent.category.LAUNCHER',
+        packageName: 'com.vivo.permissionmanager',
+        className: 'com.vivo.permissionmanager.activity.BgStartUpManager',
+      });
+      return;
+    } catch {
+      // 组件不存在（非 vivo 系 / 版本变更）→ 退回应用详情页，页面内含通知/电池/自启动入口
+    }
+    try {
+      const pkg = Constants.expoConfig?.android?.package ?? 'com.gaokao.copilot';
+      await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.APPLICATION_DETAILS_SETTINGS, {
+        data: `package:${pkg}`,
+      });
+      return;
+    } catch {
+      // data 不被支持时退回应用列表
+    }
+    await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.APPLICATION_SETTINGS).catch(() => {});
+  };
 
   // 账号登录（多设备一致）：会话恢复 + 变更订阅在 store 内幂等处理
   const { email: authEmail, busy: authBusy, error: authError, init, signIn, signUp, signOut } = useAuthStore();
@@ -131,7 +161,10 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+    >
       {/* AI 模型 */}
       <View style={styles.section}>
         <View style={styles.sectionHead}>
@@ -593,6 +626,21 @@ export default function ProfileScreen() {
           )}
         </TouchableOpacity>
         {!!syncResult && <Text style={styles.syncResult}>{syncResult}</Text>}
+      </View>
+
+      {/* 后台保活：OriginOS（iQOO/vivo 系）默认管控，影响后台唤醒与提醒通知 */}
+      <View style={styles.section}>
+        <View style={styles.sectionHead}>
+          <Ionicons name="shield-checkmark-outline" size={16} color={C.orange} />
+          <Text style={styles.sectionTitle}>后台保活（iQOO / vivo / OriginOS）</Text>
+        </View>
+        <Text style={styles.placeholder}>
+          OriginOS 默认管控后台：若当日提醒、凌晨备课预取不生效，请允许本应用「自启动」并关闭后台高耗电限制。
+        </Text>
+        <TouchableOpacity style={styles.button} onPress={openKeepAlive} activeOpacity={0.85}>
+          <Ionicons name="open-outline" size={16} color="#fff" />
+          <Text style={styles.buttonText}>去设置自启动</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );

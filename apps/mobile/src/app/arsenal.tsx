@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAiStore } from '@/store/aiStore';
 import { CodeSandbox } from '@/components/CodeSandbox';
 import { KnowledgeView } from '@/components/KnowledgeView';
@@ -13,6 +14,7 @@ import { C, R, cardShadow } from '@/theme';
 export default function ArsenalScreen() {
   const [tab, setTab] = useState<'code' | 'knowledge' | 'mistake'>('code');
   const runAction = useAiStore((s) => s.runAction);
+  const insets = useSafeAreaInsets();
 
   const TABS: { key: 'code' | 'knowledge' | 'mistake'; label: string; icon: string }[] = [
     { key: 'code', label: '沙盒', icon: 'code-slash' },
@@ -21,7 +23,7 @@ export default function ArsenalScreen() {
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
       {/* 分段控制器：滑动胶囊选中态 */}
       <View style={styles.switch}>
         {TABS.map((t) => (

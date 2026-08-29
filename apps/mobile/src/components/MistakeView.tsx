@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
@@ -49,6 +50,7 @@ async function persistAudio(tempUri: string): Promise<string> {
 export function MistakeView() {
   const { mistakes, addMistake, removeMistake, syncAll, markCorrect, setTranscript } = useMistakeStore();
   const { webApiUrl, accessKey, llmBaseUrl, llmApiKey, sttBaseUrl, sttApiKey, sttModel, visionBaseUrl, visionApiKey, visionModel } = useSettingsStore();
+  const insets = useSafeAreaInsets(); // 打孔屏安全区：详情/收录弹窗顶部避让
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -346,8 +348,13 @@ export function MistakeView() {
       )}
 
       {/* 详情弹窗 */}
-      <Modal visible={!!detail} animationType="slide" onRequestClose={() => setDetail(null)}>
-        <ScrollView style={styles.detail} contentContainerStyle={styles.detailContent}>
+      <Modal
+        visible={!!detail}
+        animationType="slide"
+        statusBarTranslucent // 全屏延伸进状态栏区，顶部用 insets 避让挖孔
+        onRequestClose={() => setDetail(null)}
+      >
+        <ScrollView style={[styles.detail, { paddingTop: insets.top + 16 }]} contentContainerStyle={styles.detailContent}>
           <TouchableOpacity style={styles.closeBtn} onPress={() => setDetail(null)} activeOpacity={0.85}>
             <Ionicons name="chevron-back" size={20} color={C.primary} />
             <Text style={styles.closeBtnText}>返回</Text>
@@ -460,8 +467,13 @@ export function MistakeView() {
       </Modal>
 
       {/* 收录弹窗 */}
-      <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
-        <ScrollView style={styles.detail} contentContainerStyle={styles.detailContent}>
+      <Modal
+        visible={pickerOpen}
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setPickerOpen(false)}
+      >
+        <ScrollView style={[styles.detail, { paddingTop: insets.top + 16 }]} contentContainerStyle={styles.detailContent}>
           <TouchableOpacity style={styles.closeBtn} onPress={() => setPickerOpen(false)} activeOpacity={0.85}>
             <Ionicons name="chevron-back" size={20} color={C.primary} />
             <Text style={styles.closeBtnText}>取消</Text>

@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import Svg, { Polygon, Polyline, Line, Circle, Text as SvgText } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { Fragment, useMemo, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusStore } from '@/store/focusStore';
 import { useTaskStore } from '@/store/taskStore';
 import { useKnowledgeStore } from '@/store/knowledgeStore';
@@ -42,6 +43,7 @@ function polygonPoints(scores: number[], r: number): string {
 }
 
 export default function DashboardScreen() {
+  const insets = useSafeAreaInsets(); // 打孔屏/手势条安全区
   const sessions = useFocusStore((s) => s.sessions);
   const top3 = useTaskStore((s) => s.top3);
   const history = useTaskStore((s) => s.history);
@@ -261,7 +263,10 @@ export default function DashboardScreen() {
 
   return (
     <>
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+    >
       <MoodCheckin />
 
       <Text style={styles.cardTitle}>我的画像</Text>
@@ -482,8 +487,16 @@ export default function DashboardScreen() {
     </ScrollView>
 
       {/* 全屏画像详情（蓝皮书：点击画像卡进入，含分维解读与横向对标差距） */}
-      <Modal visible={detailOpen} animationType="slide" onRequestClose={() => setDetailOpen(false)}>
-        <ScrollView style={styles.modalWrap} contentContainerStyle={styles.modalContent}>
+      <Modal
+        visible={detailOpen}
+        animationType="slide"
+        statusBarTranslucent // 延伸进状态栏区，顶部用 insets 避让（替代硬编码 56，不同机型挖孔高度不一）
+        onRequestClose={() => setDetailOpen(false)}
+      >
+        <ScrollView
+          style={styles.modalWrap}
+          contentContainerStyle={[styles.modalContent, { paddingTop: insets.top + 16 }]}
+        >
           <View style={styles.modalHeader}>
             <View style={styles.modalTitleRow}>
               <Ionicons name="compass" size={20} color={CLR.primary} />
@@ -679,7 +692,7 @@ const styles = StyleSheet.create({
   cloudCount: { color: '#e08a8a', fontSize: 11 },
   // 全屏画像详情
   modalWrap: { flex: 1, backgroundColor: CLR.bg },
-  modalContent: { padding: 16, paddingTop: 56, paddingBottom: 48 },
+  modalContent: { padding: 16, paddingTop: 16, paddingBottom: 48 }, // paddingTop 由 insets 动态覆盖
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   modalTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   modalTitle: { fontSize: 22, fontWeight: '800', color: CLR.text },

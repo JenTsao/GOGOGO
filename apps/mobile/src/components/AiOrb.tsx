@@ -10,7 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   PanResponder,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
@@ -49,11 +49,12 @@ export function AiOrb() {
   const insets = useSafeAreaInsets();
   const busy = status === 'thinking' || status === 'searching' || status === 'generating';
 
-  const { width: sw, height: sh } = Dimensions.get('window');
-  // 默认右下角（避开底部 Tab 约 76pt）
+  // 响应式视口：分屏/旋屏/折叠屏尺寸变化时拖拽边界与初始位置都随之更新
+  const { width: sw, height: sh } = useWindowDimensions();
+  // 默认右下角（避开底部 Tab 栏内容高 60 + 手势条安全区；与 _layout 的 TAB_BAR_CONTENT_HEIGHT 保持一致）
   const [pos, setPos] = useState({
     x: sw - EDGE - ORB_SIZE - 8,
-    y: sh - insets.bottom - 76 - ORB_SIZE - 8,
+    y: sh - insets.bottom - 60 - ORB_SIZE - 8,
   });
   const posRef = useRef(pos);
   posRef.current = pos;
@@ -94,6 +95,18 @@ export function AiOrb() {
       }),
     [sw, sh, insets.top, insets.bottom, open]
   );
+
+  // 视口尺寸变化后把悬浮球拉回可视范围（避免停在新边界外不可拖回）
+  useEffect(() => {
+    setPos((p) => ({
+      x: clamp(p.x, EDGE, Math.max(EDGE, sw - ORB_SIZE - EDGE)),
+      y: clamp(
+        p.y,
+        Math.max(insets.top, EDGE),
+        Math.max(Math.max(insets.top, EDGE), sh - ORB_SIZE - Math.max(insets.bottom, EDGE))
+      ),
+    }));
+  }, [sw, sh, insets.top, insets.bottom]);
 
   useEffect(() => {
     let cancelled = false;
@@ -200,7 +213,13 @@ export function AiOrb() {
         )}
       </View>
 
-      <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent
+        statusBarTranslucent // 半透明遮罩盖到状态栏区，顶部不留未压暗缝隙
+        onRequestClose={close}
+      >
         <KeyboardAvoidingView
           style={styles.sheetWrap}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}

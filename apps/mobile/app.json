@@ -3,7 +3,8 @@
     "name": "高考副驾驶",
     "slug": "gaokao-copilot",
     "scheme": "gaokao",
-    "userInterfaceStyle": "automatic",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "assetBundlePatterns": ["**/*"],
     "ios": {

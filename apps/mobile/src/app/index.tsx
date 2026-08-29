@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { useTaskStore } from '@/store/taskStore';
@@ -22,6 +24,8 @@ export default function CockpitScreen() {
   const { seconds, running, sessions, start, stop } = useFocusStore();
   const { weatherKey, weatherCity, supabaseUrl, supabaseAnonKey, accessKey } = useSettingsStore();
   const reminders = useReminderStore((s) => s.reminders);
+  // 顶部安全区：iQOO Neo10 等打孔屏在 translucent 状态栏下内容会顶进挖孔，必须避让
+  const insets = useSafeAreaInsets();
 
   const [draft, setDraft] = useState('');
   const [weather, setWeather] = useState<{ temp: number; desc: string } | null>(null);
@@ -227,7 +231,12 @@ export default function CockpitScreen() {
 
   return (
     <>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* 心流期间隐藏状态栏（打孔屏沉浸），退出后由 expo-status-bar 栈自动恢复 */}
+      <StatusBar hidden={inFlow} animated />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      >
         {/* 顶部状态栏：问候 + 日期天气 */}
         <View style={styles.topBar}>
           <View>
@@ -470,8 +479,13 @@ export default function CockpitScreen() {
       </ScrollView>
 
       {/* 全屏心流模式：黑底倒计时 + 本应用通知静默 + 系统免打扰深链 */}
-      <Modal visible={inFlow} animationType="fade" onRequestClose={exitFlow}>
-        <View style={styles.flow}>
+      <Modal
+        visible={inFlow}
+        animationType="fade"
+        statusBarTranslucent // 黑底延伸进状态栏区，配合 StatusBar hidden 实现打孔屏沉浸
+        onRequestClose={exitFlow}
+      >
+        <View style={[styles.flow, { paddingTop: insets.top }]}>
           <View style={styles.flowBadge}>
             <Ionicons name="moon" size={14} color="#8b7fc7" />
             <Text style={styles.flowHint}>心流进行中 · 通知已静默</Text>
