@@ -228,15 +228,10 @@ export default function CockpitScreen() {
       <StatusBar hidden={inFlow} animated />
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 10 }]}
         keyboardShouldPersistTaps="handled"
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={C.primary}
-            colors={[C.primary]}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />
         }
       >
         <View style={styles.topBar}>
@@ -305,7 +300,7 @@ export default function CockpitScreen() {
           <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => setKnowledgeFlipped((v) => !v)}>
             <View style={styles.cardHead}>
               <View style={[styles.cardBadge, styles.badgeBlue]}>
-                <Ionicons name="book" size={14} color={C.blue} />
+                <Ionicons name="book" size={13} color={C.blue} />
               </View>
               <Text style={styles.cardTitle}>每日知识点</Text>
               <Ionicons name={knowledgeFlipped ? 'chevron-up' : 'chevron-down'} size={16} color={C.text3} />
@@ -321,7 +316,7 @@ export default function CockpitScreen() {
           <View style={styles.card}>
             <View style={styles.cardHead}>
               <View style={[styles.cardBadge, styles.badgePurple]}>
-                <Ionicons name="pencil" size={14} color={C.primary} />
+                <Ionicons name="pencil" size={13} color={C.primary} />
               </View>
               <Text style={styles.cardTitle}>每日一题</Text>
             </View>
@@ -370,18 +365,14 @@ export default function CockpitScreen() {
                 {dailyState === 'loading' ? (
                   <ActivityIndicator size="small" color={C.primary} />
                 ) : (
-                  <Ionicons name="cloud-outline" size={14} color={C.primary} />
+                  <Ionicons name="cloud-outline" size={13} color={C.primary} />
                 )}
               </View>
               <Text style={styles.cardTitle}>每日备课</Text>
-              {dailyState === 'unconfigured' && (
-                <Ionicons name="chevron-forward" size={16} color={C.primary} />
-              )}
+              {dailyState === 'unconfigured' && <Ionicons name="chevron-forward" size={16} color={C.primary} />}
             </View>
             <Text style={styles.setupText}>{dailyStateText}</Text>
-            {dailyState === 'unconfigured' && (
-              <Text style={styles.setupCta}>去「我的」完成云端配置 →</Text>
-            )}
+            {dailyState === 'unconfigured' && <Text style={styles.setupCta}>去「我的」完成云端配置 →</Text>}
             {(dailyState === 'error' || dailyState === 'empty') && (
               <Text style={styles.setupCta}>轻点重试 · 也可下拉刷新</Text>
             )}
@@ -391,7 +382,7 @@ export default function CockpitScreen() {
         <View style={styles.card}>
           <View style={styles.cardHead}>
             <View style={[styles.cardBadge, styles.badgeGreen]}>
-              <Ionicons name="flag" size={14} color={C.green} />
+              <Ionicons name="flag" size={13} color={C.green} />
             </View>
             <Text style={styles.cardTitle}>今日三件事</Text>
             <Text style={styles.sectionMeta}>{top3Done}/{top3.length || 0}</Text>
@@ -403,8 +394,8 @@ export default function CockpitScreen() {
           )}
           {top3.length === 0 && (
             <View style={styles.emptyBox}>
-              <Ionicons name="checkbox-outline" size={22} color={C.text3} />
-              <Text style={styles.empty}>添加最多 3 件今日要事，完成后会自动累计</Text>
+              <Ionicons name="checkbox-outline" size={20} color={C.text3} />
+              <Text style={styles.empty}>添加最多 3 件今日要事</Text>
             </View>
           )}
           {top3.map((t) => (
@@ -473,7 +464,7 @@ export default function CockpitScreen() {
         <View style={styles.card}>
           <View style={styles.cardHead}>
             <View style={[styles.cardBadge, styles.badgePurple]}>
-              <Ionicons name="headset" size={14} color={C.primary} />
+              <Ionicons name="headset" size={13} color={C.primary} />
             </View>
             <Text style={styles.cardTitle}>专注模式</Text>
             {todayFocusMin > 0 && (
@@ -484,7 +475,7 @@ export default function CockpitScreen() {
             )}
           </View>
           <TouchableOpacity style={styles.focusBtn} onPress={enterFlow} activeOpacity={0.9}>
-            <Ionicons name="play" size={18} color={C.onPrimary} />
+            <Ionicons name="play" size={17} color={C.onPrimary} />
             <Text style={styles.focusBtnText}>进入心流</Text>
           </TouchableOpacity>
           {sessions.length > 0 && (
@@ -517,85 +508,86 @@ export default function CockpitScreen() {
 
 const STYLES = themedStyles((C) => ({
   container: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 16, paddingBottom: 100 },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
+  content: { paddingHorizontal: 16, paddingBottom: 104 },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
   topBarLeft: { flex: 1, marginRight: 10 },
-  greeting: { color: C.text, fontSize: 19, fontWeight: '700', letterSpacing: 0.2 },
-  date: { color: C.text3, fontSize: 13, marginTop: 4 },
+  greeting: { color: C.text, fontSize: 18, fontWeight: '700', letterSpacing: 0.15 },
+  date: { color: C.text3, fontSize: 12, marginTop: 3, lineHeight: 17 },
   weatherChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: C.primarySoft, borderRadius: R.pill,
-    paddingHorizontal: 10, paddingVertical: 7, marginTop: 2, maxWidth: 120,
+    paddingHorizontal: 10, paddingVertical: 6, marginTop: 2, maxWidth: 120,
   },
   weatherChipText: { color: C.primaryDeep, fontSize: 12, fontWeight: '600' },
-  card: { backgroundColor: C.card, borderRadius: R.lg, padding: 16, marginTop: 12, ...cardShadow },
+  card: { backgroundColor: C.card, borderRadius: R.lg, padding: 14, marginTop: 10, ...cardShadow },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardBadge: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  cardBadge: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   badgePurple: { backgroundColor: C.primarySoft },
   badgeBlue: { backgroundColor: C.blueSoft },
   badgeGreen: { backgroundColor: C.greenSoft },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: C.text, flex: 1 },
-  sectionMeta: { fontSize: 13, color: C.text3, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  heroCard: { alignItems: 'center', paddingVertical: 28, backgroundColor: C.primary },
-  heroLabel: { color: C.onPrimary, fontSize: 13, letterSpacing: 2.5, fontWeight: '600', opacity: 0.78 },
-  heroDays: { color: C.onPrimary, fontSize: 64, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 6 },
-  heroUnit: { fontSize: 22, fontWeight: '600', color: C.onPrimary, opacity: 0.8 },
-  heroPrecise: { color: C.onPrimary, fontSize: 36, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 12 },
-  heroUnitSm: { fontSize: 16, fontWeight: '500', color: C.onPrimary, opacity: 0.65 },
-  heroHint: { color: C.onPrimary, fontSize: 11, marginTop: 12, opacity: 0.5 },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: C.text, flex: 1 },
+  sectionMeta: { fontSize: 12, color: C.text3, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  heroCard: { alignItems: 'center', paddingVertical: 22, backgroundColor: C.primary },
+  heroLabel: { color: C.onPrimary, fontSize: 12, letterSpacing: 2, fontWeight: '600', opacity: 0.78 },
+  heroDays: { color: C.onPrimary, fontSize: 56, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 4 },
+  heroUnit: { fontSize: 20, fontWeight: '600', color: C.onPrimary, opacity: 0.8 },
+  heroPrecise: { color: C.onPrimary, fontSize: 32, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 8 },
+  heroUnitSm: { fontSize: 15, fontWeight: '500', color: C.onPrimary, opacity: 0.65 },
+  heroHint: { color: C.onPrimary, fontSize: 11, marginTop: 8, opacity: 0.5 },
   reminderBanner: {
     backgroundColor: C.orangeSoft, borderRadius: R.md,
-    paddingVertical: 11, paddingHorizontal: 14, marginTop: 12, gap: 4,
+    paddingVertical: 10, paddingHorizontal: 12, marginTop: 10, gap: 4,
   },
   reminderRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  reminderText: { color: C.amberDeep, fontSize: 14, lineHeight: 22, flex: 1 },
+  reminderText: { color: C.amberDeep, fontSize: 13, lineHeight: 20, flex: 1 },
   setupCard: { borderWidth: 1, borderColor: C.border },
-  setupText: { fontSize: 13, color: C.text3, marginTop: 8, lineHeight: 20 },
-  setupCta: { fontSize: 13, color: C.primary, fontWeight: '700', marginTop: 10 },
-  knowledgeBody: { fontSize: 15, color: C.text, lineHeight: 24, marginTop: 10 },
-  knowledgeHint: { fontSize: 12, color: C.text3, marginTop: 8 },
-  questionText: { fontSize: 15, color: C.text, lineHeight: 24, marginTop: 10 },
-  answerBox: { flexDirection: 'row', gap: 6, backgroundColor: C.greenSoft, borderRadius: R.sm, padding: 10, marginTop: 10 },
-  answerText: { fontSize: 14, color: C.greenDeep, lineHeight: 21, flex: 1 },
-  questionBtnRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  setupText: { fontSize: 13, color: C.text3, marginTop: 8, lineHeight: 19 },
+  setupCta: { fontSize: 13, color: C.primary, fontWeight: '700', marginTop: 8 },
+  knowledgeBody: { fontSize: 14, color: C.text, lineHeight: 22, marginTop: 8 },
+  knowledgeHint: { fontSize: 12, color: C.text3, marginTop: 6 },
+  questionText: { fontSize: 14, color: C.text, lineHeight: 22, marginTop: 8 },
+  answerBox: { flexDirection: 'row', gap: 6, backgroundColor: C.greenSoft, borderRadius: R.sm, padding: 10, marginTop: 8 },
+  answerText: { fontSize: 13, color: C.greenDeep, lineHeight: 20, flex: 1 },
+  questionBtnRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   qBtn: {
     flex: 1, flexDirection: 'row', borderWidth: 1, borderColor: C.border, borderRadius: R.sm,
-    paddingVertical: 11, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.card,
+    paddingVertical: 10, alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: C.card,
   },
   qBtnDark: { backgroundColor: C.primary, borderColor: C.primary },
-  qBtnText: { fontSize: 14, fontWeight: '600', color: C.text2 },
+  qBtnText: { fontSize: 13, fontWeight: '600', color: C.text2 },
   qBtnTextDark: { color: C.onPrimary },
-  emptyBox: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
-  empty: { color: C.text3, fontSize: 13, lineHeight: 19, flex: 1 },
-  progressTrack: { height: 4, backgroundColor: C.surfaceAlt, borderRadius: 2, marginTop: 10, marginBottom: 2, overflow: 'hidden' },
-  progressFill: { height: 4, backgroundColor: C.green, borderRadius: 2 },
-  taskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, marginTop: 4 },
-  taskCheck: { marginRight: 8 },
+  emptyBox: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  empty: { color: C.text3, fontSize: 13, lineHeight: 18, flex: 1 },
+  progressTrack: { height: 3, backgroundColor: C.surfaceAlt, borderRadius: 2, marginTop: 8, marginBottom: 2, overflow: 'hidden' },
+  progressFill: { height: 3, backgroundColor: C.green, borderRadius: 2 },
+  taskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, marginTop: 2 },
+  taskCheck: { marginRight: 6 },
   taskMain: { flex: 1 },
-  taskItem: { fontSize: 15, paddingVertical: 4, color: C.text, lineHeight: 22 },
+  taskItem: { fontSize: 14, paddingVertical: 3, color: C.text, lineHeight: 20 },
   taskDone: { color: C.text3, textDecorationLine: 'line-through' },
-  taskItemBacklog: { fontSize: 14, paddingVertical: 4, color: C.text2 },
-  taskBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
-  backlogBox: { marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border },
-  backlogTitle: { fontSize: 13, fontWeight: '600', color: C.text3, marginBottom: 2 },
-  inputRow: { flexDirection: 'row', marginTop: 12, gap: 8 },
+  taskItemBacklog: { fontSize: 13, paddingVertical: 3, color: C.text2 },
+  taskBtn: { width: 34, height: 34, borderRadius: 9, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
+  backlogBox: { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border },
+  backlogTitle: { fontSize: 12, fontWeight: '600', color: C.text3, marginBottom: 2 },
+  inputRow: { flexDirection: 'row', marginTop: 10, gap: 6 },
   input: {
     flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: R.sm,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, backgroundColor: C.bg, color: C.text,
+    paddingHorizontal: 11, paddingVertical: 9, fontSize: 14, backgroundColor: C.bg, color: C.text,
   },
-  addBtn: { backgroundColor: C.primary, borderRadius: R.sm, paddingHorizontal: 14, justifyContent: 'center', minHeight: 42 },
+  addBtn: { backgroundColor: C.primary, borderRadius: R.sm, paddingHorizontal: 12, justifyContent: 'center', minHeight: 40 },
   addBtnMuted: { opacity: 0.55 },
-  addBtnText: { color: C.onPrimary, fontSize: 14, fontWeight: '600' },
+  addBtnText: { color: C.onPrimary, fontSize: 13, fontWeight: '600' },
   addBtnGhost: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
-  addBtnTextGhost: { color: C.text2, fontSize: 14, fontWeight: '600' },
+  addBtnTextGhost: { color: C.text2, fontSize: 13, fontWeight: '600' },
   focusMeta: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  focusMetaText: { fontSize: 13, color: C.primary, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  focusMetaText: { fontSize: 12, color: C.primary, fontWeight: '600', fontVariant: ['tabular-nums'] },
   focusBtn: {
-    marginTop: 14, backgroundColor: C.primary, borderRadius: R.md, padding: 16,
+    marginTop: 12, backgroundColor: C.primary, borderRadius: R.md,
+    paddingVertical: 13, paddingHorizontal: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  focusBtnText: { color: C.onPrimary, fontSize: 16, fontWeight: '700' },
-  sessionHint: { marginTop: 10, color: C.text3, fontSize: 13, textAlign: 'center' },
+  focusBtnText: { color: C.onPrimary, fontSize: 15, fontWeight: '700' },
+  sessionHint: { marginTop: 8, color: C.text3, fontSize: 12, textAlign: 'center' },
   flow: { flex: 1, backgroundColor: C.ink, alignItems: 'center', justifyContent: 'center' },
   flowBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1,
@@ -603,7 +595,7 @@ const STYLES = themedStyles((C) => ({
     paddingHorizontal: 14, paddingVertical: 7,
   },
   flowHint: { color: C.inkSub, fontSize: 13, letterSpacing: 2 },
-  flowTimer: { color: FLOW_BRIGHT, fontSize: 72, fontWeight: '200', marginVertical: 36, fontVariant: ['tabular-nums'] },
+  flowTimer: { color: FLOW_BRIGHT, fontSize: 68, fontWeight: '200', marginVertical: 32, fontVariant: ['tabular-nums'] },
   flowStop: {
     borderWidth: 1, borderColor: C.glassDarkBorder, backgroundColor: C.glassDark,
     borderRadius: 24, paddingHorizontal: 32, paddingVertical: 12,
