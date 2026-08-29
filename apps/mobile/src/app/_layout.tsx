@@ -7,14 +7,15 @@ import { StatusBar } from 'expo-status-bar';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { initBackgroundSync } from '@/lib/background';
-import { C, GLASS } from '@/theme';
+import { usePalette, useScheme } from '@/theme';
 
 // Tab 栏液态玻璃背景：真模糊（Android 经 dimezis 引擎；iOS 原生 UIVisualEffectView）
 // 半透明玻璃面叠在模糊层上，低性能设备自动降级为纯半透明染色
-const GLASS_TAB_BACKGROUND = () => (
+// tint 随主题切换：浅色玻璃提亮下层内容，深色玻璃压暗（BlurView 自带材质，无法用调色板直接控制）
+const GlassTabBackground = ({ tint }: { tint: 'light' | 'dark' }) => (
   <BlurView
-    intensity={40}
-    tint="light"
+    intensity={tint === 'dark' ? 55 : 40}
+    tint={tint}
     experimentalBlurMethod="dimezisBlurView"
     style={StyleSheet.absoluteFill}
   />
@@ -35,6 +36,8 @@ const TAB_BAR_CONTENT_HEIGHT = 60;
 // 底部 4 个 Tab + 全局 AI 悬浮球
 export default function RootLayout() {
   const insets = useSafeAreaInsets();
+  const C = usePalette();
+  const scheme = useScheme();
 
   // 后台唤醒：注册 expo-background-fetch（当日提醒通知 + 每日备课预取），失败静默
   useEffect(() => {
@@ -43,8 +46,8 @@ export default function RootLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* 浅底显式锁定深色图标：防止跟随系统深色模式时图标隐入白底 */}
-      <StatusBar style="dark" />
+      {/* 状态栏图标色随主题：深色页面配浅图标，反之亦然 */}
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Tabs
         screenOptions={({ route }) => ({
           headerShown: false,
@@ -52,10 +55,10 @@ export default function RootLayout() {
           tabBarInactiveTintColor: C.text3,
           tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
           // 液态玻璃 Tab 栏：模糊背景 + 半透明玻璃面 + 受光描边
-          tabBarBackground: GLASS_TAB_BACKGROUND,
+          tabBarBackground: () => <GlassTabBackground tint={scheme} />,
           tabBarStyle: {
-            backgroundColor: GLASS.surface,
-            borderTopColor: GLASS.border,
+            backgroundColor: C.glassSurface,
+            borderTopColor: C.glassBorder,
             borderTopWidth: StyleSheet.hairlineWidth,
             // 底部安全区自适应（全面屏手势条高度因机型而异，iQOO Neo10 约 24-27dp）
             height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,

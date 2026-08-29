@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import Constants from 'expo-constants';
@@ -11,16 +11,18 @@ import { LLM_PRESETS } from '@/lib/llm';
 import { fetchDaily } from '@/lib/cloud';
 import { writeDailyCache } from '@/lib/background';
 import { fetchRepoPaths } from '@/lib/github';
-import { C, R, cardShadow, HIT_SLOP } from '@/theme';
+import { R, cardShadow, HIT_SLOP, themedStyles, usePalette, useScheme, type ThemeMode } from '@/theme';
 
 // Tab 4：我的（配置与调度）
 export default function ProfileScreen() {
+  const C = usePalette();
+  const styles = STYLES[useScheme()];
   const {
     weatherKey, weatherCity, targetUniversity, targetScore, githubRepo, githubBranch,
     llmProvider, llmBaseUrl, llmModel, llmApiKey,
     sttBaseUrl, sttApiKey, sttModel,
     visionBaseUrl, visionApiKey, visionModel,
-    supabaseUrl, supabaseAnonKey, accessKey, tavilyKey, webApiUrl, update,
+    supabaseUrl, supabaseAnonKey, accessKey, tavilyKey, webApiUrl, themeMode, update,
   } = useSettingsStore();
   const { reminders, addReminder, removeReminder } = useReminderStore();
   const insets = useSafeAreaInsets(); // 打孔屏/手势条安全区
@@ -165,6 +167,36 @@ export default function ProfileScreen() {
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
     >
+      {/* 外观（深色模式） */}
+      <View style={styles.section}>
+        <View style={styles.sectionHead}>
+          <Ionicons name={themeMode === 'dark' ? 'moon' : 'sunny'} size={16} color={C.primary} />
+          <Text style={styles.sectionTitle}>外观</Text>
+        </View>
+        <View style={styles.presetRow}>
+          {([
+            { key: 'system', label: '跟随系统', icon: 'phone-portrait-outline' },
+            { key: 'light', label: '浅色', icon: 'sunny-outline' },
+            { key: 'dark', label: '深色', icon: 'moon-outline' },
+          ] as { key: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }[]).map((opt) => (
+            <TouchableOpacity
+              key={opt.key}
+              style={[styles.presetChip, themeMode === opt.key && styles.presetChipActive]}
+              onPress={() => update({ themeMode: opt.key })}
+              activeOpacity={0.85}
+              accessibilityLabel={`主题：${opt.label}`}
+            >
+              <Ionicons
+                name={opt.icon}
+                size={13}
+                color={themeMode === opt.key ? C.onPrimary : C.text2}
+              />
+              <Text style={[styles.presetText, themeMode === opt.key && styles.presetTextActive]}>{opt.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
       {/* AI 模型 */}
       <View style={styles.section}>
         <View style={styles.sectionHead}>
@@ -646,7 +678,7 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const STYLES = themedStyles((C) => ({
   container: { flex: 1, backgroundColor: C.bg },
   content: { padding: 16, paddingBottom: 96 },
   // 分组卡片：长表单按域分组，降低视觉密度
@@ -743,4 +775,4 @@ const styles = StyleSheet.create({
   calDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.red, marginTop: 2 },
   calHint: { fontSize: 12, color: C.text3, marginTop: 8, lineHeight: 18 },
   syncResult: { fontSize: 13, color: C.text2, lineHeight: 21, marginTop: 10 },
-});
+}));

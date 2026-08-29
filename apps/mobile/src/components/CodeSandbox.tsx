@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { useSandboxStore } from '@/store/sandboxStore';
-import { C, R, cardShadow, HIT_SLOP } from '@/theme';
+import { R, cardShadow, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
 
 // 资产由 Expo 打包（Monaco + Pyodide 从 CDN 加载，postMessage 双向桥接）
 const SANDBOX_HTML = require('../../assets/sandbox/sandbox.html');
@@ -12,6 +12,8 @@ type RunStatus = 'loading' | 'ready' | 'running' | 'error';
 
 // 代码沙盒：Monaco 编辑 + Pyodide 运行 + 5 秒无响应强制熔断 + 片段保存
 export function CodeSandbox() {
+  const C = usePalette();
+  const styles = STYLES[useScheme()];
   const webRef = useRef<WebView>(null);
   const fuseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nameRef = useRef(''); // 保存片段时的暂存名（export 异步回传前记录）
@@ -205,7 +207,7 @@ export function CodeSandbox() {
   );
 }
 
-const styles = StyleSheet.create({
+const STYLES = themedStyles((C) => ({
   wrap: { flex: 1 },
   editorWrap: { flex: 5, borderRadius: R.md, overflow: 'hidden', ...cardShadow },
   runBtn: {
@@ -271,4 +273,4 @@ const styles = StyleSheet.create({
   snippetMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
   snippetName: { fontSize: 14, color: C.text, flex: 1 },
   snippetDel: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-});
+}));

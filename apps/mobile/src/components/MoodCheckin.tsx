@@ -1,6 +1,6 @@
 // 情绪打卡条（仪表盘顶部）：emoji + 一句话备注 + 语音备忘
 // 本地优先落 MMKV → 后台同步云端 mood_checkins；语音可转写喂画像情绪信号
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { Audio } from 'expo-av';
@@ -8,7 +8,7 @@ import * as FileSystem from 'expo-file-system';
 import { useMoodStore } from '@/store/moodStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { transcribeAudio } from '@/lib/stt';
-import { C, R, cardShadow } from '@/theme';
+import { R, cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
 
 const EMOJIS = [
   { code: '😊', label: '不错' },
@@ -28,6 +28,8 @@ async function persistAudio(tempUri: string): Promise<string> {
 }
 
 export default function MoodCheckin() {
+  const C = usePalette();
+  const styles = STYLES[useScheme()];
   const checkins = useMoodStore((s) => s.checkins);
   const checkIn = useMoodStore((s) => s.checkIn);
   const syncAll = useMoodStore((s) => s.syncAll);
@@ -264,7 +266,8 @@ export default function MoodCheckin() {
   );
 }
 
-const styles = StyleSheet.create({
+// 双套样式表：light/dark 模块级各建一份，主题切换零重建
+const STYLES = themedStyles((C) => ({
   wrap: {
     backgroundColor: C.card,
     borderRadius: R.lg,
@@ -311,4 +314,4 @@ const styles = StyleSheet.create({
   saveText: { color: C.onPrimary, fontSize: 13, fontWeight: '700' },
   transcriptRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginTop: 10 },
   transcript: { flex: 1, fontSize: 12, color: C.text2, fontStyle: 'italic', lineHeight: 17 },
-});
+}));

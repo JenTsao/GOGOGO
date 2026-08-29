@@ -15,11 +15,16 @@ import { useMistakeStore } from '@/store/mistakeStore';
 import { useAuthStore } from '@/store/authStore';
 import { fetchDaily, DailyLearning } from '@/lib/cloud';
 import { readDailyCache } from '@/lib/background';
-import { C, R, cardShadow, GLASS, HIT_SLOP } from '@/theme';
+import { R, cardShadow, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
+
+// 心流为恒深色场景（ink 系列双模式同值），计时大字用恒亮白保证黑底对比（≈15:1）
+const FLOW_BRIGHT = '#F2EFFB';
 
 // Tab 1：驾驶舱（时间线与当下）——布局严格按蓝皮书顺序：
 // 日期天气 → 信仰级倒计时 → 今日提醒横幅 → 每日知识点 → 每日一题 → 今日三件事 → 专注启动器
 export default function CockpitScreen() {
+  const C = usePalette();
+  const styles = STYLES[useScheme()];
   const { top3, backlog, addTask, removeTask, swapWithBacklog, completeTask } = useTaskStore();
   const { seconds, running, sessions, start, stop } = useFocusStore();
   const { weatherKey, weatherCity, supabaseUrl, supabaseAnonKey, accessKey } = useSettingsStore();
@@ -506,7 +511,7 @@ export default function CockpitScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const STYLES = themedStyles((C) => ({
   container: { flex: 1, backgroundColor: C.bg },
   content: { padding: 16, paddingBottom: 96 }, // 底部留出 Tab 栏与 AI 悬浮球空间
 
@@ -548,14 +553,14 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: '700', color: C.text, flex: 1 },
   sectionMeta: { fontSize: 13, color: C.text3, fontWeight: '600', fontVariant: ['tabular-nums'] },
 
-  // 信仰级倒计时
+  // 信仰级倒计时（背景 = 主色：浅色深紫配白字，深色亮紫自动换深字，辅助文字用 opacity 压层级）
   heroCard: { alignItems: 'center', paddingVertical: 26, backgroundColor: C.primary },
-  heroLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 13, letterSpacing: 3, fontWeight: '600' },
+  heroLabel: { color: C.onPrimary, fontSize: 13, letterSpacing: 3, fontWeight: '600', opacity: 0.75 },
   heroDays: { color: C.onPrimary, fontSize: 64, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 6 },
-  heroUnit: { fontSize: 22, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
+  heroUnit: { fontSize: 22, fontWeight: '600', color: C.onPrimary, opacity: 0.8 },
   heroPrecise: { color: C.onPrimary, fontSize: 36, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 12 },
-  heroUnitSm: { fontSize: 16, fontWeight: '500', color: 'rgba(255,255,255,0.65)' },
-  heroHint: { color: 'rgba(255,255,255,0.55)', fontSize: 11, marginTop: 10 },
+  heroUnitSm: { fontSize: 16, fontWeight: '500', color: C.onPrimary, opacity: 0.65 },
+  heroHint: { color: C.onPrimary, fontSize: 11, marginTop: 10, opacity: 0.55 },
 
   // 今日提醒横幅
   reminderBanner: {
@@ -665,18 +670,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: GLASS.darkBorder,
-    backgroundColor: GLASS.dark, // 深色场景液态玻璃：微透光 + 受光描边
+    borderColor: C.glassDarkBorder,
+    backgroundColor: C.glassDark, // 深色场景液态玻璃：微透光 + 受光描边
     borderRadius: R.pill,
     paddingHorizontal: 14,
     paddingVertical: 7,
   },
   flowHint: { color: C.inkSub, fontSize: 13, letterSpacing: 2 },
-  flowTimer: { color: C.onPrimary, fontSize: 72, fontWeight: '200', marginVertical: 36, fontVariant: ['tabular-nums'] },
+  flowTimer: { color: FLOW_BRIGHT, fontSize: 72, fontWeight: '200', marginVertical: 36, fontVariant: ['tabular-nums'] },
   flowStop: {
     borderWidth: 1,
-    borderColor: GLASS.darkBorder,
-    backgroundColor: GLASS.dark,
+    borderColor: C.glassDarkBorder,
+    backgroundColor: C.glassDark,
     borderRadius: 24,
     paddingHorizontal: 32,
     paddingVertical: 12,
@@ -688,11 +693,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: GLASS.darkBorder,
-    backgroundColor: GLASS.dark,
+    borderColor: C.glassDarkBorder,
+    backgroundColor: C.glassDark,
     borderRadius: R.sm,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
   zenBtnText: { color: C.inkDim, fontSize: 13 },
-});
+}));

@@ -4,7 +4,7 @@
     "slug": "gaokao-copilot",
     "scheme": "gaokao",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "assetBundlePatterns": ["**/*"],
     "ios": {

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,12 +6,14 @@ import { useAiStore } from '@/store/aiStore';
 import { CodeSandbox } from '@/components/CodeSandbox';
 import { KnowledgeView } from '@/components/KnowledgeView';
 import { MistakeView } from '@/components/MistakeView';
-import { C, R, cardShadow, GLASS, glassEdge, glassShadow } from '@/theme';
+import { R, cardShadow, glassEdge, glassShadow, themedStyles, usePalette, useScheme } from '@/theme';
 
 // Tab 2：弹药库（工具与知识）
 // 顶部切换：[代码沙盒] | [知识库] | [错题本]
 // 业务入口：一键生成错题本 / 编译输出（驱动 AI 表情状态）
 export default function ArsenalScreen() {
+  const C = usePalette();
+  const styles = STYLES[useScheme()];
   const [tab, setTab] = useState<'code' | 'knowledge' | 'mistake'>('code');
   const runAction = useAiStore((s) => s.runAction);
   const insets = useSafeAreaInsets();
@@ -75,7 +77,7 @@ export default function ArsenalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const STYLES = themedStyles((C) => ({
   container: { flex: 1, paddingTop: 12, backgroundColor: C.bg },
   switch: {
     flexDirection: 'row',
@@ -101,14 +103,14 @@ const styles = StyleSheet.create({
   bodyContent: { padding: 16, paddingBottom: 96 },
   sectionTitle: { fontSize: 17, fontWeight: '700', marginTop: 24, marginBottom: 10, color: C.text },
   actionBtn: {
-    backgroundColor: GLASS.surface, // 液态玻璃卡：半透面 + 受光描边 + 液态柔影
+    backgroundColor: C.glassSurface, // 液态玻璃卡：半透面 + 受光描边 + 液态柔影
     borderRadius: R.md,
     padding: 14,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    ...glassEdge,
+    ...glassEdge(C),
     ...glassShadow,
   },
   actionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
@@ -117,4 +119,4 @@ const styles = StyleSheet.create({
   actionText: { flex: 1 },
   actionBtnText: { fontSize: 15, fontWeight: '700', color: C.text },
   actionHint: { marginTop: 3, fontSize: 12, color: C.text3, lineHeight: 17 },
-});
+}));

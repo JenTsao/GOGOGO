@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useKnowledgeStore } from '@/store/knowledgeStore';
 import { fetchRepoPaths, fetchRawFile } from '@/lib/github';
-import { C, R, cardShadow } from '@/theme';
+import { R, cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
 
 // 知识库：按需从 GitHub 拉取 Obsidian 目录树，点击单篇下载 Markdown 并渲染（缓存后离线可读）
 interface TreeNode {
@@ -48,6 +48,8 @@ function TreeItem({
   selected: string | null;
   onSelect: (path: string) => void;
 }) {
+  const C = usePalette();
+  const styles = STYLES[useScheme()];
   const [open, setOpen] = useState(depth < 1);
   if (node.children.length > 0) {
     return (
@@ -154,6 +156,9 @@ const renderContent = (md: string) =>
   wikilinkToMd(transformOutsideFences(stripFrontmatter(md), mathLite));
 
 export function KnowledgeView() {
+  const C = usePalette();
+  const scheme = useScheme();
+  const styles = STYLES[scheme];
   const { githubRepo, githubBranch } = useSettingsStore();
   const { cache, save } = useKnowledgeStore();
   const [paths, setPaths] = useState<string[] | null>(null);
@@ -286,7 +291,7 @@ export function KnowledgeView() {
       )}
       <ScrollView style={styles.reader} nestedScrollEnabled>
         {content !== null ? (
-          <Markdown style={mdStyles} onLinkPress={handleLinkPress}>
+          <Markdown style={MD_STYLES[scheme]} onLinkPress={handleLinkPress}>
             {renderContent(content)}
           </Markdown>
         ) : (
@@ -300,7 +305,7 @@ export function KnowledgeView() {
   );
 }
 
-const styles = StyleSheet.create({
+const STYLES = themedStyles((C) => ({
   wrap: { flex: 1 },
   emptyCard: {
     flex: 1,
@@ -345,9 +350,10 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   readerPlaceholder: { alignItems: 'center', gap: 10, paddingVertical: 40 },
-});
+}));
 
-const mdStyles = {
+// Markdown 渲染样式：随主题双套（代码围栏/引用块深浅底互换保证对比度）
+const MD_STYLES = themedStyles((C) => ({
   body: { color: C.text, fontSize: 15, lineHeight: 24 },
   heading1: { fontSize: 22, fontWeight: '700' as const, marginVertical: 8, color: C.text },
   heading2: { fontSize: 19, fontWeight: '700' as const, marginVertical: 8, color: C.text },
@@ -359,4 +365,4 @@ const mdStyles = {
   link: { color: C.primary },
   bullet_list_icon: { color: C.text3 },
   hr: { backgroundColor: C.border, height: 1, marginVertical: 10 },
-};
+}));

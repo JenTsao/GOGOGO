@@ -22,7 +22,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useAiStore } from '@/store/aiStore';
 import { transcribeAudio } from '@/lib/stt';
 import { recognizeMistake } from '@/lib/llm';
-import { C, R, cardShadow } from '@/theme';
+import { R, cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
 
 // 错题本：拍照/相册 → 压缩 → 学科/标签/语音反思 → 本地入库 + 云端同步
 const SUBJECTS = ['数学', '语文', '英语', '物理', '化学', '生物', '历史', '地理', '政治'] as const;
@@ -48,6 +48,8 @@ async function persistAudio(tempUri: string): Promise<string> {
 }
 
 export function MistakeView() {
+  const C = usePalette();
+  const styles = STYLES[useScheme()];
   const { mistakes, addMistake, removeMistake, syncAll, markCorrect, setTranscript } = useMistakeStore();
   const { webApiUrl, accessKey, llmBaseUrl, llmApiKey, sttBaseUrl, sttApiKey, sttModel, visionBaseUrl, visionApiKey, visionModel } = useSettingsStore();
   const insets = useSafeAreaInsets(); // 打孔屏安全区：详情/收录弹窗顶部避让
@@ -572,7 +574,7 @@ export function MistakeView() {
   );
 }
 
-const styles = StyleSheet.create({
+const STYLES = themedStyles((C) => ({
   addBtn: {
     backgroundColor: C.primary,
     borderRadius: R.md,
@@ -582,7 +584,7 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   addBtnText: { color: C.onPrimary, fontSize: 16, fontWeight: '700', marginTop: 2 },
-  addHint: { color: 'rgba(255,255,255,0.75)', fontSize: 12 },
+  addHint: { color: C.onPrimary, fontSize: 12, opacity: 0.75 },
   syncBtn: {
     flexDirection: 'row',
     backgroundColor: C.blue,
@@ -661,7 +663,7 @@ const styles = StyleSheet.create({
   transcriptText: { fontSize: 14, color: C.text, lineHeight: 22 },
   aiBtn: { backgroundColor: C.primary, borderRadius: R.md, paddingVertical: 14, alignItems: 'center', marginTop: 14, gap: 5, ...cardShadow },
   aiBtnText: { color: C.onPrimary, fontSize: 15, fontWeight: '700' },
-  aiHint: { color: 'rgba(255,255,255,0.75)', fontSize: 11 },
+  aiHint: { color: C.onPrimary, fontSize: 11, opacity: 0.75 },
   deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 14, marginTop: 24 },
   deleteBtnText: { color: C.red, fontSize: 14, fontWeight: '500' },
   // 重做结果
@@ -741,4 +743,4 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   saveBtnText: { color: C.onPrimary, fontSize: 15, fontWeight: '700' },
-});
+}));

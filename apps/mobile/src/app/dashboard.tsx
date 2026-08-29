@@ -14,7 +14,7 @@ import { localDateStr } from '@/store/reminderStore';
 import { countNegativeWords } from '@/lib/stt';
 import { fetchWeekly, WeeklyReview } from '@/lib/cloud';
 import MoodCheckin from '@/components/MoodCheckin';
-import { C as CLR, R as RAD, cardShadow, HEAT_SCALE, HIT_SLOP } from '@/theme';
+import { R as RAD, cardShadow, HEAT_SCALE, HEAT_SCALE_DARK, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
 
 // Tab 3：仪表盘 —— 激进模式画像
 // 六维雷达基于可计算数据（专注/任务/知识积累 + 错题重做正确率的学科掌握）
@@ -43,6 +43,9 @@ function polygonPoints(scores: number[], r: number): string {
 }
 
 export default function DashboardScreen() {
+  const CLR = usePalette();
+  const scheme = useScheme();
+  const styles = STYLES[scheme];
   const insets = useSafeAreaInsets(); // 打孔屏/手势条安全区
   const sessions = useFocusStore((s) => s.sessions);
   const top3 = useTaskStore((s) => s.top3);
@@ -190,9 +193,11 @@ export default function DashboardScreen() {
     .filter(Boolean)
     .join(' ');
 
-  // 热力色阶（绿色 = 专注量，语义与主题 green 对齐，色阶集中管理在 theme）
+  // 热力色阶（绿色 = 专注量，语义与主题 green 对齐，色阶集中管理在 theme；
+  // 深色模式换暗色阶梯：0 值格用深底，避免亮块误导「有专注」）
+  const HEAT = scheme === 'dark' ? HEAT_SCALE_DARK : HEAT_SCALE;
   const heatColor = (min: number) =>
-    min <= 0 ? HEAT_SCALE[0] : min < 10 ? HEAT_SCALE[1] : min < 25 ? HEAT_SCALE[2] : min < 45 ? HEAT_SCALE[3] : HEAT_SCALE[4];
+    min <= 0 ? HEAT[0] : min < 10 ? HEAT[1] : min < 25 ? HEAT[2] : min < 45 ? HEAT[3] : HEAT[4];
 
   // 横向对标数值化：Tavily 检索分数线 → 从摘要/正文提取可信分数 → 与目标总分计算差距
   const runBenchmark = async () => {
@@ -374,7 +379,7 @@ export default function DashboardScreen() {
           {/* 数据多边形 */}
           <Polygon
             points={polygonPoints(dims.map((d) => d.score), RR)}
-            fill="rgba(124,58,237,0.18)"
+            fill={CLR.primarySoft}
             stroke={CLR.primary}
             strokeWidth={2}
           />
@@ -628,7 +633,7 @@ const ADVICE: Record<string, string> = {
   学科掌握: '错题隔天重做并记录结果，重做越多掌握度越可信',
 };
 
-const styles = StyleSheet.create({
+const STYLES = themedStyles((CLR) => ({
   container: { flex: 1, backgroundColor: CLR.bg },
   content: { padding: 16, paddingBottom: 96 },
   cardTitle: { fontSize: 17, fontWeight: '700', color: CLR.text, marginTop: 18, marginBottom: 8, letterSpacing: 0.3 },
@@ -717,4 +722,4 @@ const styles = StyleSheet.create({
   adviceBody: { flex: 1 },
   adviceLabel: { fontSize: 14, fontWeight: '700', color: CLR.text },
   adviceText: { fontSize: 12, color: CLR.text2, marginTop: 2, lineHeight: 18 },
-});
+}));

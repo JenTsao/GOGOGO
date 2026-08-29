@@ -21,7 +21,7 @@ import { BlurView } from 'expo-blur';
 import { useAiStore, STATUS_EMOTION } from '@/store/aiStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { describeToolCall } from '@/lib/aiTools';
-import { C, R, cardShadow, glassEdge, glassShadow, GLASS, HIT_SLOP } from '@/theme';
+import { R, cardShadow, glassEdge, glassShadow, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
 
 const ORB_SIZE = 75;
 const EDGE = 8;
@@ -39,6 +39,9 @@ function clamp(v: number, min: number, max: number) {
 }
 
 export function AiOrb() {
+  const C = usePalette();
+  const scheme = useScheme();
+  const styles = STYLES[scheme];
   const { visible, status, open, close, messages, ask, confirmToolCall, cancelToolCall } = useAiStore();
   const { llmModel } = useSettingsStore();
   const webviewRef = useRef<WebView>(null);
@@ -227,10 +230,10 @@ export function AiOrb() {
         >
           {/* 液态玻璃面板：BlurView 直接作容器（模糊透出遮罩与下层页面），Android 降级为半透明染色 */}
           <BlurView
-            intensity={55}
-            tint="light"
+            intensity={scheme === 'dark' ? 70 : 55}
+            tint={scheme}
             experimentalBlurMethod="dimezisBlurView"
-            style={[styles.sheet, glassEdge, glassShadow, { paddingBottom: insets.bottom + 12 }]}
+            style={[styles.sheet, glassEdge(C), glassShadow, { paddingBottom: insets.bottom + 12 }]}
           >
             <View style={styles.gripBar}>
               <View style={styles.grip} />
@@ -361,7 +364,7 @@ export function AiOrb() {
   );
 }
 
-const styles = StyleSheet.create({
+const STYLES = themedStyles((C) => ({
   orbWrap: {
     position: 'absolute',
     width: ORB_SIZE,
@@ -396,7 +399,7 @@ const styles = StyleSheet.create({
   sheetWrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(18,14,34,0.45)' },
   sheet: {
     maxHeight: '86%',
-    backgroundColor: GLASS.surfaceStrong, // 高可读玻璃面：正文承载在 78% 白面上，对比度仍达标
+    backgroundColor: C.glassSurfaceStrong, // 高可读玻璃面：正文承载在近实底面板上，对比度仍达标
     borderTopLeftRadius: R.lg,
     borderTopRightRadius: R.lg,
     overflow: 'hidden', // 裁掉 BlurView 模糊边缘，玻璃圆角干净
@@ -515,4 +518,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: C.border },
-});
+}));

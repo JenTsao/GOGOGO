@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { storage } from './storage';
+import type { ThemeMode } from '@/theme';
 
 // 用户配置（Tab 4 我的）：持久化到 MMKV
 export interface Settings {
@@ -9,6 +10,7 @@ export interface Settings {
   targetScore: number | null; // 本人目标总分（横向对标数值化：与检索到的分数线计算差距）
   githubRepo: string; // Obsidian 仓库，格式 owner/repo（知识库用）
   githubBranch: string;
+  themeMode: ThemeMode; // 深色模式：system 跟随系统 / light / dark 手动固定
   llmProvider: string; // deepseek | openai | moonshot | glm | custom
   llmBaseUrl: string;
   llmModel: string;
@@ -35,6 +37,7 @@ const DEFAULTS: Settings = {
   targetScore: null,
   githubRepo: '',
   githubBranch: 'main',
+  themeMode: 'system', // 默认跟随系统深色模式
   llmProvider: 'deepseek',
   llmBaseUrl: 'https://api.deepseek.com',
   llmModel: 'deepseek-chat',
