@@ -7,19 +7,36 @@ import { StatusBar } from 'expo-status-bar';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { initBackgroundSync } from '@/lib/background';
-import { usePalette, useScheme } from '@/theme';
+import { GLASS_BLUR, usePalette, useScheme } from '@/theme';
 
-// Tab 栏液态玻璃背景：真模糊（Android 经 dimezis 引擎；iOS 原生 UIVisualEffectView）
-// 半透明玻璃面叠在模糊层上，低性能设备自动降级为纯半透明染色
-// tint 随主题切换：浅色玻璃提亮下层内容，深色玻璃压暗（BlurView 自带材质，无法用调色板直接控制）
-const GlassTabBackground = ({ tint }: { tint: 'light' | 'dark' }) => (
-  <BlurView
-    intensity={tint === 'dark' ? 55 : 40}
-    tint={tint}
-    experimentalBlurMethod="dimezisBlurView"
-    style={StyleSheet.absoluteFill}
-  />
-);
+// Tab 栏液态玻璃：BlurView 真模糊 + 半透面 + 顶缘受光高光
+// Android 经 dimezis 引擎；低端机模糊失败时半透面仍成立
+const GlassTabBackground = ({ tint }: { tint: 'light' | 'dark' }) => {
+  const C = usePalette();
+  const intensity = GLASS_BLUR.tab[tint];
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <BlurView
+        intensity={intensity}
+        tint={tint}
+        experimentalBlurMethod="dimezisBlurView"
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: C.glassSurface }]} />
+      {/* 顶缘受光高光 */}
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: StyleSheet.hairlineWidth * 2,
+          backgroundColor: tint === 'dark' ? C.glassHighlightSoft : C.glassHighlight,
+        }}
+      />
+    </View>
+  );
+};
 
 // Tab 图标映射：outline = 未选中，实心 = 选中（单一图标家族，视觉语言一致）
 const TAB_ICONS: Record<string, { on: keyof typeof Ionicons.glyphMap; off: keyof typeof Ionicons.glyphMap }> = {
@@ -54,15 +71,17 @@ export default function RootLayout() {
           tabBarActiveTintColor: C.primary,
           tabBarInactiveTintColor: C.text3,
           tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-          // 液态玻璃 Tab 栏：模糊背景 + 半透明玻璃面 + 受光描边
+          // 液态玻璃 Tab 栏：模糊 + 半透面 + 顶缘高光（背景层）
           tabBarBackground: () => <GlassTabBackground tint={scheme} />,
           tabBarStyle: {
-            backgroundColor: C.glassSurface,
+            // 透明底，让 tabBarBackground 的玻璃层透出；侧缘用弱描边
+            backgroundColor: 'transparent',
             borderTopColor: C.glassBorder,
             borderTopWidth: StyleSheet.hairlineWidth,
             // 底部安全区自适应（全面屏手势条高度因机型而异，iQOO Neo10 约 24-27dp）
             height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
             paddingTop: 4,
+            elevation: 0, // Android 去掉默认阴影，改用玻璃柔影观感
           },
           tabBarIcon: ({ focused, color, size }) => {
             const icon = TAB_ICONS[route.name];
