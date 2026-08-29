@@ -9,10 +9,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  PanResponder,
+  Dimensions,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
 import { useAiStore, STATUS_EMOTION } from '@/store/aiStore';
@@ -20,13 +22,20 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { describeToolCall } from '@/lib/aiTools';
 import { C, R, cardShadow } from '@/theme';
 
-// 完整 grok-ball（32 表情）HTML 源：优先国内可达 CDN，再 GitHub raw；首次成功后写入本地缓存
+const ORB_SIZE = 75;
+const EDGE = 8;
+
+// 完整 grok-ball（32 表情）HTML：优先国内 CDN，首次成功后本地缓存
 const BALL_URLS = [
   'https://cdn.jsdelivr.net/gh/JenTsao/GOGOGO@main/apps/mobile/assets/grok-ball/ball.html',
   'https://fastly.jsdelivr.net/gh/JenTsao/GOGOGO@main/apps/mobile/assets/grok-ball/ball.html',
   'https://raw.githubusercontent.com/JenTsao/GOGOGO/main/apps/mobile/assets/grok-ball/ball.html',
 ];
 const BALL_CACHE = `${FileSystem.cacheDirectory}grok-ball.html`;
+
+function clamp(v: number, min: number, max: number) {
+  return Math.min(Math.max(v, min), max);
+}
 
 export function AiOrb() {
   const { visible, status, open, close, messages, ask, confirmToolCall, cancelToolCall } = useAiStore();
@@ -40,10 +49,52 @@ export function AiOrb() {
   const insets = useSafeAreaInsets();
   const busy = status === 'thinking' || status === 'searching' || status === 'generating';
 
+  const { width: sw, height: sh } = Dimensions.get('window');
+  // 默认右下角（避开底部 Tab 约 76pt）
+  const [pos, setPos] = useState({
+    x: sw - EDGE - ORB_SIZE - 8,
+    y: sh - insets.bottom - 76 - ORB_SIZE - 8,
+  });
+  const posRef = useRef(pos);
+  posRef.current = pos;
+  const dragOrigin = useRef({ x: 0, y: 0 });
+  const movedRef = useRef(false);
+
   const post = (obj: Record<string, unknown>) =>
     webviewRef.current?.postMessage(JSON.stringify(obj));
 
-  // 加载完整球：缓存 → CDN 拉取 → 写缓存；全程不 require .html，避免 Metro 打包失败
+  // 自由拖动：移动超过阈值算拖拽，松手未明显移动则打开对话
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponderCapture: () => true,
+        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 3 || Math.abs(g.dy) > 3,
+        onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 3 || Math.abs(g.dy) > 3,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: () => {
+          movedRef.current = false;
+          dragOrigin.current = { ...posRef.current };
+        },
+        onPanResponderMove: (_, g) => {
+          if (Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6) movedRef.current = true;
+          const maxX = sw - ORB_SIZE - EDGE;
+          const maxY = sh - ORB_SIZE - Math.max(insets.bottom, EDGE);
+          const minY = Math.max(insets.top, EDGE);
+          setPos({
+            x: clamp(dragOrigin.current.x + g.dx, EDGE, maxX),
+            y: clamp(dragOrigin.current.y + g.dy, minY, maxY),
+          });
+        },
+        onPanResponderRelease: (_, g) => {
+          if (!movedRef.current && Math.abs(g.dx) < 8 && Math.abs(g.dy) < 8) {
+            open();
+          }
+        },
+      }),
+    [sw, sh, insets.top, insets.bottom, open]
+  );
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -57,7 +108,7 @@ export function AiOrb() {
           }
         }
       } catch {
-        // ignore cache miss
+        // ignore
       }
 
       for (const url of BALL_URLS) {
@@ -69,12 +120,12 @@ export function AiOrb() {
           try {
             await FileSystem.writeAsStringAsync(BALL_CACHE, html);
           } catch {
-            // cache write optional
+            // optional
           }
           if (!cancelled) setBallHtml(html);
           return;
         } catch {
-          // try next url
+          // next
         }
       }
 
@@ -97,10 +148,12 @@ export function AiOrb() {
 
   return (
     <>
-      <View style={[styles.orbWrap, cardShadow]} pointerEvents="box-none">
+      <View
+        style={[styles.orbWrap, cardShadow, { left: pos.x, top: pos.y }]}
+        {...panResponder.panHandlers}
+      >
         {orbFailed || !ballHtml ? (
-          <TouchableOpacity style={styles.orbFallback} onPress={open} activeOpacity={0.85}>
-            {/* 加载中也显示黑球，避免长时间只见闪星 */}
+          <View style={styles.orbFallback}>
             <View style={styles.orbLoading}>
               {!orbFailed ? (
                 <ActivityIndicator size="small" color="#f5f5f5" />
@@ -108,13 +161,15 @@ export function AiOrb() {
                 <Ionicons name="sparkles" size={30} color="#f5f5f5" />
               )}
             </View>
-          </TouchableOpacity>
+          </View>
         ) : (
           <WebView
             ref={webviewRef}
             source={{ html: ballHtml, baseUrl: 'https://localhost/' }}
             style={styles.orb}
             containerStyle={styles.orbContainer}
+            // 触摸由外层 PanResponder 接管，避免 WebView 吞掉拖动手势
+            pointerEvents="none"
             originWhitelist={['*']}
             javaScriptEnabled
             domStorageEnabled
@@ -136,7 +191,6 @@ export function AiOrb() {
               } catch {
                 return;
               }
-              if (msg.type === 'tap') open();
               if (msg.type === 'ready') {
                 setReady(true);
                 post({ type: 'emotion', id: STATUS_EMOTION.idle });
@@ -284,34 +338,32 @@ export function AiOrb() {
 const styles = StyleSheet.create({
   orbWrap: {
     position: 'absolute',
-    right: 16,
-    bottom: 24,
-    width: 75,
-    height: 75,
-    borderRadius: 37.5,
+    width: ORB_SIZE,
+    height: ORB_SIZE,
+    borderRadius: ORB_SIZE / 2,
     zIndex: 100,
     overflow: 'hidden',
   },
   orb: {
-    width: 75,
-    height: 75,
+    width: ORB_SIZE,
+    height: ORB_SIZE,
     backgroundColor: 'transparent',
-    borderRadius: 37.5,
+    borderRadius: ORB_SIZE / 2,
   },
   orbContainer: {
     backgroundColor: 'transparent',
   },
   orbFallback: {
-    width: 75,
-    height: 75,
-    borderRadius: 37.5,
+    width: ORB_SIZE,
+    height: ORB_SIZE,
+    borderRadius: ORB_SIZE / 2,
     backgroundColor: '#1a1a1a',
     alignItems: 'center',
     justifyContent: 'center',
   },
   orbLoading: {
-    width: 75,
-    height: 75,
+    width: ORB_SIZE,
+    height: ORB_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
