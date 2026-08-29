@@ -3,7 +3,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 
 /**
  * 全 App 设计令牌 —— 所有页面统一从这里取色 / 圆角 / 阴影，禁止散落硬编码 hex。
- * 风格：教育场景柔和卡片风（轻量 Claymorphism 落地：大圆角 + 双层软阴影 + 主色气泡）。
+ * 风格：教育场景柔和卡片风 + 液态玻璃（真模糊 expo-blur + 半透面 + 顶缘受光描边）。
  * 深浅双调色板：深色为紫调深底（不取纯黑，保留品牌色相），深浅两套键完全对齐；
  * 正文对比度 ≥ 4.5:1，次要文字 ≥ 3:1（两套均按 WCAG AA 校验）。
  */
@@ -54,12 +54,18 @@ const light = {
   consoleText: '#C7E8D5',
   consoleDim: '#6A6489',
   // 液态玻璃（Liquid Glass）：真模糊由 expo-blur 承担，这里只管颜色与描边
-  glassSurface: 'rgba(255,255,255,0.60)', // 玻璃面：卡片/分段控件
-  glassSurfaceStrong: 'rgba(255,255,255,0.78)', // 高可读玻璃面：承载正文的面板
-  glassDark: 'rgba(255,255,255,0.08)', // 玻璃面：深色场景（心流靠受光描边成形）
-  glassBorder: 'rgba(255,255,255,0.65)', // 受光描边（顶缘高光）
-  glassBorderSoft: 'rgba(255,255,255,0.28)',
+  // 面略透，让 BlurView 透出下层；Strong 用于正文面板，保证可读
+  glassSurface: 'rgba(255,255,255,0.52)',
+  glassSurfaceStrong: 'rgba(255,255,255,0.72)',
+  glassDark: 'rgba(255,255,255,0.10)',
+  glassBorder: 'rgba(255,255,255,0.55)', // 侧缘
+  glassBorderSoft: 'rgba(255,255,255,0.22)',
   glassDarkBorder: 'rgba(255,255,255,0.18)',
+  // 顶缘受光高光（模拟玻璃折射）
+  glassHighlight: 'rgba(255,255,255,0.88)',
+  glassHighlightSoft: 'rgba(255,255,255,0.45)',
+  // 遮罩（Modal 背后压暗，略偏紫以贴合品牌）
+  glassDim: 'rgba(18,14,34,0.42)',
 };
 
 // ---------- 深色（紫调深底，OLED 友好不取纯黑） ----------
@@ -99,12 +105,15 @@ const dark: typeof light = {
   consoleText: '#C7E8D5',
   consoleDim: '#6A6489',
   // 深色玻璃：低透白面 + 弱受光描边（AI 面板承载正文用近实底保证可读）
-  glassSurface: 'rgba(255,255,255,0.07)',
-  glassSurfaceStrong: 'rgba(30,27,46,0.88)',
-  glassDark: 'rgba(255,255,255,0.08)', // 与 light 同值：心流恒深色场景，透光不随主题切换
-  glassBorder: 'rgba(255,255,255,0.20)',
-  glassBorderSoft: 'rgba(255,255,255,0.12)',
+  glassSurface: 'rgba(36,32,56,0.55)',
+  glassSurfaceStrong: 'rgba(30,27,46,0.82)',
+  glassDark: 'rgba(255,255,255,0.08)',
+  glassBorder: 'rgba(255,255,255,0.16)',
+  glassBorderSoft: 'rgba(255,255,255,0.08)',
   glassDarkBorder: 'rgba(255,255,255,0.18)',
+  glassHighlight: 'rgba(255,255,255,0.28)',
+  glassHighlightSoft: 'rgba(255,255,255,0.12)',
+  glassDim: 'rgba(8,6,16,0.55)',
 };
 
 export type Palette = typeof light;
@@ -131,19 +140,51 @@ export const glassEdge = (c: Palette): ViewStyle => ({
   borderColor: c.glassBorder,
 });
 
+/**
+ * 液态玻璃双边：顶缘高光 + 侧/底弱描边，模拟折射与厚度。
+ * 用于无 BlurView 的玻璃卡（滚动列表内，避免每卡开一层模糊）。
+ */
+export const glassRim = (c: Palette): ViewStyle => ({
+  borderWidth: StyleSheet.hairlineWidth,
+  borderColor: c.glassBorder,
+  borderTopColor: c.glassHighlight,
+  borderBottomColor: c.glassBorderSoft,
+});
+
 /** 玻璃面板液态柔影（比卡片阴影更深更散，模拟玻璃悬浮） */
 export const glassShadow: ViewStyle = StyleSheet.create({
   shadow: {
     shadowColor: '#2A1E5C',
-    shadowOpacity: 0.16,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
 }).shadow;
 
+/** 深色场景略加重的玻璃阴影 */
+export const glassShadowDark: ViewStyle = StyleSheet.create({
+  shadow: {
+    shadowColor: '#000000',
+    shadowOpacity: 0.45,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 10,
+  },
+}).shadow;
+
+export const glassShadowFor = (scheme: Scheme): ViewStyle =>
+  scheme === 'dark' ? glassShadowDark : glassShadow;
+
+/** Tab / Sheet 模糊强度（iOS 与 Android dimezis 观感接近的经验值） */
+export const GLASS_BLUR = {
+  tab: { light: 48, dark: 64 },
+  sheet: { light: 60, dark: 78 },
+  card: { light: 36, dark: 48 },
+} as const;
+
 /** 圆角阶梯（4pt 节奏） */
-export const R = { sm: 12, md: 16, lg: 20, pill: 999 } as const;
+export const R = { sm: 12, md: 16, lg: 20, xl: 28, pill: 999 } as const;
 
 /** 间距阶梯（8dp 节奏） */
 export const SP = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
