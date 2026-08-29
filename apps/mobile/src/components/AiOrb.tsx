@@ -35,6 +35,9 @@ import {
 
 const ORB_SIZE = 75;
 const SHEET_ORB_SIZE = 44;
+/** 跳跃最高段约 48px，WebView 需留出上方空间避免裁掉身体细节 */
+const JUMP_PAD = 52;
+const SHEET_JUMP_PAD = 28;
 const EDGE = 8;
 
 const BALL_URLS = [
@@ -42,7 +45,7 @@ const BALL_URLS = [
   'https://fastly.jsdelivr.net/gh/JenTsao/GOGOGO@main/apps/mobile/assets/grok-ball/ball.html',
   'https://raw.githubusercontent.com/JenTsao/GOGOGO/main/apps/mobile/assets/grok-ball/ball.html',
 ];
-const BALL_CACHE = `${FileSystem.cacheDirectory}grok-ball-v2.html`;
+const BALL_CACHE = `${FileSystem.cacheDirectory}grok-ball-v3.html`;
 
 type OrbMode = 'black' | 'white';
 
@@ -60,10 +63,18 @@ function prepareBallHtml(raw: string, mode: OrbMode, size: number): string {
   const eye = mode === 'white' ? '#1A1A1A' : '#f5f5f5';
   const eyeScale = size <= 48 ? 1.55 : 1.4;
   let html = raw;
+  // 球贴底：跳跃 translateY 向上伸进 WebView 预留的 JUMP_PAD，避免裁切身体
   html = html.replace(
     /#ball\s*\{[^}]*width:\s*\d+px;\s*height:\s*\d+px;/i,
-    `#ball { position:fixed; right:0; bottom:0; width:${size}px; height:${size}px;`
+    `#ball { position:fixed; left:0; bottom:0; width:${size}px; height:${size}px;`
   );
+  // 页面透明 + 不裁剪子元素（svg overflow 已 visible）
+  if (!html.includes('data-jump-pad')) {
+    html = html.replace(
+      /<head>/i,
+      '<head><meta name="data-jump-pad" content="1" /><style>html,body{margin:0;padding:0;overflow:visible!important;background:transparent!important;}</style>'
+    );
+  }
   html = html.replace(
     /GrokBall\.create\s*\(\s*['"]#ball['"]\s*,\s*\{[^}]*\}\s*\)/,
     `GrokBall.create('#ball', { emotion:'02', color:'${color}', eyeColor:'${eye}', eyeScale: ${eyeScale} })`
@@ -86,6 +97,8 @@ function prepareBallHtml(raw: string, mode: OrbMode, size: number): string {
 type BallViewProps = {
   html: string;
   size: number;
+  /** 顶部为跳跃预留的高度，避免动画裁切 */
+  pad?: number;
   emotionId: string;
   mode: OrbMode;
   onReady?: () => void;
@@ -93,7 +106,7 @@ type BallViewProps = {
   webRef?: React.MutableRefObject<WebView | null>;
 };
 
-function BallView({ html, size, emotionId, mode, onReady, onFail, webRef }: BallViewProps) {
+function BallView({ html, size, pad = 0, emotionId, mode, onReady, onFail, webRef }: BallViewProps) {
   const localRef = useRef<WebView>(null);
   const ref = webRef ?? localRef;
   const readyRef = useRef(false);
@@ -114,7 +127,7 @@ function BallView({ html, size, emotionId, mode, onReady, onFail, webRef }: Ball
     <WebView
       ref={ref}
       source={{ html, baseUrl: 'https://localhost/' }}
-      style={{ width: size, height: size, backgroundColor: 'transparent' }}
+      style={{ width: size, height: size + pad, backgroundColor: 'transparent' }}
       containerStyle={{ backgroundColor: 'transparent' }}
       pointerEvents="none"
       originWhitelist={['*']}
@@ -153,7 +166,6 @@ export function AiOrb() {
   const C = usePalette();
   const scheme = useScheme();
   const styles = STYLES[scheme];
-  // 细粒度订阅：status/messages 变化时只重绘需要的部分，避免整球+WebView 无谓刷新
   const visible = useAiStore((s) => s.visible);
   const status = useAiStore((s) => s.status);
   const messages = useAiStore((s) => s.messages);
@@ -174,9 +186,11 @@ export function AiOrb() {
   const mode = resolveOrbMode(orbStyle, scheme);
 
   const { width: sw, height: sh } = useWindowDimensions();
+  const orbH = ORB_SIZE + JUMP_PAD;
   const [pos, setPos] = useState({
     x: sw - EDGE - ORB_SIZE - 8,
-    y: sh - insets.bottom - 60 - ORB_SIZE - 8,
+    // JUMP_PAD 在球上方：逻辑底边与旧版一致，避免整块下沉进 Tab 栏
+    y: sh - insets.bottom - 60 - orbH - 8,
   });
   const posRef = useRef(pos);
   posRef.current = pos;
@@ -198,7 +212,7 @@ export function AiOrb() {
         onPanResponderMove: (_, g) => {
           if (Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6) movedRef.current = true;
           const maxX = sw - ORB_SIZE - EDGE;
-          const maxY = sh - ORB_SIZE - Math.max(insets.bottom, EDGE);
+          const maxY = sh - orbH - Math.max(insets.bottom, EDGE);
           const minY = Math.max(insets.top, EDGE);
           setPos({
             x: clamp(dragOrigin.current.x + g.dx, EDGE, maxX),
@@ -209,7 +223,7 @@ export function AiOrb() {
           if (!movedRef.current && Math.abs(g.dx) < 8 && Math.abs(g.dy) < 8) open();
         },
       }),
-    [sw, sh, insets.top, insets.bottom, open]
+    [sw, sh, insets.top, insets.bottom, open, orbH]
   );
 
   useEffect(() => {
@@ -218,10 +232,10 @@ export function AiOrb() {
       y: clamp(
         p.y,
         Math.max(insets.top, EDGE),
-        Math.max(Math.max(insets.top, EDGE), sh - ORB_SIZE - Math.max(insets.bottom, EDGE))
+        Math.max(Math.max(insets.top, EDGE), sh - orbH - Math.max(insets.bottom, EDGE))
       ),
     }));
-  }, [sw, sh, insets.top, insets.bottom]);
+  }, [sw, sh, insets.top, insets.bottom, orbH]);
 
   useEffect(() => {
     let cancelled = false;
@@ -294,6 +308,7 @@ export function AiOrb() {
               key={`float-${mode}`}
               html={floatHtml!}
               size={ORB_SIZE}
+              pad={JUMP_PAD}
               emotionId={emotionId}
               mode={mode}
               onFail={() => setOrbFailed(true)}
@@ -354,6 +369,7 @@ export function AiOrb() {
                         key={`sheet-${mode}`}
                         html={sheetHtml}
                         size={SHEET_ORB_SIZE}
+                        pad={SHEET_JUMP_PAD}
                         emotionId={emotionId}
                         mode={mode}
                       />
@@ -487,10 +503,10 @@ const STYLES = themedStyles((C) => ({
   orbWrap: {
     position: 'absolute',
     width: ORB_SIZE,
-    height: ORB_SIZE,
-    borderRadius: ORB_SIZE / 2,
+    // 高度含跳跃留白；圆角仅视觉，不裁切（overflow visible）
+    height: ORB_SIZE + JUMP_PAD,
     zIndex: 100,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   orbFallback: {
     width: ORB_SIZE,
@@ -499,6 +515,7 @@ const STYLES = themedStyles((C) => ({
     backgroundColor: C.ink,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: JUMP_PAD,
   },
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
   sheetShell: {
@@ -538,11 +555,11 @@ const STYLES = themedStyles((C) => ({
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   sheetOrbFrame: {
     width: SHEET_ORB_SIZE,
-    height: SHEET_ORB_SIZE,
+    height: SHEET_ORB_SIZE + SHEET_JUMP_PAD,
     borderRadius: SHEET_ORB_SIZE / 2,
-    overflow: 'hidden',
+    overflow: 'visible',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
   },
   sheetOrbFrameDark: { backgroundColor: '#1a1a1a' },
   sheetOrbFrameLight: { backgroundColor: '#F3F0EA' },
