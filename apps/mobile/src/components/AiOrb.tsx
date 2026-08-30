@@ -187,14 +187,28 @@ export function AiOrb() {
   const stop = useAiStore((s) => s.stop);
   const confirmToolCall = useAiStore((s) => s.confirmToolCall);
   const cancelToolCall = useAiStore((s) => s.cancelToolCall);
+  const voiceMode = useAiStore((s) => s.voiceMode);
+  const voiceState = useAiStore((s) => s.voiceState);
+  const toggleVoiceMode = useAiStore((s) => s.toggleVoiceMode);
+  const startVoiceInput = useAiStore((s) => s.startVoiceInput);
+  const stopVoiceInput = useAiStore((s) => s.stopVoiceInput);
+  const speak = useAiStore((s) => s.speak);
   const llmModel = useSettingsStore((s) => s.llmModel);
   const orbStyle = useSettingsStore((s) => s.orbStyle);
+  const ttsBaseUrl = useSettingsStore((s) => s.ttsBaseUrl);
+  const ttsApiKey = useSettingsStore((s) => s.ttsApiKey);
+  // TTS 已配置才显示语音相关入口，未配置时不给用户会报错的按钮
+  const ttsReady = !!ttsBaseUrl && !!ttsApiKey;
   const scrollRef = useRef<ScrollView>(null);
   const [orbFailed, setOrbFailed] = useState(false);
   const [rawHtml, setRawHtml] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const insets = useSafeAreaInsets();
   const busy = status === 'thinking' || status === 'searching' || status === 'generating';
+  const recording = voiceState === 'recording';
+  const transcribing = voiceState === 'transcribing';
+  // 录音/识别期间锁输入：语音与文字同时发会让对话流交错
+  const voiceLock = recording || transcribing;
   // 流式消息已在逐字上屏时不再显示独立 typing 气泡（光标「▍」即指示器）
   const hasStreamingMsg = messages.some((m) => m.streaming);
   const emotionId = STATUS_EMOTION[status];
@@ -295,9 +309,19 @@ export function AiOrb() {
   );
 
   const send = () => {
-    if (!input.trim() || busy) return;
+    if (!input.trim() || busy || voiceLock) return;
     ask(input);
     setInput('');
+  };
+
+  // 麦克风：录音中→结束并识别发送；播报中→打断并开始听（barge-in）；其余→开始听
+  const onMic = () => {
+    if (recording) {
+      void stopVoiceInput();
+      return;
+    }
+    if (busy || transcribing) return;
+    void startVoiceInput();
   };
 
   const blurIntensity = GLASS_BLUR.sheet[scheme];
@@ -394,13 +418,33 @@ export function AiOrb() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.title}>高考副驾驶</Text>
                     <Text style={styles.subtitle} numberOfLines={1}>
-                      {busy ? '思考中…' : llmModel || '在线'}
+                      {recording
+                        ? '正在聆听…'
+                        : transcribing
+                          ? '识别中…'
+                          : voiceState === 'speaking'
+                            ? '语音播报中…'
+                            : busy
+                              ? '思考中…'
+                              : llmModel || '在线'}
                     </Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.closeBtn} onPress={close} hitSlop={HIT_SLOP}>
-                  <Ionicons name="close" size={22} color={C.text2} />
-                </TouchableOpacity>
+                <View style={styles.headerRight}>
+                  {ttsReady && (
+                    <TouchableOpacity
+                      style={[styles.headerBtn, voiceMode && styles.headerBtnOn]}
+                      onPress={toggleVoiceMode}
+                      hitSlop={HIT_SLOP}
+                      accessibilityLabel={voiceMode ? '关闭语音对话模式' : '开启语音对话模式'}
+                    >
+                      <Ionicons name="headset" size={19} color={voiceMode ? C.onPrimary : C.text2} />
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity style={styles.closeBtn} onPress={close} hitSlop={HIT_SLOP}>
+                    <Ionicons name="close" size={22} color={C.text2} />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <ScrollView
@@ -432,6 +476,17 @@ export function AiOrb() {
                         <Markdown style={CHAT_MD_STYLES[scheme]} rules={CHAT_MD_RULES[scheme]}>
                           {renderChatContent(m.content) + (m.streaming ? ' ▍' : '')}
                         </Markdown>
+                      )}
+                      {ttsReady && m.role === 'assistant' && !!m.content && !m.streaming && !m.tool && (
+                        <TouchableOpacity
+                          style={styles.replayBtn}
+                          onPress={() => void speak(m.content)}
+                          hitSlop={HIT_SLOP}
+                          accessibilityLabel="语音播报这条回复"
+                        >
+                          <Ionicons name="volume-high-outline" size={13} color={C.text3} />
+                          <Text style={styles.replayText}>播报</Text>
+                        </TouchableOpacity>
                       )}
                     </View>
                     {m.toolCall?.state === 'pending' && (
@@ -493,15 +548,35 @@ export function AiOrb() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.input}
-                  placeholder={busy ? '思考中…' : '问问 AI…'}
-                  placeholderTextColor={C.text3}
+                  placeholder={recording ? '正在聆听…点麦克风结束' : transcribing ? '识别中…' : busy ? '思考中…' : '问问 AI…'}
+                  placeholderTextColor={recording ? C.red : C.text3}
                   value={input}
                   onChangeText={setInput}
-                  editable={!busy}
+                  editable={!busy && !voiceLock}
                   onSubmitEditing={send}
                   returnKeyType="send"
                   multiline
                 />
+                {ttsReady && (
+                  <TouchableOpacity
+                    style={[
+                      styles.micBtn,
+                      // 录音中红色实体键：点按结束；识别中置灰禁点
+                      recording && styles.micBtnRec,
+                      transcribing && styles.micBtnDisabled,
+                    ]}
+                    onPress={onMic}
+                    disabled={(!recording && (busy || transcribing)) || undefined}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    accessibilityLabel={recording ? '结束录音并识别' : '语音输入'}
+                  >
+                    {transcribing ? (
+                      <ActivityIndicator size="small" color={C.text3} />
+                    ) : (
+                      <Ionicons name={recording ? 'square' : 'mic'} size={20} color={recording ? C.onPrimary : C.text2} />
+                    )}
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={[
                     styles.sendBtn,
@@ -510,7 +585,7 @@ export function AiOrb() {
                     busy && styles.sendBtnStop,
                   ]}
                   onPress={busy ? stop : send}
-                  disabled={!busy && !input.trim()}
+                  disabled={!busy && (!input.trim() || voiceLock)}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 >
                   <Ionicons name={busy ? 'stop' : 'arrow-up'} size={20} color={C.onPrimary} />
@@ -578,6 +653,17 @@ const STYLES = themedStyles((C) => ({
     borderBottomColor: C.border,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // 语音对话模式开关（与关闭键同规格圆形玻璃键）
+  headerBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerBtnOn: { backgroundColor: C.primary },
   sheetOrbFrame: {
     width: SHEET_ORB_SIZE,
     height: SHEET_ORB_SIZE,
@@ -681,4 +767,30 @@ const STYLES = themedStyles((C) => ({
   },
   sendBtnDisabled: { backgroundColor: C.border },
   sendBtnStop: { backgroundColor: C.red },
+  // 麦克风键：与发送键同规格，但默认为玻璃底（次级操作不打断主视觉）
+  micBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  micBtnRec: { backgroundColor: C.red, borderColor: C.red },
+  micBtnDisabled: { opacity: 0.5 },
+  // 气泡内「播报」重播键：小尺寸低调放底部
+  replayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: C.primarySoft,
+  },
+  replayText: { fontSize: 11, color: C.primaryDeep, fontWeight: '600' },
 }));

@@ -1,6 +1,6 @@
 // 移动端多供应商 LLM 客户端：OpenAI 兼容协议（BYOK，Key 存 MMKV 由用户自配）
-// 流式走 expo/fetch（原生实现）：RN 全局 fetch 的 polyfill 不暴露 res.body，读不了 SSE
-import { fetch as expoFetch } from 'expo/fetch';
+// 流式走 XHR 增量文本（见 sseOverXhr）：SDK 51 无 expo/fetch（SDK 52+ 才有），
+// RN 全局 fetch 的 polyfill 也不暴露 res.body，读不了 SSE
 
 export interface LlmPreset {
   label: string;
@@ -196,33 +196,57 @@ class HttpError extends Error {
   }
 }
 
+// XHR 增量文本拉取：XHR 的 progress 事件提供增量 responseText（react-native-sse 同款思路），
+// 纯 JS 实现，Expo Go 与独立 APK 通用；返回终止状态供上层区分「中止」与「网络错误」
+function sseOverXhr(
+  url: string,
+  headers: Record<string, string>,
+  body: string,
+  onText: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<{ status: number; text: string; aborted: boolean }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+    let processed = 0; // 已交给 onText 的 responseText 偏移
+    const pump = () => {
+      const full = xhr.responseText;
+      if (full.length > processed) {
+        onText(full.slice(processed));
+        processed = full.length;
+      }
+    };
+    xhr.onprogress = pump;
+    xhr.onload = () => {
+      pump();
+      resolve({ status: xhr.status, text: xhr.responseText, aborted: false });
+    };
+    xhr.onerror = () => {
+      // 外部主动中止时 RN 可能走 onerror 而非 onabort：按中止归类，避免把「停止」误报成网络错误
+      if (signal?.aborted) resolve({ status: 0, text: '', aborted: true });
+      else reject(new Error('网络错误，请检查网络或供应商地址'));
+    };
+    xhr.onabort = () => resolve({ status: 0, text: '', aborted: true });
+    if (signal) {
+      if (signal.aborted) {
+        xhr.abort();
+        return;
+      }
+      signal.addEventListener('abort', () => xhr.abort(), { once: true });
+    }
+    xhr.send(body);
+  });
+}
+
 async function streamOnce(
   cfg: { baseUrl: string; apiKey: string; model: string },
   messages: ChatMessage[],
   opts?: StreamOpts
 ): Promise<StreamResult> {
-  let res: Response;
-  try {
-    res = await expoFetch(`${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
-      body: JSON.stringify({
-        model: cfg.model,
-        messages,
-        temperature: 0.7,
-        stream: true,
-        ...(opts?.tools ? { tools: opts.tools } : {}),
-      }),
-      ...(opts?.signal ? { signal: opts.signal } : {}),
-    });
-  } catch (e) {
-    if ((e as Error).name === 'AbortError') return { content: '', toolCalls: [], aborted: true };
-    throw e;
-  }
-  if (!res.ok) throw new HttpError(res.status, await res.text().catch(() => ''));
+  if (opts?.signal?.aborted) return { content: '', toolCalls: [], aborted: true };
 
   let content = '';
-  let aborted = false;
   // 工具调用按 index 累积：id/name 只在首帧出现，arguments 逐帧拼接
   const toolAcc = new Map<number, { id: string; name: string; args: string }>();
   const emit = (chunk: StreamChunk) => {
@@ -241,34 +265,47 @@ async function streamOnce(
     }
   };
 
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error('供应商未返回流式响应体');
-  const decoder = new TextDecoder();
+  // SSE 帧按行切分：最后一段可能是不完整帧，留在 buffer 等下一批字节
   let buffer = '';
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      // 按行切分，最后一段可能是不完整帧，留在 buffer 等下一批字节
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) {
-        const s = line.trim();
-        if (!s.startsWith('data:')) continue;
-        const payload = s.slice(5).trim();
-        if (!payload || payload === '[DONE]') continue;
-        try {
-          emit(JSON.parse(payload) as StreamChunk);
-        } catch {
-          // 单帧损坏跳过，不影响后续帧
-        }
-      }
+  const parseLine = (line: string) => {
+    const s = line.trim();
+    if (!s.startsWith('data:')) return;
+    const payload = s.slice(5).trim();
+    if (!payload || payload === '[DONE]') return;
+    try {
+      emit(JSON.parse(payload) as StreamChunk);
+    } catch {
+      // 单帧损坏跳过，不影响后续帧
     }
-  } catch (e) {
-    if ((e as Error).name === 'AbortError') aborted = true;
-    else throw e;
+  };
+  const feed = (text: string) => {
+    buffer += text;
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) parseLine(line);
+  };
+
+  const res = await sseOverXhr(
+    `${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`,
+    { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
+    JSON.stringify({
+      model: cfg.model,
+      messages,
+      temperature: 0.7,
+      stream: true,
+      ...(opts?.tools ? { tools: opts.tools } : {}),
+    }),
+    feed,
+    opts?.signal
+  );
+  if (res.aborted) {
+    return { content, toolCalls: [], aborted: true };
   }
+  if (res.status < 200 || res.status >= 300) throw new HttpError(res.status, res.text);
+
+  // 收尾冲刷：部分供应商最后一帧不带换行（如最后的 [DONE] 或末尾内容帧），
+  // 不补解析会丢内容；不完整帧会 parse 失败被跳过，安全
+  for (const line of buffer.split('\n')) parseLine(line);
 
   const toolCalls: ToolCall[] = [...toolAcc.entries()]
     .sort((a, b) => a[0] - b[0])
@@ -287,8 +324,8 @@ async function streamOnce(
       };
     })
     .filter((t) => t.name);
-  if (!content && toolCalls.length === 0 && !aborted) throw new Error('模型返回为空');
-  return aborted ? { content, toolCalls, aborted: true } : { content, toolCalls };
+  if (!content && toolCalls.length === 0) throw new Error('模型返回为空');
+  return { content, toolCalls };
 }
 
 // 流式对话入口：优先 SSE 流式（逐字上屏），供应商不支持 stream 参数时自动降级非流式

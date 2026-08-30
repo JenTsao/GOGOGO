@@ -1,6 +1,10 @@
 import { create } from 'zustand';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 import { chatWithLlmStream, ChatMessage, imageTextContent } from '@/lib/llm';
 import { TOOL_SCHEMAS, WRITE_TOOLS, executeTool, describeToolCall, AiToolName } from '@/lib/aiTools';
+import { transcribeAudio } from '@/lib/stt';
+import { synthesizeSpeech, speakableText } from '@/lib/tts';
 import { useSettingsStore } from './settingsStore';
 import { useTaskStore } from './taskStore';
 
@@ -96,6 +100,10 @@ interface AiState {
   visible: boolean;
   status: AiStatus;
   messages: AiMessage[];
+  /** 语音对话模式：AI 回复自动播报，播完自动开始聆听，形成连续对话 */
+  voiceMode: boolean;
+  /** 语音管线状态：录音 → 转写 → 播报 */
+  voiceState: 'idle' | 'recording' | 'transcribing' | 'speaking';
   open: () => void;
   close: () => void;
   setStatus: (s: AiStatus) => void;
@@ -111,16 +119,38 @@ interface AiState {
   cancelToolCall: (callId: string) => void;
   // 业务动作：进入“生成中”忙碌状态，完成后切回“任务完成”（供错题本 / 编译输出等入口调用）
   runAction: (label: string, durationMs?: number) => void;
+  // ---------- 语音对话 ----------
+  toggleVoiceMode: () => void;
+  // 开始聆听（内部先打断播报：用户插话 barge-in）
+  startVoiceInput: () => Promise<void>;
+  // 结束聆听 → 转写 → 自动作为用户消息发送
+  stopVoiceInput: () => Promise<void>;
+  // 丢弃当前录音（关面板 / 关语音模式用，不触发转写发送）
+  cancelVoiceInput: () => void;
+  // 播报一段文本：done=播完 / interrupted=被打断或失败 / unconfigured=未配置 TTS
+  speak: (text: string) => Promise<'done' | 'interrupted' | 'unconfigured'>;
+  // 立即停止播报
+  stopSpeaking: () => void;
 }
 
 let actionTimer: ReturnType<typeof setTimeout> | null = null;
 // 当前进行中的请求控制器：用户点「停止」时 abort（仅 LLM 请求，工具内请求有自己的超时）
 let abortRef: AbortController | null = null;
+// ---------- 语音会话的模块级句柄（不进 state：组件不需要重渲染感知它们） ----------
+let recordingRef: Audio.Recording | null = null;
+let recordTimer: ReturnType<typeof setTimeout> | null = null;
+let soundRef: Audio.Sound | null = null;
+// speak 等待播放完成的 resolve；stopSpeaking 借它唤醒等待方
+let speakResolve: (() => void) | null = null;
+// 播报代数：每次 speak +1、每次 stopSpeaking 再 +1。旧代数的收尾逻辑见到代数不符即知自己已被打断
+let speakGen = 0;
 
 export const useAiStore = create<AiState>((set, get) => ({
   visible: false,
   status: 'idle',
   messages: [],
+  voiceMode: false,
+  voiceState: 'idle',
   open: () => {
     // 上次业务动作的收尾定时器可能还挂着，不取消会在关闭后把状态强行改成 done 并追加一条消息
     if (actionTimer) {
@@ -136,6 +166,9 @@ export const useAiStore = create<AiState>((set, get) => ({
     }
     // 关面板顺手停掉进行中的生成：后台流式写入一个不可见的列表纯属浪费
     abortRef?.abort();
+    // 语音会话同样收尾：停播报、弃录音（重新打开后不会莫名续上上一轮）
+    get().stopSpeaking();
+    get().cancelVoiceInput();
     set({ visible: false, status: 'idle' });
   },
   setStatus: (status) => set({ status }),
@@ -144,6 +177,8 @@ export const useAiStore = create<AiState>((set, get) => ({
   ask: async (content) => {
     const text = content.trim();
     if (!text || get().status === 'thinking') return;
+    // 新一轮提问打断播报（用户插话 barge-in）；打断后旧语音轮次不会自动续接聆听
+    get().stopSpeaking();
     get().pushMessage({ role: 'user', content: text });
     get().setStatus('thinking');
     const { llmBaseUrl, llmModel, llmApiKey } = useSettingsStore.getState();
@@ -188,6 +223,8 @@ export const useAiStore = create<AiState>((set, get) => ({
         if (reply.toolCalls.length === 0) {
           if (!reply.content) throw new Error('模型返回为空');
           get().setStatus('done');
+          // 语音对话模式：播报最终回复 → 播完自动开始下一轮聆听（连续语音对话闭环）
+          if (get().voiceMode) void voiceRound(reply.content);
           return;
         }
 
@@ -210,6 +247,7 @@ export const useAiStore = create<AiState>((set, get) => ({
             get().pushMessage({
               role: 'assistant',
               content: `好的，我来${describeToolCall(call.name, call.args)}。`,
+              tool: call.name as AiTool, // 工具过程消息：语音重播按钮排除
               toolCall: { id: call.id, name: call.name as AiToolName, args: call.args, state: 'pending' },
             });
             llmMessages.push({
@@ -227,7 +265,7 @@ export const useAiStore = create<AiState>((set, get) => ({
                   : 'thinking'
             );
             const result = await executeTool(call.name, call.args);
-            get().pushMessage({ role: 'assistant', content: result.text });
+            get().pushMessage({ role: 'assistant', content: result.text, tool: call.name as AiTool });
             // 工具结果截断回传：防止长输出（如整页搜索结果）撑爆上下文
             llmMessages.push({
               role: 'tool',
@@ -329,7 +367,161 @@ export const useAiStore = create<AiState>((set, get) => ({
       }));
     }, durationMs);
   },
+  // ---------- 语音对话实现 ----------
+  toggleVoiceMode: () => {
+    const next = !get().voiceMode;
+    if (!next) {
+      // 关闭：停播报、弃录音，中断自动续接循环
+      get().stopSpeaking();
+      get().cancelVoiceInput();
+    } else {
+      const { ttsBaseUrl, ttsApiKey } = useSettingsStore.getState();
+      if (!ttsBaseUrl || !ttsApiKey) {
+        get().pushMessage({
+          role: 'assistant',
+          content: '语音对话需要「语音合成」服务：请在「我的」页配置支持 /audio/speech 的供应商（如 OpenAI tts-1）。配置后即可开启连续语音对话。',
+        });
+      }
+    }
+    set({ voiceMode: next });
+  },
+  startVoiceInput: async () => {
+    if (get().voiceState === 'recording' || get().status === 'thinking') return;
+    // 插话打断播报（barge-in）：听和说不能同时占用音频会话
+    get().stopSpeaking();
+    const perm = await Audio.requestPermissionsAsync();
+    if (!perm.granted) {
+      get().pushMessage({ role: 'assistant', content: '需要麦克风权限：请在系统设置中允许本应用录音。' });
+      return;
+    }
+    try {
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      recordingRef = recording;
+      set({ voiceState: 'recording' });
+      // 60 秒兜底自动停：语音对话单轮说不了更长，防止忘记点停止一直录
+      recordTimer = setTimeout(() => {
+        recordTimer = null;
+        void get().stopVoiceInput();
+      }, 61000);
+    } catch (e) {
+      // 创建失败必须清干净 ref，否则下次误判为「正在录音」而无法重新开始
+      recordingRef = null;
+      set({ voiceState: 'idle' });
+      get().pushMessage({ role: 'assistant', content: `录音失败：${(e as Error).message}` });
+    }
+  },
+  stopVoiceInput: async () => {
+    const rec = recordingRef;
+    recordingRef = null;
+    if (recordTimer) {
+      clearTimeout(recordTimer);
+      recordTimer = null;
+    }
+    if (!rec) return;
+    set({ voiceState: 'transcribing' });
+    try {
+      await rec.stopAndUnloadAsync();
+      const uri = rec.getURI();
+      if (!uri) throw new Error('录音为空');
+      // 转写配置与错题语音反思同源：stt 独立配置，留空回退 LLM 配置
+      const { sttBaseUrl, sttApiKey, sttModel, llmBaseUrl, llmApiKey } = useSettingsStore.getState();
+      const text = await transcribeAudio(uri, {
+        baseUrl: sttBaseUrl || llmBaseUrl,
+        apiKey: sttApiKey || llmApiKey,
+        model: sttModel,
+      });
+      // 录音文件用完即删：语音对话高频产生录音，堆积会占满缓存目录
+      void FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+      set({ voiceState: 'idle' });
+      // 识别即发送：语音对话的连贯体验（ask 内部完成后会接播报 → 聆听）
+      if (text) await get().ask(text);
+    } catch (e) {
+      set({ voiceState: 'idle' });
+      get().pushMessage({ role: 'assistant', content: `语音识别失败：${(e as Error).message}` });
+    }
+  },
+  cancelVoiceInput: () => {
+    const rec = recordingRef;
+    recordingRef = null;
+    if (recordTimer) {
+      clearTimeout(recordTimer);
+      recordTimer = null;
+    }
+    if (rec) void rec.stopAndUnloadAsync().catch(() => {});
+    set({ voiceState: 'idle' });
+  },
+  speak: async (text) => {
+    const { ttsBaseUrl, ttsApiKey, ttsModel, ttsVoice } = useSettingsStore.getState();
+    if (!ttsBaseUrl || !ttsApiKey) return 'unconfigured';
+    const gen = ++speakGen;
+    set({ voiceState: 'speaking' });
+    let fileUri = '';
+    try {
+      fileUri = await synthesizeSpeech(speakableText(text), {
+        baseUrl: ttsBaseUrl,
+        apiKey: ttsApiKey,
+        model: ttsModel,
+        voice: ttsVoice,
+      });
+      if (gen !== speakGen) return 'interrupted'; // 合成期间被新播报/停止打断
+      // 录音模式切播放模式：iOS 音频会话不允许边录边播
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      const { sound } = await Audio.Sound.createAsync({ uri: fileUri });
+      if (gen !== speakGen) {
+        void sound.unloadAsync().catch(() => {});
+        return 'interrupted';
+      }
+      soundRef = sound;
+      let finished = false;
+      await new Promise<void>((resolve) => {
+        speakResolve = resolve;
+        sound.setOnPlaybackStatusUpdate((st) => {
+          if (st.isLoaded && (st.didJustFinish || st.error)) {
+            finished = true;
+            resolve();
+          }
+        });
+        void sound.playAsync();
+      });
+      return finished ? 'done' : 'interrupted';
+    } catch (e) {
+      get().pushMessage({ role: 'assistant', content: `语音播报失败：${(e as Error).message}` });
+      // 失败按中断处理：不续接自动聆听，避免配置错误导致循环刷屏
+      return 'interrupted';
+    } finally {
+      if (soundRef) {
+        void soundRef.unloadAsync().catch(() => {});
+        soundRef = null;
+      }
+      speakResolve = null;
+      if (fileUri) void FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
+      if (gen === speakGen) set({ voiceState: 'idle' }); // 被打断时由 stopSpeaking 负责置 idle
+    }
+  },
+  stopSpeaking: () => {
+    if (get().voiceState !== 'speaking' && !soundRef && !speakResolve) return;
+    speakGen++; // 使进行中的 speak 判定为「已中断」，其 finally 不再抢状态
+    if (soundRef) {
+      void soundRef.stopAndUnloadAsync().catch(() => {});
+      soundRef = null;
+    }
+    if (speakResolve) {
+      const r = speakResolve;
+      speakResolve = null;
+      r(); // 唤醒等待中的 speak / voiceRound
+    }
+    set({ voiceState: 'idle' });
+  },
 }));
+
+// 语音对话闭环：播报 → 自动聆听。仅自然播完才续接；打断/失败/未配置都不续
+async function voiceRound(text: string) {
+  const r = await useAiStore.getState().speak(text);
+  if (r !== 'done') return;
+  const s = useAiStore.getState();
+  if (s.voiceMode && s.visible) void s.startVoiceInput();
+}
 
 // ---------- 流式上屏的三个辅助（操作 store 尾部消息，供 ask 内部使用） ----------
 

@@ -18,7 +18,7 @@ import { fetchDaily, DailyLearning } from '@/lib/cloud';
 import { readDailyCache } from '@/lib/background';
 import { R, cardShadow, glassRim, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
 import { AmbientGlow } from '@/components/AmbientGlow';
-import { jayEggForToday, nextJayLine } from '@/lib/jayEggs';
+import { jayEggForToday, jayMilestoneEgg, nextJayLine, randomJayTaskLine } from '@/lib/jayEggs';
 
 const FLOW_BRIGHT = '#F2EFFB';
 
@@ -74,14 +74,14 @@ export default function CockpitScreen() {
   const [today, setToday] = useState(() => new Date());
   // 心流氛围句：进入心流时随机抽一句周杰伦「歌名梗」彩蛋
   const [flowLine, setFlowLine] = useState('');
+  // 三件事空状态句：挂载时抽一次，避免重渲染闪烁
+  const taskEmptyLine = useMemo(() => randomJayTaskLine(), []);
 
   useEffect(() => {
     const id = setInterval(() => setToday(new Date()), 60000);
     return () => clearInterval(id);
   }, []);
   const todayStr = localDateStr(today);
-  // 特定日期（周董生日/专辑发行日）问候语被彩蛋接管，其余日期走常规时段问候
-  const greeting = useMemo(() => jayEggForToday(today) ?? greetingByHour(today.getHours()), [today]);
 
   const examDate = useMemo(() => {
     const now = new Date();
@@ -98,6 +98,12 @@ export default function CockpitScreen() {
     hours: Math.floor((msLeft % 86400000) / 3600000),
     minutes: Math.floor((msLeft % 3600000) / 60000),
   };
+
+  // 问候语优先级：特定日期彩蛋（生日/发行日/高考日）> 倒计时里程碑（100/50/30/10/3/2/1/0 天）> 常规时段问候
+  const greeting = useMemo(
+    () => jayEggForToday(today) ?? jayMilestoneEgg(daysLeft) ?? greetingByHour(today.getHours()),
+    [today, daysLeft]
+  );
 
   const todayReminders = useMemo(
     () => reminders.filter((r) => r.date === todayStr),
@@ -424,7 +430,7 @@ export default function CockpitScreen() {
           {top3.length === 0 && (
             <View style={styles.emptyBox}>
               <Ionicons name="checkbox-outline" size={20} color={C.text3} />
-              <Text style={styles.empty}>添加最多 3 件今日要事</Text>
+              <Text style={styles.empty}>{taskEmptyLine}</Text>
             </View>
           )}
           {top3.map((t) => (

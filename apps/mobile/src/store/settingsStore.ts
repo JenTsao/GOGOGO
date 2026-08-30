@@ -25,6 +25,10 @@ export interface Settings {
   sttBaseUrl: string; // 语音转写（留空回退 LLM baseUrl；DeepSeek 无 ASR 需单独配）
   sttApiKey: string;
   sttModel: string; // whisper-1 / whisper-large-v3（Groq）/ SenseVoice 等
+  ttsBaseUrl: string; // 语音合成（AI 语音对话播报；DeepSeek/智谱无 TTS，需 OpenAI 等支持 /audio/speech 的供应商）
+  ttsApiKey: string;
+  ttsModel: string; // tts-1 / gpt-4o-mini-tts 等
+  ttsVoice: string; // alloy / echo / nova / shimmer 等
   visionBaseUrl: string; // 视觉模型（错题图片识别）：默认智谱，OpenAI 兼容
   visionApiKey: string;
   visionModel: string; // GLM-4.6V-Flash（免费额度）
@@ -53,6 +57,10 @@ const DEFAULTS: Settings = {
   sttBaseUrl: '',
   sttApiKey: '',
   sttModel: 'whisper-1',
+  ttsBaseUrl: '',
+  ttsApiKey: '',
+  ttsModel: 'tts-1',
+  ttsVoice: 'alloy',
   visionBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
   visionApiKey: '',
   visionModel: 'glm-4.6v-flash',

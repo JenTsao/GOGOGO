@@ -17,13 +17,14 @@ import { writeDailyCache } from '@/lib/background';
 import { fetchRepoPaths } from '@/lib/github';
 import { R, cardShadow, glassRim, HIT_SLOP, themedStyles, usePalette, useScheme, type ThemeMode } from '@/theme';
 import { AmbientGlow } from '@/components/AmbientGlow';
-import { nextJayLine } from '@/lib/jayEggs';
+import { jayLineCount, nextJayLine } from '@/lib/jayEggs';
 
 type ViewMode = 'hub' | 'settings' | 'about';
 type Sec =
   | 'appearance'
   | 'llm'
   | 'stt'
+  | 'tts'
   | 'vision'
   | 'cloud'
   | 'auth'
@@ -67,6 +68,7 @@ export default function ProfileScreen() {
     weatherKey, weatherCity, targetUniversity, targetScore, githubRepo, githubBranch,
     llmProvider, llmBaseUrl, llmModel, llmApiKey,
     sttBaseUrl, sttApiKey, sttModel,
+    ttsBaseUrl, ttsApiKey, ttsModel, ttsVoice,
     visionBaseUrl, visionApiKey, visionModel,
     supabaseUrl, supabaseAnonKey, accessKey, tavilyKey, webApiUrl, themeMode, orbStyle, update,
   } = useSettingsStore();
@@ -79,7 +81,7 @@ export default function ProfileScreen() {
   const [authEmailInput, setAuthEmailInput] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [openSec, setOpenSec] = useState<Record<Sec, boolean>>({
-    appearance: true, llm: false, stt: false, vision: false, cloud: false,
+    appearance: true, llm: false, stt: false, tts: false, vision: false, cloud: false,
     auth: true, search: false, kb: false, reminder: false, sync: false, keepalive: false,
   });
   const toggleSec = (k: Sec) => setOpenSec((s) => ({ ...s, [k]: !s[k] }));
@@ -472,6 +474,18 @@ export default function ProfileScreen() {
             AI 与搜索服务的 API Key 仅保存在本机，请求由设备直连对应服务商；错题照片、专注记录等数据默认存于本机，仅在手动同步时经你配置的云端中转。应用本身不经手、不持有任何密钥与学习数据。
           </Text>
         </View>
+
+        {/* 隐藏歌单：连点版本徽章 5 次解锁的周杰伦歌名梗彩蛋 */}
+        {eggLine && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeadStatic}>
+              <Ionicons name="musical-notes" size={16} color={C.primary} />
+              <Text style={styles.sectionTitle}>隐藏歌单</Text>
+            </View>
+            <Text style={styles.aboutEgg}>{eggLine}</Text>
+            <Text style={styles.aboutEggHint}>第 {eggTaps - 4} 句 · 共 {jayLineCount} 句 · 继续点版本徽章换一句</Text>
+          </View>
+        )}
 
         <Text style={styles.aboutFooter}>为每一个追梦的高三人而作</Text>
       </ScrollView>
