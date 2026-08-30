@@ -6,7 +6,7 @@ import { useAiStore } from '@/store/aiStore';
 import { CodeSandbox } from '@/components/CodeSandbox';
 import { KnowledgeView } from '@/components/KnowledgeView';
 import { MistakeView } from '@/components/MistakeView';
-import { BaseConverter } from '@/components/BaseConverter';
+import { Toolbox } from '@/components/toolbox';
 import { GlassCard } from '@/components/Glass';
 import { AmbientGlow } from '@/components/AmbientGlow';
 import { R, cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
@@ -53,7 +53,7 @@ export default function ArsenalScreen() {
         ) : tab === 'mistake' ? (
           <MistakeView />
         ) : (
-          <BaseConverter />
+          <Toolbox />
         )}
 
         <Text style={styles.sectionTitle}>快捷生成</Text>

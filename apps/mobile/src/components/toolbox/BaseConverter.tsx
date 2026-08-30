@@ -2,7 +2,8 @@ import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { HIT_SLOP, R, cardShadow, glassRim, themedStyles, usePalette, useScheme } from '@/theme';
+import { HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
+import { toolBase } from './shared';
 
 // 工具箱 · 进制转换：2/8/10/16 互转，输入即算（无提交按钮）
 // 用 BigInt 做进制解析与格式化：parseInt/Number 超过 2^53 会失真，大数二进制题直接算错
@@ -12,16 +13,25 @@ type Base = (typeof BASES)[number];
 
 const BASE_LABEL: Record<Base, string> = { 2: '二进制', 8: '八进制', 10: '十进制', 16: '十六进制' };
 
-/** 任意进制字符串 → BigInt（radix 2-36 精确解析；含非法字符返回 null，空串返回 0n） */
+/** 任意进制字符串 → BigInt（radix 2-36 精确解析；支持前导负号；含非法字符或只有负号返回 null） */
 function parseBig(input: string, radix: Base): bigint | null {
+  const negative = input.startsWith('-');
+  const digits = negative ? input.slice(1) : input;
+  // 只有负号（无数字位）：返回 null 交给外层当作「输入未完成」，不当 0 也不报错
+  if (negative && digits.length === 0) return null;
   let acc = 0n;
   const B = BigInt(radix);
-  for (const ch of input.toLowerCase()) {
+  for (const ch of digits.toLowerCase()) {
     const d = parseInt(ch, 36); // 0-9a-z → 0-35；g-z 对 16 进制会命中 d >= radix 被拦
     if (Number.isNaN(d) || d >= radix) return null;
     acc = acc * B + BigInt(d);
   }
-  return acc;
+  return negative ? -acc : acc;
+}
+
+/** BigInt → 指定进制字符串（toString 原生支持 2-36；hex 统一大写更易读） */
+function fmtBig(n: bigint, radix: Base): string {
+  return n.toString(radix).toUpperCase();
 }
 
 export function BaseConverter() {
@@ -37,16 +47,17 @@ export function BaseConverter() {
   }, []);
 
   const trimmed = raw.trim();
-  // 输入侧只放行当前进制合法字符（其余吞掉），故解析失败只会发生在切换源进制后
+  // 输入侧只放行当前进制合法字符与前导负号（其余吞掉），故解析失败只会发生在切换源进制后
   const parsed = useMemo(() => (trimmed ? parseBig(trimmed, fromBase) : null), [trimmed, fromBase]);
-  const invalid = !!trimmed && parsed === null;
+  // 纯负号 = 用户正在输入负数但还没敲数字：不判非法
+  const invalid = !!trimmed && parsed === null && trimmed !== '-';
 
   const onChange = (v: string) => {
     const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz'.slice(0, fromBase);
     const cleaned = v
       .toLowerCase()
       .split('')
-      .filter((c) => alphabet.includes(c))
+      .filter((c, i) => (i === 0 && c === '-') || alphabet.includes(c))
       .slice(0, 64) // 64 位上限：进制题远够，防超大串 BigInt 卡顿
       .join('');
     setRaw(cleaned.toUpperCase());
@@ -108,9 +119,9 @@ export function BaseConverter() {
           const isSrc = b === fromBase;
           const value = parsed !== null ? (isSrc ? trimmed.toUpperCase() : fmtBig(parsed, b)) : null;
           return (
-            <View key={b} style={[styles.row, isSrc && styles.rowSrc]}>
-              <Text style={styles.rowLabel}>{BASE_LABEL[b]}</Text>
-              <Text style={[styles.rowValue, !value && styles.rowEmpty]} numberOfLines={1}>
+            <View key={b} style={[styles.resultRow, isSrc && styles.rowSrc]}>
+              <Text style={styles.resultLabel}>{BASE_LABEL[b]}</Text>
+              <Text style={[styles.resultValue, !value && styles.rowEmpty]} numberOfLines={1}>
                 {value ?? '—'}
               </Text>
               <TouchableOpacity
@@ -134,48 +145,12 @@ export function BaseConverter() {
   );
 }
 
-/** BigInt → 指定进制字符串（toString 原生支持 2-36；hex 统一大写更易读） */
-function fmtBig(n: bigint, radix: Base): string {
-  return n.toString(radix).toUpperCase();
-}
-
 const STYLES = themedStyles((C) => ({
-  panel: { backgroundColor: C.glassCard, borderRadius: R.lg, padding: 14, ...glassRim(C), ...cardShadow },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
-  title: { fontSize: 15, fontWeight: '700', color: C.text },
-  titleAside: { fontSize: 11, color: C.text3, marginLeft: 'auto' },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
-  chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: C.surfaceAlt },
-  chipActive: { backgroundColor: C.primary },
-  chipText: { fontSize: 12, fontWeight: '600', color: C.text2 },
-  chipTextActive: { color: C.onPrimary },
+  ...toolBase(C),
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: {
-    flex: 1,
-    backgroundColor: C.surfaceAlt,
-    borderRadius: R.sm,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: C.text,
-    fontSize: 16,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
   clearBtn: { padding: 4 },
-  errorText: { fontSize: 12, color: C.red, marginTop: 8, lineHeight: 17 },
   rows: { marginTop: 12, gap: 6 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.surfaceAlt,
-    borderRadius: R.sm,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    gap: 8,
-  },
   rowSrc: { borderWidth: 1, borderColor: C.primary },
-  rowLabel: { fontSize: 11, color: C.text3, width: 52 },
-  rowValue: { flex: 1, fontSize: 15, fontWeight: '700', color: C.text, fontVariant: ['tabular-nums'] },
   rowEmpty: { color: C.text3, fontWeight: '400' },
   copyBtn: { padding: 4 },
 }));
