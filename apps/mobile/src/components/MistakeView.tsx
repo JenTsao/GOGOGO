@@ -22,6 +22,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useAiStore } from '@/store/aiStore';
 import { transcribeAudio } from '@/lib/stt';
 import { recognizeMistake } from '@/lib/llm';
+import { randomJayMistakeLine } from '@/lib/jayEggs';
 import { R, cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
 
 // 错题本：拍照/相册 → 压缩 → 学科/标签/语音反思 → 本地入库 + 云端同步
@@ -263,7 +264,7 @@ export function MistakeView() {
       setVoiceUri(null);
       setPickerOpen(false);
       setDetail(null);
-      Alert.alert('✅ 已入库', `错题已保存到本地（${subject}）。\n云端同步可在下方点击「同步到云端」。`);
+      Alert.alert('✅ 已入库', `错题已保存到本地（${subject}）。\n云端同步可在下方点击「同步到云端」。\n\n🎧 ${randomJayMistakeLine()}`);
     } catch (e) {
       Alert.alert('保存失败', (e as Error).message);
     } finally {

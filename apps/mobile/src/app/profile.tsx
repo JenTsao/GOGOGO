@@ -308,7 +308,10 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <Text style={styles.blockLabel}>本周专注 {weekFocusMin} 分钟</Text>
+        <Text style={styles.blockLabel}>
+          本周专注 {weekFocusMin} 分钟
+          {weekFocusMin >= 600 ? ' · 《以父之名》级存在感' : weekFocusMin >= 300 ? ' · 《轨迹》不会骗人' : ''}
+        </Text>
 
         <View style={styles.section}>
           <View style={styles.sectionHeadStatic}>
@@ -585,6 +588,23 @@ export default function ProfileScreen() {
             <TextInput style={styles.input} placeholder="留空回退 AI 模型 Key" placeholderTextColor={C.text3} value={sttApiKey} onChangeText={(v) => update({ sttApiKey: v })} autoCapitalize="none" autoCorrect={false} secureTextEntry />
             <Text style={styles.label}>转写模型名</Text>
             <TextInput style={styles.input} placeholder="whisper-1" placeholderTextColor={C.text3} value={sttModel} onChangeText={(v) => update({ sttModel: v })} autoCapitalize="none" autoCorrect={false} />
+          </>
+        )}
+      </View>
+
+      <View style={styles.section}>
+        <SecHead sec="tts" icon="volume-high" color={C.green} title="语音合成（AI 说话）" />
+        {openSec.tts && (
+          <>
+            <Text style={styles.placeholder}>AI 语音对话播报。需支持 /audio/speech 的服务（OpenAI tts-1、SiliconFlow 等；DeepSeek/智谱无 TTS）。配置后悬浮球可语音对话。</Text>
+            <Text style={styles.label}>合成 Base URL</Text>
+            <TextInput style={styles.input} placeholder="https://api.openai.com/v1" placeholderTextColor={C.text3} value={ttsBaseUrl} onChangeText={(v) => update({ ttsBaseUrl: v })} autoCapitalize="none" autoCorrect={false} />
+            <Text style={styles.label}>合成 API Key</Text>
+            <TextInput style={styles.input} placeholder="sk-…" placeholderTextColor={C.text3} value={ttsApiKey} onChangeText={(v) => update({ ttsApiKey: v })} autoCapitalize="none" autoCorrect={false} secureTextEntry />
+            <Text style={styles.label}>模型名</Text>
+            <TextInput style={styles.input} placeholder="tts-1" placeholderTextColor={C.text3} value={ttsModel} onChangeText={(v) => update({ ttsModel: v })} autoCapitalize="none" autoCorrect={false} />
+            <Text style={styles.label}>音色</Text>
+            <TextInput style={styles.input} placeholder="alloy（可选 echo/nova/shimmer 等）" placeholderTextColor={C.text3} value={ttsVoice} onChangeText={(v) => update({ ttsVoice: v })} autoCapitalize="none" autoCorrect={false} />
           </>
         )}
       </View>

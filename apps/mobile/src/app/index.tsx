@@ -18,7 +18,7 @@ import { fetchDaily, DailyLearning } from '@/lib/cloud';
 import { readDailyCache } from '@/lib/background';
 import { R, cardShadow, glassRim, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
 import { AmbientGlow } from '@/components/AmbientGlow';
-import { jayEggForToday, jayMilestoneEgg, nextJayLine, randomJayTaskLine } from '@/lib/jayEggs';
+import { jayEggForToday, jayMilestoneEgg, nextJayLine, randomJayTaskDoneLine, randomJayTaskLine } from '@/lib/jayEggs';
 
 const FLOW_BRIGHT = '#F2EFFB';
 
@@ -76,6 +76,8 @@ export default function CockpitScreen() {
   const [flowLine, setFlowLine] = useState('');
   // 三件事空状态句：挂载时抽一次，避免重渲染闪烁
   const taskEmptyLine = useMemo(() => randomJayTaskLine(), []);
+  // 三件事全勤句：达成时刻的确定性彩蛋奖励
+  const taskDoneLine = useMemo(() => randomJayTaskDoneLine(), []);
 
   useEffect(() => {
     const id = setInterval(() => setToday(new Date()), 60000);
@@ -427,6 +429,9 @@ export default function CockpitScreen() {
               <View style={[styles.progressFill, { width: `${Math.round(top3Progress * 100)}%` as unknown as number }]} />
             </View>
           )}
+          {top3.length > 0 && top3Done === top3.length && (
+            <Text style={styles.taskDoneEgg}>🎧 {taskDoneLine}</Text>
+          )}
           {top3.length === 0 && (
             <View style={styles.emptyBox}>
               <Ionicons name="checkbox-outline" size={20} color={C.text3} />
@@ -637,6 +642,8 @@ const STYLES = themedStyles((C) => ({
   flowTimer: { color: FLOW_BRIGHT, fontSize: 68, fontWeight: '200', marginVertical: 32, fontVariant: ['tabular-nums'] },
   // 心流氛围句：负 margin 收紧计时器下方的空隙；恒深场景用 inkDim
   flowEgg: { color: C.inkDim, fontSize: 12, marginTop: -20, marginBottom: 16, textAlign: 'center' },
+  // 三件事全勤彩蛋：greenDeep 保证玻璃卡上小字号对比度
+  taskDoneEgg: { color: C.greenDeep, fontSize: 12, marginTop: 10 },
   flowStop: {
     borderWidth: 1, borderColor: C.glassDarkBorder, backgroundColor: C.glassDark,
     borderRadius: 24, paddingHorizontal: 32, paddingVertical: 12,

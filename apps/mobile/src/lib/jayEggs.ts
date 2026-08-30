@@ -86,6 +86,30 @@ export function randomJayTaskLine(): string {
   return TASK_EMPTY_LINES[Math.floor(Math.random() * TASK_EMPTY_LINES.length)];
 }
 
+// 三件事全部完成句：达成时刻的确定性奖励
+const TASK_DONE_LINES: string[] = [
+  '《最伟大的作品》今天的版本，你已经写完了',
+  '《轨迹》又向前一格——今天的三件事，全部说好不哭地完成了',
+  '《以父之名》级的执行力：安静地，把今天做完了',
+];
+
+/** 三件事全勤随机句（挂载时取一次） */
+export function randomJayTaskDoneLine(): string {
+  return TASK_DONE_LINES[Math.floor(Math.random() * TASK_DONE_LINES.length)];
+}
+
+// 错题入库句：收录成功那一刻的安慰与鼓励
+const MISTAKE_LINES: string[] = [
+  '《对不起》说给昨天的粗心——重做一遍，就是最好的回答',
+  '错题本又厚一页——《轨迹》不会骗人，你离考点更近了',
+  '《回到过去》不如写好现在：这道题会感谢今天收录它的你',
+];
+
+/** 错题入库随机句 */
+export function randomJayMistakeLine(): string {
+  return MISTAKE_LINES[Math.floor(Math.random() * MISTAKE_LINES.length)];
+}
+
 /** 倒计时里程碑彩蛋：命中返回句子，未命中 null */
 export function jayMilestoneEgg(daysLeft: number): string | null {
   return MILESTONE_LINES[daysLeft] ?? null;

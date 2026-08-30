@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Audio } from 'expo-av';
+import { Audio, AVPlaybackStatus } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { chatWithLlmStream, ChatMessage, imageTextContent } from '@/lib/llm';
 import { TOOL_SCHEMAS, WRITE_TOOLS, executeTool, describeToolCall, AiToolName } from '@/lib/aiTools';
@@ -476,7 +476,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       let finished = false;
       await new Promise<void>((resolve) => {
         speakResolve = resolve;
-        sound.setOnPlaybackStatusUpdate((st) => {
+        sound.setOnPlaybackStatusUpdate((st: AVPlaybackStatus) => {
           if (st.isLoaded && (st.didJustFinish || st.error)) {
             finished = true;
             resolve();
