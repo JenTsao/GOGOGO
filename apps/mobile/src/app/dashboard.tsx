@@ -183,11 +183,14 @@ export default function DashboardScreen() {
       // 学科掌握：错题重做正确率（重做越多越准；未记录重做结果时为 0 并提示）
       { label: '学科掌握', score: masteryRate },
     ];
-  }, [dailyMinutes, sessions, top3, knowledgeCount, snippetCount, masteryRate]);
+  }, [dailyMinutes, sessMeta, top3, knowledgeCount, snippetCount, masteryRate]);
 
-  const maxDaily = Math.max(30, ...dailyMinutes.map((d) => d.min));
-  const strength = [...dims].sort((a, b) => b.score - a.score)[0];
-  const weakness = [...dims].sort((a, b) => a.score - b.score)[0];
+  // 派生标量收进 memo：纵轴刻度与优势/短板各只算一次（此前每次重渲染都排序 + 展开分配）
+  const maxDaily = useMemo(() => Math.max(30, ...dailyMinutes.map((d) => d.min)), [dailyMinutes]);
+  const { strength, weakness } = useMemo(() => {
+    const sorted = [...dims].sort((a, b) => b.score - a.score);
+    return { strength: sorted[0], weakness: sorted[sorted.length - 1] };
+  }, [dims]);
 
   // 心流热力图：近 7 天（行）× 24 小时（列），格子 = 该小时专注分钟（按会话开始时间归属）
   const heat = useMemo(() => {
@@ -195,19 +198,15 @@ export default function DashboardScreen() {
     const dayIdx: Record<string, number> = {};
     for (let i = 6; i >= 0; i--) dayIdx[localDateStr(new Date(Date.now() - i * 86400000))] = 6 - i;
     const hourTotals = new Array(24).fill(0) as number[];
-    for (const s of sessions) {
-      const ended = new Date(s.endedAt);
-      const di = dayIdx[localDateStr(ended)];
+    for (const m of sessMeta) {
+      const di = dayIdx[m.date];
       if (di === undefined) continue;
-      const startHour = new Date(ended.getTime() - s.duration * 1000).getHours();
-      const min = s.duration / 60;
-      grid[di][startHour] += min;
-      hourTotals[startHour] += min;
+      grid[di][m.startHour] += m.min;
+      hourTotals[m.startHour] += m.min;
     }
-    const peak = hourTotals.indexOf(Math.max(...hourTotals));
     const peakMin = Math.max(...hourTotals);
-    return { grid, peak, peakMin };
-  }, [sessions]);
+    return { grid, peak: hourTotals.indexOf(peakMin), peakMin };
+  }, [sessMeta]);
 
   // 任务完成率趋势：taskStore 每日快照（从启用日起积累）
   const trend = useMemo(() => {
@@ -222,16 +221,20 @@ export default function DashboardScreen() {
     return pts;
   }, [history]);
 
-  // 折线图几何（0-100% 纵轴）
+  // 折线几何（0-100% 纵轴）：点串只在趋势数据变化时重建，不再每次渲染重拼
   const W = 296;
   const H = 116;
   const PAD = 20;
   const tx = (i: number) => PAD + (i * (W - 2 * PAD)) / 6;
   const ty = (rate: number) => H - PAD - (rate * (H - 2 * PAD)) / 100;
-  const trendPoints = trend
-    .map((t, i) => (t.rate === null ? null : `${tx(i).toFixed(1)},${ty(t.rate).toFixed(1)}`))
-    .filter(Boolean)
-    .join(' ');
+  const trendPoints = useMemo(
+    () =>
+      trend
+        .map((t, i) => (t.rate === null ? null : `${tx(i).toFixed(1)},${ty(t.rate).toFixed(1)}`))
+        .filter(Boolean)
+        .join(' '),
+    [trend]
+  );
 
   // 热力色阶（绿色 = 专注量，语义与主题 green 对齐，色阶集中管理在 theme；
   // 深色模式换暗色阶梯：0 值格用深底，避免亮块误导「有专注」）
