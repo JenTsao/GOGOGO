@@ -17,9 +17,9 @@
   --text3: #9b95ae;
   --border: #e9e4f3;
   --green: #0f9d6e;   --green-soft: #e8f7f0;   --green-deep: #0b6b4a;
-  --orange: #d97706;  --orange-soft: #fdf3e3;
+  --orange: #d97706;  --orange-soft: #fdf3e3;  --orange-deep: #92510a;
   --red: #dc2626;     --red-soft: #fdecec;     --rose-deep: #b04a4a;
-  --blue: #2563eb;    --blue-soft: #eaf1fe;
+  --blue: #2563eb;    --blue-soft: #eaf1fe;    --blue-deep: #1d4ed8;
   --field-bg: rgba(255, 255, 255, 0.8);   /* 输入框/筛选 chip 内面 */
   --sidebar-bg: rgba(255, 255, 255, 0.66);
   --code-bg: rgba(246, 244, 250, 0.9);    /* 精炼结果/代码块底 */
@@ -50,9 +50,9 @@ html[data-theme='dark'] {
   --text3: #837ca8;
   --border: #2c2942;
   --green: #34d399;   --green-soft: rgba(52, 211, 153, 0.14);   --green-deep: #6ee7b7;
-  --orange: #f59e0b;  --orange-soft: rgba(217, 119, 6, 0.16);
+  --orange: #f59e0b;  --orange-soft: rgba(217, 119, 6, 0.16);  --orange-deep: #fbbf24;
   --red: #f87171;     --red-soft: rgba(248, 113, 113, 0.14);     --rose-deep: #fca5a5;
-  --blue: #60a5fa;    --blue-soft: rgba(96, 165, 250, 0.14);
+  --blue: #60a5fa;    --blue-soft: rgba(96, 165, 250, 0.14);    --blue-deep: #93c5fd;
   --field-bg: #14121e;
   --sidebar-bg: rgba(20, 18, 30, 0.72);
   --code-bg: #241f3a;          /* 代码语境恒深底（同移动端 consoleBg） */
@@ -291,6 +291,30 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); box-sh
 .news-list { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.9; }
 .news-list a { color: var(--primary); text-decoration: none; }
 .news-list a:hover { text-decoration: underline; }
+
+/* ---------- 每日一句知识点：顶栏玻璃横幅，学科 chip 三色 ---------- */
+.daily-kd {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-top-color: var(--glass-highlight);
+  border-radius: var(--r-md);
+  padding: 10px 14px;
+  margin-bottom: 20px;
+  box-shadow: var(--glass-shadow);
+}
+.kd-chip { flex: none; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
+.kd-orange { background: var(--orange-soft); color: var(--orange-deep); }
+.kd-blue { background: var(--blue-soft); color: var(--blue-deep); }
+.kd-green { background: var(--green-soft); color: var(--green-deep); }
+.kd-text { font-size: 14px; color: var(--text); line-height: 1.7; }
+.kd-text b { font-weight: 700; }
+.kd-note { color: var(--text3); font-size: 12.5px; margin-left: 10px; }
 
 /* ---------- 滚动条：细紫 ---------- */
 ::-webkit-scrollbar { width: 8px; height: 8px; }

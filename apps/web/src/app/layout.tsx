@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Nav } from '@/components/Nav';
 import { EasterEggs } from '@/components/EasterEggs';
+import { DailyKnowledge } from '@/components/DailyKnowledge';
 import { THEME_BOOTSTRAP } from '@/lib/webTheme';
 import './globals.css';
 
@@ -21,7 +22,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="logo">高考副驾驶</div>
             <Nav />
           </aside>
-          <main className="main">{children}</main>
+          <main className="main">
+            <DailyKnowledge />
+            {children}
+          </main>
         </div>
         <EasterEggs />
       </body>

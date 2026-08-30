@@ -6,6 +6,7 @@ import { useAiStore } from '@/store/aiStore';
 import { CodeSandbox } from '@/components/CodeSandbox';
 import { KnowledgeView } from '@/components/KnowledgeView';
 import { MistakeView } from '@/components/MistakeView';
+import { BaseConverter } from '@/components/BaseConverter';
 import { GlassCard } from '@/components/Glass';
 import { AmbientGlow } from '@/components/AmbientGlow';
 import { R, cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
@@ -52,14 +53,7 @@ export default function ArsenalScreen() {
         ) : tab === 'mistake' ? (
           <MistakeView />
         ) : (
-          /* 工具箱占位：入口先行，工具后续逐个上架 */
-          <GlassCard style={styles.toolsEmpty}>
-            <View style={styles.toolsIconWrap}>
-              <Ionicons name="construct" size={26} color={C.primary} />
-            </View>
-            <Text style={styles.toolsEmptyTitle}>工具箱</Text>
-            <Text style={styles.toolsEmptyHint}>工具正在打造中，完成后会出现在这里</Text>
-          </GlassCard>
+          <BaseConverter />
         )}
 
         <Text style={styles.sectionTitle}>快捷生成</Text>
@@ -135,17 +129,4 @@ const STYLES = themedStyles((C) => ({
   actionText: { flex: 1 },
   actionBtnText: { fontSize: 14, fontWeight: '700', color: C.text },
   actionHint: { marginTop: 2, fontSize: 12, color: C.text3, lineHeight: 16 },
-  // 工具箱空状态：居中图标 + 引导文案（工具上架前的占位）
-  toolsEmpty: { borderRadius: R.md, paddingVertical: 40, alignItems: 'center' },
-  toolsIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    backgroundColor: C.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  toolsEmptyTitle: { fontSize: 16, fontWeight: '700', color: C.text },
-  toolsEmptyHint: { fontSize: 12, color: C.text3, marginTop: 6 },
 }));
