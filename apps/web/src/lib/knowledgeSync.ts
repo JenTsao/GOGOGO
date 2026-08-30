@@ -57,6 +57,30 @@ export interface SyncResult {
   skipped: number;
 }
 
+// 简单并发池：拉取 GitHub raw 用。authenticated 限额 5000 req/h，并发 4 有充足安全余量；
+// 不做无脑 Promise.all（放大限速风险），也不用串行（100 篇扫描要 30+ 秒）
+async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>
+): Promise<(R | null)[]> {
+  const results = new Array<R | null>(items.length).fill(null);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      try {
+        results[i] = await fn(items[i]);
+      } catch {
+        // 单篇拉取失败按 null 处理（跳过该篇，本轮不处理）
+      }
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 // 每次调用最多处理 limit 篇（成本/时长控制）：哈希未变的跳过，因此多跑几轮即全量收敛
 export async function syncKnowledge(limit: number): Promise<SyncResult> {
   const owner = requireAdminEnv();
@@ -86,12 +110,19 @@ export async function syncKnowledge(limit: number): Promise<SyncResult> {
 
   // 扫描上限：哈希比对必须先取原文，无上限会让超大仓库每轮打爆 GitHub 速率限制
   const SCAN_CAP = Math.max(limit * 10, 100);
-  let scanned = 0;
 
-  for (const entry of ordered) {
-    if (processed >= limit || scanned >= SCAN_CAP) break;
-    scanned++;
-    const content = await fetchRawFile(entry.path);
+  // 阶段 1：并发池拉取扫描窗口内全部原文 + 哈希比对（原逐篇串行最坏 100 个 HTTP 往返）
+  const scanEntries = ordered.slice(0, SCAN_CAP);
+  const fetched = await mapPool(scanEntries, 4, async (entry) => ({
+    entry,
+    content: await fetchRawFile(entry.path),
+  }));
+
+  // 阶段 2：按原顺序处理变更文件（embed / 写库保持串行：成本受控、失败即中断语义不变）
+  for (const item of fetched) {
+    if (!item) continue;
+    if (processed >= limit) break;
+    const { entry, content } = item;
     const hash = createHash('sha1').update(content).digest('hex');
     const existing = byPath.get(entry.path);
     if (existing && existing.content_hash === hash) {
@@ -135,9 +166,11 @@ export async function syncKnowledge(limit: number): Promise<SyncResult> {
   }
   const livePaths = new Set(entries.map((e) => e.path));
   const ghosts = (metas ?? []).filter((m) => !livePaths.has(m.file_path));
-  for (const g of ghosts) {
-    await supabaseAdmin().from('knowledge_embeddings').delete().eq('note_id', g.id);
-    await supabaseAdmin().from('obsidian_metadata').delete().eq('id', g.id);
+  if (ghosts.length > 0) {
+    // 批量删除（原逐条 2N 次 delete）：向量先行，元数据随后，两批 .in() 收敛为 2 次请求
+    const ghostIds = ghosts.map((g) => g.id);
+    await supabaseAdmin().from('knowledge_embeddings').delete().in('note_id', ghostIds);
+    await supabaseAdmin().from('obsidian_metadata').delete().in('id', ghostIds);
   }
 
   return { total: entries.length, processed, embeddedFiles, skipped };

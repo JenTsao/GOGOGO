@@ -170,20 +170,31 @@ export function MistakesBoard({ initial }: { initial: MistakeRow[] }) {
         </div>
       )}
 
-      {viewing && <MistakeLightbox m={viewing} onClose={() => setViewing(null)} onToggle={onToggle} onDelete={onDelete} busy={busyId === viewing.id} />}
+      {viewing && (
+        <MistakeLightbox
+          m={viewing}
+          detail={detail}
+          onClose={() => setViewing(null)}
+          onToggle={onToggle}
+          onDelete={onDelete}
+          busy={busyId === viewing.id}
+        />
+      )}
     </>
   );
 }
 
-// 大图审阅：图片全览 + 语音反思播放 + AI 识别摘要 + 操作
+// 大图审阅：图片全览 + 语音反思播放（按需加载）+ AI 识别摘要 + 操作
 function MistakeLightbox({
   m,
+  detail,
   onClose,
   onToggle,
   onDelete,
   busy,
 }: {
   m: MistakeRow;
+  detail: DetailState | null;
   onClose: () => void;
   onToggle: (m: MistakeRow) => void;
   onDelete: (m: MistakeRow) => void;

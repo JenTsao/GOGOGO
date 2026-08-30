@@ -14,14 +14,15 @@ import { R, cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
 export default function ArsenalScreen() {
   const C = usePalette();
   const styles = STYLES[useScheme()];
-  const [tab, setTab] = useState<'code' | 'knowledge' | 'mistake'>('code');
+  const [tab, setTab] = useState<'code' | 'knowledge' | 'mistake' | 'tools'>('code');
   const runAction = useAiStore((s) => s.runAction);
   const insets = useSafeAreaInsets();
 
-  const TABS: { key: 'code' | 'knowledge' | 'mistake'; label: string; icon: string }[] = [
+  const TABS: { key: 'code' | 'knowledge' | 'mistake' | 'tools'; label: string; icon: string }[] = [
     { key: 'code', label: '沙盒', icon: 'code-slash' },
     { key: 'knowledge', label: '知识库', icon: 'library' },
     { key: 'mistake', label: '错题本', icon: 'book' },
+    { key: 'tools', label: '工具箱', icon: 'construct' },
   ];
 
   return (
@@ -48,8 +49,17 @@ export default function ArsenalScreen() {
           <CodeSandbox />
         ) : tab === 'knowledge' ? (
           <KnowledgeView />
-        ) : (
+        ) : tab === 'mistake' ? (
           <MistakeView />
+        ) : (
+          /* 工具箱占位：入口先行，工具后续逐个上架 */
+          <GlassCard style={styles.toolsEmpty}>
+            <View style={styles.toolsIconWrap}>
+              <Ionicons name="construct" size={26} color={C.primary} />
+            </View>
+            <Text style={styles.toolsEmptyTitle}>工具箱</Text>
+            <Text style={styles.toolsEmptyHint}>工具正在打造中，完成后会出现在这里</Text>
+          </GlassCard>
         )}
 
         <Text style={styles.sectionTitle}>快捷生成</Text>
@@ -125,4 +135,17 @@ const STYLES = themedStyles((C) => ({
   actionText: { flex: 1 },
   actionBtnText: { fontSize: 14, fontWeight: '700', color: C.text },
   actionHint: { marginTop: 2, fontSize: 12, color: C.text3, lineHeight: 16 },
+  // 工具箱空状态：居中图标 + 引导文案（工具上架前的占位）
+  toolsEmpty: { borderRadius: R.md, paddingVertical: 40, alignItems: 'center' },
+  toolsIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: C.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  toolsEmptyTitle: { fontSize: 16, fontWeight: '700', color: C.text },
+  toolsEmptyHint: { fontSize: 12, color: C.text3, marginTop: 6 },
 }));
