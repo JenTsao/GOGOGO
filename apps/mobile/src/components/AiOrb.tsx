@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
+import Markdown from 'react-native-markdown-display';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
@@ -21,6 +22,7 @@ import { BlurView } from 'expo-blur';
 import { useAiStore, STATUS_EMOTION } from '@/store/aiStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { describeToolCall } from '@/lib/aiTools';
+import { markdownTheme, mathLite, transformOutsideFences } from '@/lib/markdown';
 import {
   R,
   cardShadow,
@@ -45,6 +47,12 @@ const BALL_URLS = [
   'https://raw.githubusercontent.com/JenTsao/GOGOGO/main/apps/mobile/assets/grok-ball/ball.html',
 ];
 const BALL_CACHE = `${FileSystem.cacheDirectory}grok-ball-v3.html`;
+
+// AI 回复 Markdown 样式：共享工厂 chat 档（随主题双套，切换零重建）
+const CHAT_MD_STYLES = themedStyles((C) => markdownTheme(C, 'chat'));
+
+/** AI 回复渲染前预处理：代码围栏外的 LaTeX 转轻量 Unicode（与知识库阅读器同一套规则） */
+const renderChatContent = (md: string) => transformOutsideFences(md, mathLite);
 
 type OrbMode = 'black' | 'white';
 
@@ -171,6 +179,7 @@ export function AiOrb() {
   const open = useAiStore((s) => s.open);
   const close = useAiStore((s) => s.close);
   const ask = useAiStore((s) => s.ask);
+  const stop = useAiStore((s) => s.stop);
   const confirmToolCall = useAiStore((s) => s.confirmToolCall);
   const cancelToolCall = useAiStore((s) => s.cancelToolCall);
   const llmModel = useSettingsStore((s) => s.llmModel);
@@ -181,6 +190,8 @@ export function AiOrb() {
   const [input, setInput] = useState('');
   const insets = useSafeAreaInsets();
   const busy = status === 'thinking' || status === 'searching' || status === 'generating';
+  // 流式消息已在逐字上屏时不再显示独立 typing 气泡（光标「▍」即指示器）
+  const hasStreamingMsg = messages.some((m) => m.streaming);
   const emotionId = STATUS_EMOTION[status];
   const mode = resolveOrbMode(orbStyle, scheme);
 
@@ -408,9 +419,15 @@ export function AiOrb() {
                     <View
                       style={[styles.bubble, m.role === 'user' ? styles.bubbleUser : styles.bubbleAssistant]}
                     >
-                      <Text style={m.role === 'user' ? styles.bubbleUserText : styles.bubbleAssistantText}>
-                        {m.content}
-                      </Text>
+                      {m.role === 'user' ? (
+                        <Text style={styles.bubbleUserText}>{m.content}</Text>
+                      ) : (
+                        // AI 回复按 Markdown 渲染（标题/列表/代码/表格），LaTeX 已轻量化为 Unicode
+                        // 流式生成中尾部追加光标「▍」作为逐字输出指示器
+                        <Markdown style={CHAT_MD_STYLES[scheme]}>
+                          {renderChatContent(m.content) + (m.streaming ? ' ▍' : '')}
+                        </Markdown>
+                      )}
                     </View>
                     {m.toolCall?.state === 'pending' && (
                       <View style={styles.confirmCard}>
@@ -452,7 +469,7 @@ export function AiOrb() {
                     )}
                   </View>
                 ))}
-                {busy && (
+                {busy && !hasStreamingMsg && (
                   <View style={styles.rowAssistant}>
                     <View style={[styles.bubble, styles.bubbleAssistant, styles.typingBubble]}>
                       <ActivityIndicator size="small" color={C.primary} />
@@ -481,12 +498,17 @@ export function AiOrb() {
                   multiline
                 />
                 <TouchableOpacity
-                  style={[styles.sendBtn, (!input.trim() || busy) && styles.sendBtnDisabled]}
-                  onPress={send}
-                  disabled={!input.trim() || busy}
+                  style={[
+                    styles.sendBtn,
+                    !busy && !input.trim() && styles.sendBtnDisabled,
+                    // 忙碌时按钮变「停止」：红色方块直观表达可中断
+                    busy && styles.sendBtnStop,
+                  ]}
+                  onPress={busy ? stop : send}
+                  disabled={!busy && !input.trim()}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 >
-                  <Ionicons name="arrow-up" size={20} color={C.onPrimary} />
+                  <Ionicons name={busy ? 'stop' : 'arrow-up'} size={20} color={C.onPrimary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -594,7 +616,6 @@ const STYLES = themedStyles((C) => ({
   bubbleUser: { backgroundColor: C.primary, borderBottomRightRadius: 4 },
   bubbleUserText: { color: C.onPrimary, fontSize: 14, lineHeight: 21 },
   bubbleAssistant: { backgroundColor: C.card, borderBottomLeftRadius: 4, ...cardShadow },
-  bubbleAssistantText: { color: C.text, fontSize: 14, lineHeight: 21 },
   typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
   typingText: { color: C.text2, fontSize: 13 },
   confirmCard: {

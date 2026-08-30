@@ -389,7 +389,7 @@ export default function CompilePage() {
           {history.map((job) => (
             <div
               key={job.id}
-              style={{ border: '1px solid #eee', borderRadius: 10, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
             >
               <span style={{ fontSize: 14 }}>
                 {job.type === 'pdf' ? '📄' : job.type === 'anki' ? '📱' : '📋'} {job.name}

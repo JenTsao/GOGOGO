@@ -1,4 +1,7 @@
 // 移动端多供应商 LLM 客户端：OpenAI 兼容协议（BYOK，Key 存 MMKV 由用户自配）
+// 流式走 expo/fetch（原生实现）：RN 全局 fetch 的 polyfill 不暴露 res.body，读不了 SSE
+import { fetch as expoFetch } from 'expo/fetch';
+
 export interface LlmPreset {
   label: string;
   baseUrl: string;
@@ -19,8 +22,12 @@ export type ChatContentPart =
   | { type: 'image_url'; image_url: { url: string } };
 
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string | ChatContentPart[];
+  /** assistant 消息携带的工具调用（OpenAI 协议：工具结果回传时必须原样带上） */
+  tool_calls?: { id: string; type: 'function'; function: { name: string; arguments: string } }[];
+  /** role=tool 时对应的调用 ID */
+  tool_call_id?: string;
 }
 
 // 组装「图片 + 文字」视觉消息（dataUrl = data:image/jpeg;base64,... 或公网图片 URL）
@@ -97,15 +104,17 @@ export interface LlmResponse {
 export async function chatWithLlm(
   cfg: { baseUrl: string; apiKey: string; model: string },
   messages: ChatMessage[],
-  opts?: { tools?: ToolDef[] }
+  opts?: { tools?: ToolDef[]; signal?: AbortSignal }
 ): Promise<LlmResponse> {
   // model 必填：OpenAI 兼容协议严格要求 model 字段，留空会被 OpenAI/DeepSeek 直连等严格供应商 400 拒绝
   if (!cfg.baseUrl || !cfg.apiKey || !cfg.model) {
     throw new Error('请先在「我的」Tab 配置 AI 供应商、模型名与 API Key');
   }
   // 超时必须可中止：供应商挂起会让悬浮球永远停在「思考中」，用户只能杀 App
+  // 外部 signal（用户点停止）与超时 signal 任一触发即中止
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
+  opts?.signal?.addEventListener('abort', () => controller.abort(), { once: true });
   let res: Response;
   try {
     res = await fetch(`${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
@@ -120,7 +129,11 @@ export async function chatWithLlm(
       signal: controller.signal,
     });
   } catch (e) {
-    throw (e as Error).name === 'AbortError' ? new Error('请求超时（60 秒），请检查网络或供应商地址') : (e as Error);
+    if ((e as Error).name !== 'AbortError') throw e;
+    // 用户主动停止 vs 超时：文案必须区分，否则停止被误报为网络问题
+    throw opts?.signal?.aborted
+      ? new Error('已停止')
+      : new Error('请求超时（60 秒），请检查网络或供应商地址');
   } finally {
     clearTimeout(timer);
   }
@@ -148,4 +161,158 @@ export async function chatWithLlm(
   });
   if (!msg?.content && toolCalls.length === 0) throw new Error('模型返回为空');
   return { content: msg?.content ?? '', toolCalls };
+}
+
+// ============================================================
+// 流式客户端：SSE 增量解析 + 工具调用增量累积 + 可中断
+// ============================================================
+
+export interface StreamOpts {
+  tools?: ToolDef[];
+  /** 外部中止信号（用户点「停止」） */
+  signal?: AbortSignal;
+  /** 每收到一段文本增量回调（用于逐字上屏） */
+  onDelta?: (text: string) => void;
+}
+
+export interface StreamResult extends LlmResponse {
+  /** 用户主动中止时为 true：返回已累积的部分内容而非抛错 */
+  aborted?: boolean;
+}
+
+// SSE 单帧结构（OpenAI 兼容）：data: {"choices":[{"delta":{...}}]}
+interface StreamChunk {
+  choices?: {
+    delta?: {
+      content?: string | null;
+      tool_calls?: { index: number; id?: string; function?: { name?: string; arguments?: string } }[];
+    };
+  }[];
+}
+
+class HttpError extends Error {
+  constructor(readonly status: number, body: string) {
+    super(`HTTP ${status}: ${body.slice(0, 200)}`);
+  }
+}
+
+async function streamOnce(
+  cfg: { baseUrl: string; apiKey: string; model: string },
+  messages: ChatMessage[],
+  opts?: StreamOpts
+): Promise<StreamResult> {
+  let res: Response;
+  try {
+    res = await expoFetch(`${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages,
+        temperature: 0.7,
+        stream: true,
+        ...(opts?.tools ? { tools: opts.tools } : {}),
+      }),
+      ...(opts?.signal ? { signal: opts.signal } : {}),
+    });
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') return { content: '', toolCalls: [], aborted: true };
+    throw e;
+  }
+  if (!res.ok) throw new HttpError(res.status, await res.text().catch(() => ''));
+
+  let content = '';
+  let aborted = false;
+  // 工具调用按 index 累积：id/name 只在首帧出现，arguments 逐帧拼接
+  const toolAcc = new Map<number, { id: string; name: string; args: string }>();
+  const emit = (chunk: StreamChunk) => {
+    const delta = chunk.choices?.[0]?.delta;
+    if (!delta) return;
+    if (delta.content) {
+      content += delta.content;
+      opts?.onDelta?.(delta.content);
+    }
+    for (const tc of delta.tool_calls ?? []) {
+      const cur = toolAcc.get(tc.index) ?? { id: '', name: '', args: '' };
+      if (tc.id) cur.id = tc.id;
+      if (tc.function?.name) cur.name += tc.function.name;
+      if (tc.function?.arguments) cur.args += tc.function.arguments;
+      toolAcc.set(tc.index, cur);
+    }
+  };
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('供应商未返回流式响应体');
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // 按行切分，最后一段可能是不完整帧，留在 buffer 等下一批字节
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) {
+        const s = line.trim();
+        if (!s.startsWith('data:')) continue;
+        const payload = s.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          emit(JSON.parse(payload) as StreamChunk);
+        } catch {
+          // 单帧损坏跳过，不影响后续帧
+        }
+      }
+    }
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') aborted = true;
+    else throw e;
+  }
+
+  const toolCalls: ToolCall[] = [...toolAcc.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, t]) => {
+      let args: Record<string, unknown> = {};
+      try {
+        args = JSON.parse(t.args || '{}');
+      } catch {
+        // 参数解析失败按空参处理，由工具执行侧兜底
+      }
+      return {
+        // 个别供应商流式不带 id：生成兜底 id，保证 tool_call_id 能对上
+        id: t.id || `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name: t.name,
+        args,
+      };
+    })
+    .filter((t) => t.name);
+  if (!content && toolCalls.length === 0 && !aborted) throw new Error('模型返回为空');
+  return aborted ? { content, toolCalls, aborted: true } : { content, toolCalls };
+}
+
+// 流式对话入口：优先 SSE 流式（逐字上屏），供应商不支持 stream 参数时自动降级非流式
+export async function chatWithLlmStream(
+  cfg: { baseUrl: string; apiKey: string; model: string },
+  messages: ChatMessage[],
+  opts?: StreamOpts
+): Promise<StreamResult> {
+  if (!cfg.baseUrl || !cfg.apiKey || !cfg.model) {
+    throw new Error('请先在「我的」Tab 配置 AI 供应商、模型名与 API Key');
+  }
+  try {
+    return await streamOnce(cfg, messages, opts);
+  } catch (e) {
+    // 自定义中转站常对 stream 参数直接 400/404：降级非流式重试一次
+    // 401/403（Key 错误）/429（限流）降级无意义，原样抛出
+    if (e instanceof HttpError && [400, 404, 422].includes(e.status)) {
+      try {
+        return await chatWithLlm(cfg, messages, { tools: opts?.tools, signal: opts?.signal });
+      } catch (e2) {
+        if (opts?.signal?.aborted) return { content: '', toolCalls: [], aborted: true };
+        throw e2;
+      }
+    }
+    throw e;
+  }
 }

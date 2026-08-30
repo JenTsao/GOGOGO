@@ -15,6 +15,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { useWebTheme } from '@/lib/webTheme';
 
 export interface InsightData {
   radar: { dim: string; score: number }[];
@@ -36,6 +37,16 @@ export interface InsightData {
 // 画像大屏图表：六维雷达 + 近 30 天专注柱状 + 情绪轨迹（recharts 仅在客户端加载）
 export function InsightCharts({ data }: { data: InsightData }) {
   const t = data.totals;
+  // recharts 的 SVG 属性不支持 CSS 变量，需按主题取具体色值（令牌与 globals.css 对齐）
+  const scheme = useWebTheme();
+  const grid = scheme === 'dark' ? '#2c2942' : '#e9e4f3';
+  const tick = scheme === 'dark' ? '#a9a3c4' : '#555555';
+  const primary = scheme === 'dark' ? '#a78bfa' : '#7c3aed';
+  const tooltipStyle = {
+    contentStyle: { background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--text)' },
+    labelStyle: { color: 'var(--text2)' },
+    itemStyle: { color: 'var(--text)' },
+  } as const;
   return (
     <>
       <div className="stat-grid">
@@ -81,10 +92,10 @@ export function InsightCharts({ data }: { data: InsightData }) {
           <div className="chart-box">
             <ResponsiveContainer width="100%" height={300}>
               <RadarChart data={data.radar} outerRadius="72%">
-                <PolarGrid stroke="#e3e0ee" />
-                <PolarAngleAxis dataKey="dim" tick={{ fontSize: 13, fill: '#555' }} />
-                <Radar dataKey="score" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.28} />
-                <Tooltip formatter={(v) => [`${v} 分`, '得分']} />
+                <PolarGrid stroke={grid} />
+                <PolarAngleAxis dataKey="dim" tick={{ fontSize: 13, fill: tick }} />
+                <Radar dataKey="score" stroke={primary} fill={primary} fillOpacity={0.28} />
+                <Tooltip formatter={(v) => [`${v} 分`, '得分']} {...tooltipStyle} />
               </RadarChart>
             </ResponsiveContainer>
           </div>
@@ -97,15 +108,16 @@ export function InsightCharts({ data }: { data: InsightData }) {
             <div className="chart-box">
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={data.moodTrend} margin={{ top: 12, right: 16, left: -18, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[-2, 2]} ticks={[-2, -1, 0, 1, 2]} tick={{ fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={grid} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: tick }} stroke={grid} />
+                  <YAxis domain={[-2, 2]} ticks={[-2, -1, 0, 1, 2]} tick={{ fontSize: 11, fill: tick }} stroke={grid} />
                   <Tooltip
                     formatter={(v) => [`${v}`, '情绪分']}
                     labelFormatter={(label, payload) => {
                       const p = payload?.[0]?.payload as { emoji?: string } | undefined;
                       return `${label} ${p?.emoji ?? ''}`;
                     }}
+                    {...tooltipStyle}
                   />
                   <Line type="monotone" dataKey="score" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
                 </LineChart>
@@ -122,11 +134,11 @@ export function InsightCharts({ data }: { data: InsightData }) {
         <div className="chart-box">
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={data.focusTrend} margin={{ top: 12, right: 16, left: -18, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} interval={4} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v) => [`${v} 分钟`, '专注']} />
-              <Bar dataKey="minutes" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+              <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: tick }} stroke={grid} interval={4} />
+              <YAxis tick={{ fontSize: 11, fill: tick }} stroke={grid} />
+              <Tooltip formatter={(v) => [`${v} 分钟`, '专注']} {...tooltipStyle} />
+              <Bar dataKey="minutes" fill={primary} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

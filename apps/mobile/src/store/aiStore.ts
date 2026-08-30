@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { chatWithLlm, ChatMessage, imageTextContent } from '@/lib/llm';
+import { chatWithLlmStream, ChatMessage, imageTextContent } from '@/lib/llm';
 import { TOOL_SCHEMAS, WRITE_TOOLS, executeTool, describeToolCall, AiToolName } from '@/lib/aiTools';
 import { useSettingsStore } from './settingsStore';
+import { useTaskStore } from './taskStore';
 
 // L4 级 AI 悬浮球状态（六大专属工具调度占位）
 export type AiTool =
@@ -25,6 +26,8 @@ export interface AiMessage {
   content: string;
   tool?: AiTool;
   toolCall?: PendingToolCall;
+  /** 流式生成中：气泡尾部渲染光标「▍」，完成即清除 */
+  streaming?: boolean;
 }
 
 // AI 工作状态 → grok-ball 表情映射（emotionId 见 grok-ball 文档）
@@ -54,7 +57,40 @@ export const STATUS_EMOTION: Record<AiStatus, string> = {
 const SYSTEM_PROMPT =
   '你是「高考副驾驶」，一名陪伴高三学生备考的 AI 助手。要求：回答简洁、鼓励但不灌鸡汤；学科问题给出清晰步骤。' +
   '你可以调用工具：添加任务、创建日期提醒、联网搜索、导出笔记、查询专注统计、修复代码。' +
-  '需要用户确认的写操作会先展示确认卡片，由系统处理；你只负责判断意图并调用工具。';
+  '需要用户确认的写操作会先展示确认卡片，由系统处理；你只负责判断意图并调用工具。' +
+  '调用工具拿到结果后，要基于结果给出自然、有信息量的总结，不要只复述原始数据。';
+
+// 中文日期串（不依赖 Intl：Hermes 环境兼容性兜底）
+function zhDate(d: Date): string {
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+// 动态系统提示词：注入日期/倒计时/目标/今日待办，让 AI「认识」当前用户
+// （否则 AI 不知道今天几号、还剩多少天，所有回答都泛泛而谈）
+function buildSystemPrompt(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  // 高考固定 6 月 7 日 9 点开考；今年已过则算次年
+  const exam =
+    now.getTime() >= new Date(y, 5, 7, 9, 0, 0).getTime()
+      ? new Date(y + 1, 5, 7, 9, 0, 0)
+      : new Date(y, 5, 7, 9, 0, 0);
+  const daysLeft = Math.ceil((exam.getTime() - now.getTime()) / 86400000);
+  const week = '日一二三四五六'[now.getDay()];
+  const ctx: string[] = [
+    `今天是${zhDate(now)}（周${week}），距 ${exam.getFullYear()} 年高考还有 ${daysLeft} 天。`,
+  ];
+  const { targetUniversity, targetScore } = useSettingsStore.getState();
+  if (targetUniversity) ctx.push(`目标大学：${targetUniversity}。`);
+  if (targetScore) ctx.push(`目标总分：${targetScore} 分。`);
+  const top3 = useTaskStore.getState().top3.filter((t) => t.status !== 'done').slice(0, 3);
+  if (top3.length > 0) ctx.push(`今日待办：${top3.map((t) => t.content).join('；')}。`);
+  return (
+    SYSTEM_PROMPT +
+    '\n\n用户背景（供个性化参考，除非用户问起否则不要复述）：\n' +
+    ctx.join('\n')
+  );
+}
 
 interface AiState {
   visible: boolean;
@@ -64,8 +100,10 @@ interface AiState {
   close: () => void;
   setStatus: (s: AiStatus) => void;
   pushMessage: (m: AiMessage) => void;
-  // 真实对话入口（L1-L4）：识别工具意图；写操作挂确认卡片，读操作直接执行
+  // 真实对话入口（L1-L4）：流式输出 + 工具循环（读工具结果回传模型综合，写操作挂确认卡片）
   ask: (content: string) => Promise<void>;
+  // 中止当前请求：保留已生成的部分文本
+  stop: () => void;
   // 视觉对话（错题图片讲解）：走独立视觉模型（GLM-4.6V-Flash 等），不传工具（视觉模型多不支持 function calling）
   askVision: (prompt: string, imageDataUrl: string) => Promise<void>;
   // 确认卡片：执行 / 取消
@@ -76,6 +114,8 @@ interface AiState {
 }
 
 let actionTimer: ReturnType<typeof setTimeout> | null = null;
+// 当前进行中的请求控制器：用户点「停止」时 abort（仅 LLM 请求，工具内请求有自己的超时）
+let abortRef: AbortController | null = null;
 
 export const useAiStore = create<AiState>((set, get) => ({
   visible: false,
@@ -94,6 +134,8 @@ export const useAiStore = create<AiState>((set, get) => ({
       clearTimeout(actionTimer);
       actionTimer = null;
     }
+    // 关面板顺手停掉进行中的生成：后台流式写入一个不可见的列表纯属浪费
+    abortRef?.abort();
     set({ visible: false, status: 'idle' });
   },
   setStatus: (status) => set({ status }),
@@ -105,51 +147,119 @@ export const useAiStore = create<AiState>((set, get) => ({
     get().pushMessage({ role: 'user', content: text });
     get().setStatus('thinking');
     const { llmBaseUrl, llmModel, llmApiKey } = useSettingsStore.getState();
+    const controller = new AbortController();
+    abortRef = controller;
+    const updater = makeStreamingUpdater();
+    // 收尾三件事：flush 节流缓冲 → 清 streaming 光标 → 删空气泡（模型没说话直接调工具时）
+    const finishRound = () => {
+      updater.end();
+      markStreamDone();
+      dropEmptyBubble();
+    };
     try {
-      // 最近 12 条作为上下文（当前 user 消息已在 store 中；toolCall 元数据不进 LLM）
+      // 最近 12 条纯文本历史（含刚 push 的 user 消息；toolCall 元数据不进 LLM）
       const history: ChatMessage[] = [...get().messages.slice(-12)].map((m) => ({
         role: m.role,
         content: m.content,
       }));
-      const reply = await chatWithLlm(
-        { baseUrl: llmBaseUrl, apiKey: llmApiKey, model: llmModel },
-        [{ role: 'system', content: SYSTEM_PROMPT }, ...history],
-        { tools: TOOL_SCHEMAS }
-      );
+      const llmMessages: ChatMessage[] = [
+        { role: 'system', content: buildSystemPrompt() },
+        ...history,
+      ];
+      // 工具循环：最多 3 轮 LLM 调用 = 初始 + 2 次工具往返；最后一轮不给工具，强制文本收口
+      const MAX_ROUNDS = 3;
+      for (let round = 0; round < MAX_ROUNDS; round++) {
+        get().pushMessage({ role: 'assistant', content: '', streaming: true });
+        const reply = await chatWithLlmStream(
+          { baseUrl: llmBaseUrl, apiKey: llmApiKey, model: llmModel },
+          llmMessages,
+          {
+            tools: round < MAX_ROUNDS - 1 ? TOOL_SCHEMAS : undefined,
+            signal: controller.signal,
+            onDelta: updater.push,
+          }
+        );
+        finishRound();
+        if (reply.aborted) {
+          // 用户主动停止：保留已上屏的部分文本，正常收尾
+          get().setStatus('done');
+          return;
+        }
+        if (reply.toolCalls.length === 0) {
+          if (!reply.content) throw new Error('模型返回为空');
+          get().setStatus('done');
+          return;
+        }
 
-      if (reply.toolCalls.length > 0) {
-        // 模型可能一次返回多个工具调用（如同时加任务+设提醒）：读操作依次执行，写操作各挂一张确认卡片
-        if (reply.content) get().pushMessage({ role: 'assistant', content: reply.content });
-        let pending = 0;
-        let lastOk = true;
+        // 有工具调用：assistant 的 tool_calls 原样回传（OpenAI 协议要求），供下一轮综合
+        llmMessages.push({
+          role: 'assistant',
+          content: reply.content,
+          tool_calls: reply.toolCalls.map((c) => ({
+            id: c.id,
+            type: 'function' as const,
+            function: { name: c.name, arguments: JSON.stringify(c.args) },
+          })),
+        });
+
+        let readExecuted = false;
+        let writePending = false;
         for (const call of reply.toolCalls) {
           if (WRITE_TOOLS.has(call.name)) {
-            pending++;
+            writePending = true;
             get().pushMessage({
               role: 'assistant',
               content: `好的，我来${describeToolCall(call.name, call.args)}。`,
               toolCall: { id: call.id, name: call.name as AiToolName, args: call.args, state: 'pending' },
             });
+            llmMessages.push({
+              role: 'tool',
+              content: '该操作需用户在确认卡片上确认，已生成卡片，尚未执行。',
+              tool_call_id: call.id,
+            });
           } else {
+            // 工作状态映射：让球脸与实际动作同步（搜索→检索中，导出/读码→生成中）
+            get().setStatus(
+              call.name === 'searchWeb'
+                ? 'searching'
+                : call.name === 'exportNote' || call.name === 'correctCode'
+                  ? 'generating'
+                  : 'thinking'
+            );
             const result = await executeTool(call.name, call.args);
             get().pushMessage({ role: 'assistant', content: result.text });
-            if (!result.ok) lastOk = false;
+            // 工具结果截断回传：防止长输出（如整页搜索结果）撑爆上下文
+            llmMessages.push({
+              role: 'tool',
+              content: result.text.slice(0, 2000),
+              tool_call_id: call.id,
+            });
+            readExecuted = true;
           }
         }
-        get().setStatus(pending > 0 ? 'listening' : lastOk ? 'done' : 'error');
-        return;
+        // 全是写操作：确认卡片接管对话，不再让模型多说一轮
+        if (!readExecuted) {
+          get().setStatus(writePending ? 'listening' : 'done');
+          return;
+        }
+        // 下一轮：工具结果已在 llmMessages，模型综合输出最终答案（继续流式）
+        get().setStatus('thinking');
       }
-
-      if (!reply.content) throw new Error('模型返回为空');
-      get().pushMessage({ role: 'assistant', content: reply.content });
       get().setStatus('done');
     } catch (e) {
+      finishRound();
       get().pushMessage({ role: 'assistant', content: `请求失败：${(e as Error).message}` });
       get().setStatus('error');
+    } finally {
+      abortRef = null;
     }
+  },
+  stop: () => {
+    abortRef?.abort();
   },
   // 视觉对话：错题图片直接喂给视觉模型（GLM-4.6V-Flash），讲解上屏悬浮球
   askVision: async (prompt, imageDataUrl) => {
+    if (get().status === 'thinking') return;
     get().pushMessage({ role: 'user', content: `${prompt}\n📷（已附错题图片）` });
     get().setStatus('thinking');
     const { visionBaseUrl, visionApiKey, visionModel } = useSettingsStore.getState();
@@ -158,10 +268,13 @@ export const useAiStore = create<AiState>((set, get) => ({
       const history: ChatMessage[] = get()
         .messages.slice(-7, -1)
         .map((m) => ({ role: m.role, content: m.content }));
-      const reply = await chatWithLlm(
+      const reply = await chatWithLlmStream(
         { baseUrl: visionBaseUrl, apiKey: visionApiKey, model: visionModel },
         [
-          { role: 'system', content: '你是「高考副驾驶」。用户发来一张错题图片，请：先读出题目关键条件，再给出分步解题过程，指出图中可见的作答错误（如有），最后给 1-2 个同类练习方向。回答简洁清晰，用中文。' },
+          {
+            role: 'system',
+            content: `你是「高考副驾驶」。今天是${zhDate(new Date())}。用户发来一张错题图片，请：先读出题目关键条件，再给出分步解题过程，指出图中可见的作答错误（如有），最后给 1-2 个同类练习方向。回答简洁清晰，用中文。`,
+          },
           ...history,
           { role: 'user', content: imageTextContent(prompt, imageDataUrl) },
         ]
@@ -217,3 +330,61 @@ export const useAiStore = create<AiState>((set, get) => ({
     }, durationMs);
   },
 }));
+
+// ---------- 流式上屏的三个辅助（操作 store 尾部消息，供 ask 内部使用） ----------
+
+// 节流追加器：delta 高频到达（每秒几十次），直接 set 会拖垮渲染，80ms 批量追加到最后一条 assistant 消息
+function makeStreamingUpdater() {
+  let pending = '';
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const flush = () => {
+    timer = null;
+    if (!pending) return;
+    const add = pending;
+    pending = '';
+    useAiStore.setState((s) => {
+      const msgs = [...s.messages];
+      const last = msgs[msgs.length - 1];
+      if (last?.role === 'assistant') {
+        msgs[msgs.length - 1] = { ...last, content: last.content + add };
+      }
+      return { messages: msgs };
+    });
+  };
+  return {
+    push: (t: string) => {
+      pending += t;
+      if (!timer) timer = setTimeout(flush, 80);
+    },
+    end: () => {
+      if (timer) clearTimeout(timer);
+      flush();
+    },
+  };
+}
+
+// 清掉流式标志（光标消失），消息内容保持不变
+function markStreamDone() {
+  useAiStore.setState((s) => {
+    const msgs = [...s.messages];
+    const last = msgs[msgs.length - 1];
+    if (last?.streaming) {
+      msgs[msgs.length - 1] = { ...last, streaming: false };
+      return { messages: msgs };
+    }
+    return {};
+  });
+}
+
+// 删除空占位气泡（模型直接调工具没说话时遗留的空气泡）
+function dropEmptyBubble() {
+  useAiStore.setState((s) => {
+    const msgs = [...s.messages];
+    const last = msgs[msgs.length - 1];
+    if (last && last.role === 'assistant' && !last.content && !last.toolCall && !last.streaming) {
+      msgs.pop();
+      return { messages: msgs };
+    }
+    return {};
+  });
+}

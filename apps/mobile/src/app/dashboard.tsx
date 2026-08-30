@@ -128,12 +128,30 @@ export default function DashboardScreen() {
     return days;
   }, [sessions]);
 
+  // 今日速览：今日专注分钟 + 连续专注天数（今天还没专注不断签，从昨天起算——激励指标不宜因「还没开始学」清零）
+  const todayStat = useMemo(() => {
+    const today = localDateStr(new Date());
+    const todayMin = Math.round(
+      sessions.filter((s) => localDateStr(new Date(s.endedAt)) === today).reduce((sum, s) => sum + s.duration, 0) / 60
+    );
+    const has = (date: string) => sessions.some((s) => localDateStr(new Date(s.endedAt)) === date);
+    const start = has(today) ? 0 : 1;
+    let n = 0;
+    for (let i = start; i < 365; i++) {
+      if (has(localDateStr(new Date(Date.now() - i * 86400000)))) n++;
+      else break;
+    }
+    return { todayMin, streak: start === 0 ? Math.max(1, n) : n };
+  }, [sessions]);
+
   // 六维评分（上限 100）
   const dims = useMemo<RadarDim[]>(() => {
     const week = dailyMinutes.slice(-7);
     const weekMin = week.reduce((s, d) => s + d.min, 0);
     const activeDays = week.filter((d) => d.min > 0).length;
-    const avgMin = sessions.length ? weekMin / Math.max(1, sessions.filter((s) => Date.now() - new Date(s.endedAt).getTime() <= 7 * 86400000).length) : 0;
+    // 专注深度 = 近 7 天平均单次会话时长（此前误用「周总分钟 ÷ 会话数」，同式但语义混：分子按天聚合、分母按会话，统一为会话口径）
+    const weekSessions = sessions.filter((s) => Date.now() - new Date(s.endedAt).getTime() <= 7 * 86400000);
+    const avgMin = weekSessions.length ? weekSessions.reduce((sum, s) => sum + s.duration, 0) / 60 / weekSessions.length : 0;
     const doneRatio = top3.length ? (top3.filter((t) => t.status === 'done').length / top3.length) * 100 : 0;
     return [
       { label: '专注投入', score: Math.min(100, (weekMin / 300) * 100) },
@@ -306,6 +324,23 @@ export default function DashboardScreen() {
           ))}
           <Text style={styles.moodTrailLabel}>近 7 天情绪</Text>
         </View>
+        {/* 今日速览：打开仪表盘第一眼看到的三件事 */}
+        <View style={styles.quickRow}>
+          <View style={[styles.quickChip, { backgroundColor: CLR.orangeSoft }]}>
+            <Ionicons name="flame" size={12} color={CLR.orange} />
+            <Text style={styles.quickText}>连续 {todayStat.streak} 天</Text>
+          </View>
+          <View style={[styles.quickChip, { backgroundColor: CLR.primarySoft }]}>
+            <Ionicons name="timer" size={12} color={CLR.primary} />
+            <Text style={styles.quickText}>今日 {todayStat.todayMin} 分钟</Text>
+          </View>
+          <View style={[styles.quickChip, { backgroundColor: CLR.greenSoft }]}>
+            <Ionicons name="checkmark-circle" size={12} color={CLR.green} />
+            <Text style={styles.quickText}>
+              {top3.filter((t) => t.status === 'done').length}/{top3.length} 件事
+            </Text>
+          </View>
+        </View>
         {mistakes.length > 0 && dangerSubject && (
           <View style={styles.signalRow}>
             <Ionicons name="flame" size={14} color={CLR.red} />
@@ -396,19 +431,29 @@ export default function DashboardScreen() {
         </Text>
       </View>
 
-      <Text style={styles.cardTitle}>近 7 天专注（分钟）</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.cardTitle}>近 7 天专注（分钟）</Text>
+        {!!dailyMinutes.reduce((s, d) => s + d.min, 0) && (
+          <Text style={styles.titleAside}>本周共 {dailyMinutes.reduce((s, d) => s + d.min, 0)} 分钟</Text>
+        )}
+      </View>
       <View style={styles.card}>
-        <View style={styles.barRow}>
-          {dailyMinutes.map((d) => (
-            <View key={d.date} style={styles.barCol}>
-              <View style={styles.barTrack}>
-                <View style={[styles.barFill, { height: `${(d.min / maxDaily) * 100}%` }]} />
+        {dailyMinutes.every((d) => d.min === 0) ? (
+          <Text style={styles.placeholder}>还没有专注记录，去驾驶舱点「专注模式」开始第一次心流</Text>
+        ) : (
+          <View style={styles.barRow}>
+            {dailyMinutes.map((d, i) => (
+              <View key={d.date} style={styles.barCol}>
+                <View style={styles.barTrack}>
+                  {/* 最后一根 = 今天，绿色高亮与历史紫色区分 */}
+                  <View style={[styles.barFill, i === dailyMinutes.length - 1 && styles.barFillToday, { height: `${(d.min / maxDaily) * 100}%` }]} />
+                </View>
+                <Text style={styles.barMin}>{d.min || ''}</Text>
+                <Text style={styles.barLabel}>{d.date.slice(8)}日</Text>
               </View>
-              <Text style={styles.barMin}>{d.min || ''}</Text>
-              <Text style={styles.barLabel}>{d.date.slice(8)}日</Text>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
       </View>
 
       <Text style={styles.cardTitle}>心流热力（最佳专注时段）</Text>
@@ -654,12 +699,18 @@ const STYLES = themedStyles((CLR) => ({
   moodTrailRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 8 },
   moodTrailEmoji: { fontSize: 16 },
   moodTrailLabel: { fontSize: 11, color: CLR.text3, marginLeft: 6 },
+  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  quickChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: RAD.pill, paddingHorizontal: 10, paddingVertical: 5 },
+  quickText: { fontSize: 11, color: CLR.text2, fontWeight: '600', fontVariant: ['tabular-nums'] },
   detailHintRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 10 },
   detailHint: { fontSize: 12, color: CLR.primary, fontWeight: '600' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  titleAside: { fontSize: 11, color: CLR.text3, fontVariant: ['tabular-nums'] },
   barRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-end', height: 120 },
   barCol: { flex: 1, alignItems: 'center', height: 120 },
   barTrack: { flex: 1, width: '60%', backgroundColor: CLR.surfaceAlt, borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' },
   barFill: { backgroundColor: CLR.primary, borderRadius: 6 },
+  barFillToday: { backgroundColor: CLR.green },
   barMin: { fontSize: 10, color: CLR.text2, marginTop: 2, minHeight: 14, fontVariant: ['tabular-nums'] },
   barLabel: { fontSize: 10, color: CLR.text3 },
   benchBtn: {

@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Editor, { type OnMount, type Monaco } from '@monaco-editor/react';
+import { useWebTheme } from '@/lib/webTheme';
 
 // 菜单1：知识工坊（可编辑保存 + AI 精炼/图谱 + 版本回滚 + 拖拽传图 WebP）
 interface TreeNode {
@@ -87,9 +88,9 @@ function TreeItem({
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        color: selected === node.path ? '#111' : '#555',
+        color: selected === node.path ? 'var(--text)' : 'var(--text2)',
         fontWeight: selected === node.path ? 700 : 400,
-        background: selected === node.path ? '#eef2ff' : undefined,
+        background: selected === node.path ? 'var(--primary-soft)' : undefined,
         borderRadius: 6,
       }}
     >
@@ -107,16 +108,18 @@ function TreeItem({
   );
 }
 
-// Mermaid 关系图渲染：动态引入避免阻塞首屏
+// Mermaid 关系图渲染：动态引入避免阻塞首屏；主题跟随页面深浅色
 function MermaidView({ code }: { code: string }) {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const scheme = useWebTheme();
   useEffect(() => {
     let alive = true;
     import('mermaid')
       .then((mod) => {
         const mermaid = mod.default;
-        mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+        // neutral 浅色系 / dark 深色系：颜色跟随当前主题，保证深色下节点文字可读
+        mermaid.initialize({ startOnLoad: false, theme: scheme === 'dark' ? 'dark' : 'neutral' });
         const id = `mmd-${Math.random().toString(36).slice(2)}`;
         return mermaid.render(id, code) as Promise<{ svg: string }>;
       })
@@ -129,7 +132,7 @@ function MermaidView({ code }: { code: string }) {
     return () => {
       alive = false;
     };
-  }, [code]);
+  }, [code, scheme]);
   if (error)
     return (
       <pre className="refine-code">{`Mermaid 渲染失败：${error}\n\n${code}`}</pre>
@@ -166,6 +169,7 @@ export default function WorkshopPage() {
 
 function WorkshopInner() {
   const searchParams = useSearchParams();
+  const scheme = useWebTheme();
   const [paths, setPaths] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -405,7 +409,7 @@ function WorkshopInner() {
           <div className="editor-wrap">
             <Editor
               language="markdown"
-              theme="vs"
+              theme={scheme === 'dark' ? 'vs-dark' : 'vs'}
               value={content}
               onChange={(v) => {
                 setContent(v ?? '');

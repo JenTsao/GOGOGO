@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { currentWebTheme, setWebTheme, type WebTheme } from '@/lib/webTheme';
 
 const MENUS = [
   { href: '/', label: '总览' },
@@ -16,6 +18,14 @@ const MENUS = [
 // 侧边导航：usePathname 高亮当前页（layout 是服务端组件做不了，抽成客户端叶子）
 export function Nav() {
   const pathname = usePathname();
+  // 初始 'light' 与 SSR 输出一致，挂载后再读真实主题，避免水合文本不匹配
+  const [theme, setTheme] = useState<WebTheme>('light');
+  useEffect(() => setTheme(currentWebTheme()), []);
+  const toggleTheme = () => {
+    const next: WebTheme = theme === 'dark' ? 'light' : 'dark';
+    setWebTheme(next);
+    setTheme(next);
+  };
   return (
     <nav>
       {MENUS.map((m) => {
@@ -27,6 +37,9 @@ export function Nav() {
           </Link>
         );
       })}
+      <button type="button" className="theme-toggle" onClick={toggleTheme}>
+        {theme === 'dark' ? '☀️ 浅色模式' : '🌙 深色模式'}
+      </button>
     </nav>
   );
 }

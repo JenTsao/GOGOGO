@@ -50,7 +50,7 @@ function TagItem({
           padding: '3px 4px',
           paddingLeft: 4 + depth * 14,
           borderRadius: 6,
-          background: active ? '#eef2ff' : undefined,
+          background: active ? 'var(--primary-soft)' : undefined,
           cursor: 'pointer',
         }}
         onClick={() => onSelect(node)}
@@ -252,7 +252,7 @@ export default function SearchPage() {
               flex: 1,
               padding: '10px 14px',
               borderRadius: 10,
-              border: '1px solid #ddd',
+              border: '1px solid var(--border)',
               fontSize: 15,
             }}
           />
@@ -298,7 +298,7 @@ export default function SearchPage() {
               <div
                 key={r.noteId}
                 style={{
-                  border: '1px solid #eee',
+                  border: '1px solid var(--border)',
                   borderRadius: 10,
                   padding: '10px 14px',
                   display: 'flex',
@@ -321,7 +321,7 @@ export default function SearchPage() {
                 />
                 <Link href={`/workshop?path=${encodeURIComponent(r.filePath)}`} style={{ flex: 1, textDecoration: 'none', color: 'inherit' }}>
                   📄 {r.filePath}
-                  <div style={{ color: '#999', fontSize: 12 }}>
+                  <div style={{ color: 'var(--text3)', fontSize: 12 }}>
                     相关度 {(r.similarity * 100).toFixed(0)}%{r.keyword ? ' · 关键词命中' : ''}
                     {(byPath[r.filePath] ?? []).length > 0 && ` · ${byPath[r.filePath].map((t) => `#${t}`).join(' ')}`}
                   </div>
@@ -336,7 +336,7 @@ export default function SearchPage() {
                 value={assignTag}
                 onChange={(e) => setAssignTag(e.target.value)}
                 placeholder="标签名（可含层级：数学/易错）"
-                style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', fontSize: 14 }}
+                style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14 }}
               />
               <button className="btn btn-primary" onClick={assign} disabled={tagBusy}>
                 {tagBusy ? '处理中…' : `➕ 给 ${checked.size} 篇添加标签`}

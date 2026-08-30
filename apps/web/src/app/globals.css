@@ -3,6 +3,7 @@
    改视觉只动这里，组件层禁止硬编码颜色
    ============================================================ */
 :root {
+  color-scheme: light;
   --bg: #f6f4fa;               /* 页面底色（淡紫灰） */
   --card: rgba(255, 255, 255, 0.74);  /* 玻璃卡面 */
   --card-solid: #ffffff;
@@ -19,11 +20,49 @@
   --orange: #d97706;  --orange-soft: #fdf3e3;
   --red: #dc2626;     --red-soft: #fdecec;     --rose-deep: #b04a4a;
   --blue: #2563eb;    --blue-soft: #eaf1fe;
+  --field-bg: rgba(255, 255, 255, 0.8);   /* 输入框/筛选 chip 内面 */
+  --sidebar-bg: rgba(255, 255, 255, 0.66);
+  --code-bg: rgba(246, 244, 250, 0.9);    /* 精炼结果/代码块底 */
+  --glow-a: rgba(124, 58, 237, 0.10);     /* 环境光斑颜色 */
+  --glow-b: rgba(37, 99, 235, 0.07);
+  --scroll-thumb: rgba(124, 58, 237, 0.22);
+  --scroll-thumb-hover: rgba(124, 58, 237, 0.4);
   --r-sm: 12px; --r-md: 16px; --r-lg: 20px; --r-xl: 28px;
   --glass-border: rgba(233, 228, 243, 0.9);   /* 玻璃卡描边（紫灰） */
   --glass-highlight: rgba(255, 255, 255, 0.9); /* 顶缘受光高光 */
   --glass-shadow: 0 12px 28px rgba(59, 45, 107, 0.08), 0 2px 6px rgba(59, 45, 107, 0.05);
   --glass-blur: saturate(150%) blur(18px);
+}
+
+/* ---------- 深色：与移动端 theme.ts dark 调色板完全对齐（紫调深底，不取纯黑） ---------- */
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #14121e;
+  --card: #1e1b2e;             /* 深色下玻璃卡取实底：可读优先，玻璃感靠顶缘高光 */
+  --card-solid: #1e1b2e;
+  --surface-alt: #2a2740;
+  --primary: #a78bfa;          /* 提亮 violet-400：深底上文字对比 ≥ 5:1 */
+  --primary-deep: #8b5cf6;
+  --primary-soft: rgba(167, 139, 250, 0.16);
+  --on-primary: #1b1730;       /* 亮紫按钮上的深色内容 */
+  --text: #ece9fa;
+  --text2: #a9a3c4;
+  --text3: #837ca8;
+  --border: #2c2942;
+  --green: #34d399;   --green-soft: rgba(52, 211, 153, 0.14);   --green-deep: #6ee7b7;
+  --orange: #f59e0b;  --orange-soft: rgba(217, 119, 6, 0.16);
+  --red: #f87171;     --red-soft: rgba(248, 113, 113, 0.14);     --rose-deep: #fca5a5;
+  --blue: #60a5fa;    --blue-soft: rgba(96, 165, 250, 0.14);
+  --field-bg: #14121e;
+  --sidebar-bg: rgba(20, 18, 30, 0.72);
+  --code-bg: #241f3a;          /* 代码语境恒深底（同移动端 consoleBg） */
+  --glow-a: rgba(167, 139, 250, 0.10);
+  --glow-b: rgba(96, 165, 250, 0.07);
+  --scroll-thumb: rgba(167, 139, 250, 0.3);
+  --scroll-thumb-hover: rgba(167, 139, 250, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.16);
+  --glass-highlight: rgba(255, 255, 255, 0.28);
+  --glass-shadow: 0 12px 28px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 * { box-sizing: border-box; }
@@ -37,8 +76,8 @@ body::before, body::after {
   pointer-events: none;
   z-index: 0;
 }
-body::before { width: 560px; height: 560px; top: -180px; right: -140px; background: radial-gradient(circle, rgba(124, 58, 237, 0.10), transparent 70%); }
-body::after { width: 480px; height: 480px; bottom: -160px; left: -160px; background: radial-gradient(circle, rgba(37, 99, 235, 0.07), transparent 70%); }
+body::before { width: 560px; height: 560px; top: -180px; right: -140px; background: radial-gradient(circle, var(--glow-a), transparent 70%); }
+body::after { width: 480px; height: 480px; bottom: -160px; left: -160px; background: radial-gradient(circle, var(--glow-b), transparent 70%); }
 
 .shell { display: flex; min-height: 100vh; position: relative; z-index: 1; }
 
@@ -49,11 +88,12 @@ body::after { width: 480px; height: 480px; bottom: -160px; left: -160px; backgro
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: rgba(255, 255, 255, 0.66);
+  background: var(--sidebar-bg);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border-right: 1px solid var(--border);
 }
+.sidebar nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .logo { font-size: 17px; font-weight: 800; margin: 0 8px 22px; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .logo::before { content: ''; width: 12px; height: 12px; border-radius: 4px; background: linear-gradient(135deg, var(--primary), #a78bfa); box-shadow: 0 2px 6px rgba(124, 58, 237, 0.4); }
 
@@ -119,7 +159,7 @@ input, textarea, select {
   border-radius: var(--r-sm);
   padding: 9px 12px;
   font-size: 14px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--field-bg);
   color: var(--text);
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -137,9 +177,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); box-sh
 .tree-row { padding: 5px 8px; line-height: 1.5; user-select: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 8px; }
 .editor-wrap { height: 60vh; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
 .versions-panel { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 12px; font-size: 14px; }
-.version-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(233, 228, 243, 0.6); font-size: 13px; }
+.version-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .refine-result { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 12px; }
-.refine-code { white-space: pre-wrap; background: rgba(246, 244, 250, 0.9); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 14px; font-size: 13px; line-height: 1.7; max-height: 50vh; overflow: auto; }
+.refine-code { white-space: pre-wrap; background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 14px; font-size: 13px; line-height: 1.7; max-height: 50vh; overflow: auto; }
 .mermaid-view { background: var(--card-solid); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 14px; overflow: auto; max-height: 60vh; }
 
 /* ---------- 总览首页 ---------- */
@@ -165,7 +205,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); box-sh
 /* ---------- 错题本 ---------- */
 .filter-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.chip { border: 1px solid var(--border); background: rgba(255, 255, 255, 0.8); color: var(--text2); border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+.chip { border: 1px solid var(--border); background: var(--field-bg); color: var(--text2); border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
 .chip:hover { border-color: var(--primary); color: var(--primary-deep); }
 .chip-active { background: var(--primary); border-color: var(--primary); color: var(--on-primary); box-shadow: 0 3px 10px rgba(124, 58, 237, 0.22); }
 .filter-count { font-size: 13px; color: var(--text3); }
@@ -224,6 +264,24 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); box-sh
 
 /* ---------- 滚动条：细紫 ---------- */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: rgba(124, 58, 237, 0.22); border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(124, 58, 237, 0.4); }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- 主题切换按钮（侧边栏底部） ---------- */
+.theme-toggle {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text2);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.theme-toggle:hover { background: var(--primary-soft); color: var(--primary-deep); border-color: var(--primary); }

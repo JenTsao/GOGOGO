@@ -5,6 +5,7 @@ import Markdown from 'react-native-markdown-display';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useKnowledgeStore } from '@/store/knowledgeStore';
 import { fetchRepoPaths, fetchRawFile } from '@/lib/github';
+import { markdownTheme, mathLite, transformOutsideFences } from '@/lib/markdown';
 import { R, cardShadow, glassRim, themedStyles, usePalette, useScheme } from '@/theme';
 
 // 知识库：按需从 GitHub 拉取 Obsidian 目录树，点击单篇下载 Markdown 并渲染（缓存后离线可读）
@@ -84,63 +85,11 @@ function TreeItem({
   );
 }
 
-// ---------- Markdown 预处理：frontmatter → LaTeX 轻量化 → [[双链]] 转跳转链接 ----------
+// ---------- Markdown 预处理：frontmatter → LaTeX 轻量化（共享 @/lib/markdown） → [[双链]] 转跳转链接 ----------
 
 // Obsidian YAML frontmatter 会渲染成割裂的横线与键值文本，直接剥离
 function stripFrontmatter(md: string): string {
   return md.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '');
-}
-
-// 上下标 Unicode 映射（高考数学公式的高频场景）
-const SUPER: Record<string, string> = {
-  '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
-  '+': '⁺', '-': '⁻', 'n': 'ⁿ', 'i': 'ⁱ', 'k': 'ᵏ',
-};
-const SUB: Record<string, string> = {
-  '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
-  '+': '₊', '-': '₋', 'i': 'ᵢ', 'j': 'ⱼ', 'k': 'ₖ', 'n': 'ₙ',
-};
-const toSup = (s: string) => [...s].map((c) => SUPER[c] ?? `^${c}`).join('');
-const toSub = (s: string) => [...s].map((c) => SUB[c] ?? `_${c}`).join('');
-
-// Expo Go 下无法用原生数学库渲染 KaTeX，取轻量 Unicode 近似：比裸 LaTeX 标记可读得多
-function texToText(tex: string): string {
-  let s = tex;
-  const map: [RegExp, string | ((m: string, a: string, b: string) => string)][] = [
-    [/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, (_m, a, b) => `(${a})/(${b})`],
-    [/\\sqrt\{([^{}]+)\}/g, (_m, a) => `√(${a})`],
-    [/\\(?:left|right)\b/g, ''],
-    [/\\times/g, '×'], [/\\cdot/g, '·'], [/\\pm/g, '±'], [/\\mp/g, '∓'],
-    [/\\leq(?:s)?|\\le\b/g, '≤'], [/\\geq(?:s)?|\\ge\b/g, '≥'], [/\\neq|\\ne\b/g, '≠'],
-    [/\\approx/g, '≈'], [/\\infty/g, '∞'], [/\\sum/g, 'Σ'], [/\\prod/g, 'Π'], [/\\int/g, '∫'],
-    [/\\partial/g, '∂'], [/\\nabla/g, '∇'],
-    [/\\alpha/g, 'α'], [/\\beta/g, 'β'], [/\\gamma/g, 'γ'], [/\\delta/g, 'δ'], [/\\epsilon|\\varepsilon/g, 'ε'],
-    [/\\theta/g, 'θ'], [/\\lambda/g, 'λ'], [/\\mu/g, 'μ'], [/\\pi/g, 'π'], [/\\rho/g, 'ρ'],
-    [/\\sigma/g, 'σ'], [/\\tau/g, 'τ'], [/\\varphi|\\phi/g, 'φ'], [/\\omega/g, 'ω'],
-    [/\\Delta/g, 'Δ'], [/\\Omega/g, 'Ω'], [/\\Sigma/g, 'Σ'], [/\\Lambda/g, 'Λ'],
-    [/\\rightarrow|\\to\b/g, '→'], [/\\Rightarrow/g, '⇒'], [/\\leftrightarrow/g, '↔'],
-    [/\\in\b/g, '∈'], [/\\subset/g, '⊂'], [/\\cup/g, '∪'], [/\\cap/g, '∩'], [/\\forall/g, '∀'],
-    [/\\lim/g, 'lim'], [/\\log/g, 'log'], [/\\ln/g, 'ln'], [/\\sin/g, 'sin'], [/\\cos/g, 'cos'], [/\\tan/g, 'tan'],
-  ];
-  for (const [re, rep] of map) s = s.replace(re, rep as string);
-  s = s.replace(/\^\{([^{}]+)\}|\^(\w)/g, (_m, g1, g2) => toSup(g1 ?? g2));
-  s = s.replace(/_\{([^{}]+)\}|_(\w)/g, (_m, g1, g2) => toSub(g1 ?? g2));
-  return s.replace(/[{}]/g, '').trim();
-}
-
-// 代码围栏内的内容不转换（数学/双链替换只作用于正文段落）
-function transformOutsideFences(md: string, fn: (seg: string) => string): string {
-  return md
-    .split(/(```[\s\S]*?```)/g)
-    .map((seg) => (seg.startsWith('```') ? seg : fn(seg)))
-    .join('');
-}
-
-function mathLite(md: string): string {
-  // 块级 $$...$$ 加粗成行，行内 $...$ 原文内联
-  return md
-    .replace(/\$\$([\s\S]+?)\$\$/g, (_m, tex) => `\n\n**${texToText(tex)}**\n\n`)
-    .replace(/\$([^$\n]+?)\$/g, (_m, tex) => texToText(tex));
 }
 
 // [[目标|别名]] → [别名](wiki:目标)，由 onLinkPress 拦截实现库内跳转
@@ -349,17 +298,5 @@ const STYLES = themedStyles((C) => ({
   readerPlaceholder: { alignItems: 'center', gap: 10, paddingVertical: 40 },
 }));
 
-// Markdown 渲染样式：随主题双套（代码围栏/引用块深浅底互换保证对比度）
-const MD_STYLES = themedStyles((C) => ({
-  body: { color: C.text, fontSize: 15, lineHeight: 24 },
-  heading1: { fontSize: 22, fontWeight: '700' as const, marginVertical: 8, color: C.text },
-  heading2: { fontSize: 19, fontWeight: '700' as const, marginVertical: 8, color: C.text },
-  heading3: { fontSize: 16, fontWeight: '700' as const, marginVertical: 6, color: C.text },
-  code_inline: { backgroundColor: C.primarySoft, fontFamily: 'monospace', fontSize: 13, color: C.primaryDeep },
-  fence: { backgroundColor: C.bg, borderRadius: 8, padding: 10, fontFamily: 'monospace', fontSize: 12, color: C.text },
-  strong: { fontWeight: '700' as const, color: C.text },
-  blockquote: { backgroundColor: C.bg, borderLeftWidth: 3, borderLeftColor: C.primary, paddingLeft: 10, paddingVertical: 4 },
-  link: { color: C.primary },
-  bullet_list_icon: { color: C.text3 },
-  hr: { backgroundColor: C.border, height: 1, marginVertical: 10 },
-}));
+// Markdown 渲染样式：共享工厂 reader 档（随主题双套，代码围栏/引用块深浅底互换保证对比度）
+const MD_STYLES = themedStyles((C) => markdownTheme(C, 'reader'));
