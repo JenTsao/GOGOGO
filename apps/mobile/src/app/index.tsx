@@ -39,7 +39,8 @@ function FlowTimerDisplay() {
 
 export default function CockpitScreen() {
   const C = usePalette();
-  const styles = STYLES[useScheme()];
+  const scheme = useScheme();
+  const styles = STYLES[scheme];
   // 细粒度订阅：避免 focus.tick 每秒拖动整页重渲染
   const top3 = useTaskStore((s) => s.top3);
   const backlog = useTaskStore((s) => s.backlog);
@@ -243,7 +244,9 @@ export default function CockpitScreen() {
 
   return (
     <>
-      <StatusBar hidden={inFlow} animated />
+      {/* 心流隐藏状态栏；非心流时必须显式跟随主题——expo-status-bar 后挂载者优先，
+          缺省 style 会覆盖根布局的动态设置，导致手动深色模式下状态栏图标不可见 */}
+      <StatusBar hidden={inFlow} animated style={scheme === 'dark' ? 'light' : 'dark'} />
       <ScrollView
         style={styles.container}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 10 }]}

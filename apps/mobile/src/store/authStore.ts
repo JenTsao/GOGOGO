@@ -57,8 +57,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     // 订阅变更（按客户端实例幂等：init 可能被多个页面调用，换项目后会重建客户端）
     if (subscribedClient !== sb) {
       subscribedClient = sb;
-      sb.auth.onAuthStateChange((event, session) => {
-        set({ email: session?.user?.email ?? null });
+      // 参数显式宽类型（string/unknown ⊇ supabase 联合类型）：本地无 node_modules 时类型也可推断
+      sb.auth.onAuthStateChange((event: string, session: unknown) => {
+        const email = (session as { user?: { email?: string } } | null)?.user?.email ?? null;
+        set({ email });
         if (event === 'SIGNED_IN' && session) void bootstrap();
       });
     }

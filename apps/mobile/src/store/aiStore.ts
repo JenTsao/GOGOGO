@@ -201,7 +201,7 @@ export const useAiStore = create<AiState>((set, get) => ({
     if (actionTimer) clearTimeout(actionTimer);
     set((s) => ({
       status: 'generating',
-      messages: [...s.messages, { role: 'assistant', content: `开始${label}…` }].slice(-40),
+      messages: [...s.messages, { role: 'assistant' as const, content: `开始${label}…` }].slice(-40),
     }));
     actionTimer = setTimeout(() => {
       set((s) => ({
@@ -209,7 +209,7 @@ export const useAiStore = create<AiState>((set, get) => ({
         messages: [
           ...s.messages,
           {
-            role: 'assistant',
+            role: 'assistant' as const,
             content: `${label}已完成（编译引擎上线后将产出 PDF / Anki / 大纲）。`,
           },
         ].slice(-40),
