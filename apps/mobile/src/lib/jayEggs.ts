@@ -110,6 +110,31 @@ export function randomJayMistakeLine(): string {
   return MISTAKE_LINES[Math.floor(Math.random() * MISTAKE_LINES.length)];
 }
 
+// 天气彩蛋：按 OpenWeather 中文描述关键词优先匹配，再按气温极值兜底
+const WEATHER_RULES: { match: RegExp; line: string }[] = [
+  { match: /雷/, line: '《龙卷风》升级成了雷阵雨——留在室内，把笔稳住' },
+  { match: /雨/, line: '《听见下雨的声音》——窗外下雨，正好室内专注' },
+  { match: /雪/, line: '《发如雪》般的天气——围巾戴好，别让手冻僵' },
+  { match: /雾|霾/, line: '雾天限定：《轨迹》不会迷路，跟着错题本走' },
+  { match: /阴|多云/, line: '《晴天》暂时离线，《星晴》在线陪读' },
+  { match: /晴/, line: '《晴天》本日正在播放——窗外的太阳替你充能' },
+];
+const WEATHER_TEMP_RULES: { min?: number; max?: number; line: string }[] = [
+  { min: 32, line: '高温预警：《七里香》季节太热情，多喝水再开工' },
+  { max: 0, line: '冰点以下——《枫》都冻红了，手套戴上，笔别停' },
+];
+
+/** 天气彩蛋：先按天气描述匹配，再按气温极值匹配；都不命中返回 null */
+export function jayWeatherEgg(temp: number, desc: string): string | null {
+  for (const r of WEATHER_RULES) {
+    if (r.match.test(desc)) return r.line;
+  }
+  const t = WEATHER_TEMP_RULES.find(
+    (r) => (r.min === undefined || temp >= r.min) && (r.max === undefined || temp <= r.max)
+  );
+  return t?.line ?? null;
+}
+
 // 情绪打卡句：按 emoji 分档——负面情绪给安慰，正面情绪给燃料
 const MOOD_LINES: Record<string, string> = {
   '😊': '《阳光宅男》配这张表情——电量满格，继续保持',

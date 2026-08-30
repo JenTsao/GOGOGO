@@ -10,18 +10,26 @@ export interface MistakeRow {
   image_urls: string[] | null;
   voice_note_url: string | null;
   is_mastered: boolean | null;
-  transcript: string | null;
+  transcript?: string | null; // 列表 payload 不携带，详情弹窗按需补
   summary: string | null;
   created_at: string;
 }
 
 type MasteryFilter = 'all' | 'unmastered' | 'mastered';
 
+// 详情弹窗的语音转写：打开时经 /api/mistakes/detail 按需加载（列表 payload 不含 transcript）
+interface DetailState {
+  id: string;
+  text: string | null;
+  loading: boolean;
+}
+
 // 错题看板：学科/掌握筛选 + 大图审阅 + 标记掌握 + 删除（server actions 落库）
 export function MistakesBoard({ initial }: { initial: MistakeRow[] }) {
   const [subject, setSubject] = useState<string>('全部');
   const [mastery, setMastery] = useState<MasteryFilter>('all');
   const [viewing, setViewing] = useState<MistakeRow | null>(null);
+  const [detail, setDetail] = useState<DetailState | null>(null);
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -53,6 +61,21 @@ export function MistakesBoard({ initial }: { initial: MistakeRow[] }) {
         }
       })();
     });
+  };
+
+  // 打开详情：转写不在列表 payload 里，按 id 异步补齐（失败静默，弹窗其余功能不受影响）
+  const onView = (m: MistakeRow) => {
+    setViewing(m);
+    setDetail({ id: m.id, text: m.transcript ?? null, loading: !m.transcript });
+    void (async () => {
+      try {
+        const res = await fetch(`/api/mistakes/detail?id=${encodeURIComponent(m.id)}`);
+        const d = (await res.json()) as { transcript?: string | null };
+        setDetail((cur) => (cur?.id === m.id ? { id: m.id, text: d.transcript ?? null, loading: false } : cur));
+      } catch {
+        setDetail((cur) => (cur?.id === m.id ? { id: m.id, text: null, loading: false } : cur));
+      }
+    })();
   };
 
   const onDelete = (m: MistakeRow) => {
@@ -105,8 +128,13 @@ export function MistakesBoard({ initial }: { initial: MistakeRow[] }) {
         <div className="mistake-grid">
           {list.map((m) => (
             <div key={m.id} className={`mistake-card${m.is_mastered === true ? ' mistake-mastered' : ''}`}>
-              <button className="mistake-thumb" onClick={() => setViewing(m)} aria-label="查看大图">
-                <img src={m.image_urls?.[0] ?? ''} alt={m.summary ?? m.subject ?? '错题图片'} loading="lazy" />
+              <button className="mistake-thumb" onClick={() => onView(m)} aria-label="查看大图">
+                {/* 空 src 会让浏览器向当前页面自身发请求（bug），无图时渲染占位块 */}
+                {m.image_urls?.[0] ? (
+                  <img src={m.image_urls[0]} alt={m.subject ? `${m.subject}错题图片` : '错题图片'} loading="lazy" />
+                ) : (
+                  <span className="mistake-thumb-empty">📷 无图片</span>
+                )}
               </button>
               <div className="mistake-meta">
                 <div className="mistake-line">
@@ -183,11 +211,18 @@ function MistakeLightbox({
               <p>{m.summary}</p>
             </div>
           )}
-          {m.transcript && (
+          {detail?.loading ? (
             <div className="side-block">
               <h3>语音反思转写</h3>
-              <p className="transcript">{m.transcript}</p>
+              <p className="placeholder">加载中…</p>
             </div>
+          ) : (
+            detail?.text && (
+              <div className="side-block">
+                <h3>语音反思转写</h3>
+                <p className="transcript">{detail.text}</p>
+              </div>
+            )
           )}
           {(m.tags ?? []).length > 0 && (
             <div className="side-block">

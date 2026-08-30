@@ -29,7 +29,7 @@ async function loadOverview(): Promise<OverviewData> {
   const todayIso = new Date(Date.now() + 8 * 3600 * 1000).toISOString();
   const weekAgoIso = new Date(Date.now() + 8 * 3600 * 1000 - 7 * 86400000).toISOString();
 
-  const [todaySessions, weekSessions, tasks, mistakes, weekly, daily] = await Promise.all([
+  const [todaySessions, weekSessions, tasks, mistakeTotal, mistakeUnmastered, weekly, daily] = await Promise.all([
     supabaseAdmin()
       .from('timer_sessions')
       .select('duration')
@@ -48,11 +48,16 @@ async function loadOverview(): Promise<OverviewData> {
       .eq('user_id', owner)
       .eq('date', today)
       .limit(50),
+    // 计数用 head 请求（count: exact, head: true）：不拉行数据，替代原「拉 2000 行内存计数」
     supabaseAdmin()
       .from('mistakes')
-      .select('is_mastered')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', owner),
+    supabaseAdmin()
+      .from('mistakes')
+      .select('id', { count: 'exact', head: true })
       .eq('user_id', owner)
-      .limit(2000),
+      .neq('is_mastered', true),
     supabaseAdmin()
       .from('weekly_reviews')
       .select('week_start, content')
@@ -68,14 +73,14 @@ async function loadOverview(): Promise<OverviewData> {
       .maybeSingle(),
   ]);
 
-  const mistakeList = mistakes.data ?? [];
   return {
     todayFocusMin: Math.round((todaySessions.data ?? []).reduce((s, x) => s + x.duration, 0) / 60),
     weekFocusMin: Math.round((weekSessions.data ?? []).reduce((s, x) => s + x.duration, 0) / 60),
     todayTasksDone: (tasks.data ?? []).filter((t) => t.status === 'done').length,
     todayTasksTotal: (tasks.data ?? []).length,
-    mistakeTotal: mistakeList.length,
-    mistakeUnmastered: mistakeList.filter((m) => m.is_mastered !== true).length,
+    mistakeTotal: mistakeTotal.count ?? 0,
+    // neq true 会让 is_mastered 为 NULL（未重做）的行也计入未掌握，与旧内存口径一致
+    mistakeUnmastered: mistakeUnmastered.count ?? 0,
     weekly: (weekly.data as OverviewData['weekly']) ?? null,
     dailyReady: !!daily.data,
   };

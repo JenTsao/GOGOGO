@@ -27,15 +27,13 @@ export async function POST(req: NextRequest) {
   if (paths.length === 0) return NextResponse.json({ error: '没有要导出的笔记' }, { status: 400 });
   if (!isGithubConfigured()) return NextResponse.json({ error: '管理台未配置 GITHUB_REPO' }, { status: 500 });
 
-  // 采集笔记内容
-  const docs: { path: string; content: string }[] = [];
-  for (const p of paths) {
-    try {
-      docs.push({ path: p, content: await fetchRawFile(p) });
-    } catch {
-      // 单篇拉取失败跳过，不阻断整体导出
-    }
-  }
+  // 采集笔记内容：并行拉取（≤20 篇，串行时最坏 20 个 HTTP 往返；失败的单篇跳过不阻断整体）
+  const settled = await Promise.allSettled(
+    paths.map(async (p) => ({ path: p, content: await fetchRawFile(p) }))
+  );
+  const docs = settled
+    .filter((r): r is PromiseFulfilledResult<{ path: string; content: string }> => r.status === 'fulfilled')
+    .map((r) => r.value);
   if (docs.length === 0) return NextResponse.json({ error: '所有笔记均拉取失败' }, { status: 502 });
 
   // ---------- 三种产物 ----------

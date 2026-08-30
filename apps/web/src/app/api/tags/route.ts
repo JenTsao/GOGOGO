@@ -110,6 +110,7 @@ export async function POST(req: NextRequest) {
       if (error) throw new Error(error.message);
 
       const to = body.to?.trim().replace(/^#/, '');
+      const updates: { id: string; filePath: string; tags: string[] }[] = [];
       for (const row of (data ?? []) as (TagRow & { id: string })[]) {
         const nextTags = (row.tags ?? [])
           .map((t) => {
@@ -123,10 +124,17 @@ export async function POST(req: NextRequest) {
             return t;
           })
           .filter((t, i, arr): t is string => !!t && arr.indexOf(t) === i); // 去重 + 去空
-        await sb.from('obsidian_metadata').update({ tags: nextTags }).eq('id', row.id);
+        // tags 无变化的行跳过（delete 操作时可能命中行已不含该标签），省掉无谓写入
+        if (JSON.stringify(nextTags) !== JSON.stringify(row.tags ?? [])) {
+          updates.push({ id: row.id, filePath: row.file_path, tags: nextTags });
+        }
         affectedPaths.add(row.file_path);
         affected.push({ file_path: row.file_path, tags: nextTags });
       }
+      // 并发批量写（各行互不冲突）
+      await Promise.all(
+        updates.map((u) => sb.from('obsidian_metadata').update({ tags: u.tags }).eq('id', u.id))
+      );
       return NextResponse.json({ ok: true, changed: affectedPaths.size });
     }
 
@@ -135,21 +143,23 @@ export async function POST(req: NextRequest) {
       const tag = body.to?.trim().replace(/^#/, '');
       const paths = (body.paths ?? []).filter(Boolean);
       if (!tag || paths.length === 0) return NextResponse.json({ error: '缺少标签或笔记列表' }, { status: 400 });
-      for (const path of paths) {
-        const { data: row } = await sb
-          .from('obsidian_metadata')
-          .select('id, tags')
-          .eq('user_id', owner)
-          .eq('file_path', path)
-          .maybeSingle();
-        // 未同步过的笔记元数据不存在：跳过并提示用户先同步
-        if (!row) continue;
-        const tags = ((row.tags as string[]) ?? []).includes(tag)
-          ? (row.tags as string[])
-          : [...((row.tags as string[]) ?? []), tag];
-        await sb.from('obsidian_metadata').update({ tags }).eq('id', (row as { id: string }).id);
-        affectedPaths.add(path);
-      }
+      // 一次 .in() 取回全部目标行（替代原 N 次 select），再并发 update（替代 N 次串行 await）
+      const { data: rows, error } = await sb
+        .from('obsidian_metadata')
+        .select('id, file_path, tags')
+        .eq('user_id', owner)
+        .in('file_path', paths);
+      if (error) throw new Error(error.message);
+      await Promise.all(
+        (rows ?? []).map((row) => {
+          const existing = (row.tags as string[]) ?? [];
+          // 已含该标签的行跳过写入
+          if (existing.includes(tag)) return Promise.resolve();
+          return sb.from('obsidian_metadata').update({ tags: [...existing, tag] }).eq('id', (row as { id: string }).id);
+        })
+      );
+      // 未同步过的笔记元数据不存在（不在 rows 中）：不计入 changed，前端可提示先同步
+      for (const row of (rows ?? []) as { file_path: string }[]) affectedPaths.add(row.file_path);
       return NextResponse.json({ ok: true, changed: affectedPaths.size });
     }
 

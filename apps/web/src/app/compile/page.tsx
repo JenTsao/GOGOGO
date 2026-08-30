@@ -231,13 +231,15 @@ export default function CompilePage() {
     setBusy(true);
     setMessage(null);
     try {
-      const docs: { path: string; content: string }[] = [];
+      // 先拆分资源类型，再并行拉取所有笔记（≤20 个请求，串行时最坏 20 个往返）
+      const notePaths = paths.slice(0, MAX_FILES).filter((p) => !p.startsWith('mistake:'));
+      const mistakeDocs: { path: string; content: string }[] = [];
       for (const sel of paths.slice(0, MAX_FILES)) {
         // 错题资源：元数据转文本（图片以 URL 引用，Anki 背面可显示）
         if (sel.startsWith('mistake:')) {
           const m = mistakes.find((x) => x.id === sel.slice(8));
           if (m) {
-            docs.push({
+            mistakeDocs.push({
               path: `[错题] ${m.subject} · ${m.created_at.slice(0, 10)}`,
               content: [
                 `学科：${m.subject}`,
@@ -248,11 +250,15 @@ export default function CompilePage() {
               ].join('\n'),
             });
           }
-          continue;
         }
-        const res = await fetch(`/api/github/raw?path=${encodeURIComponent(sel)}`);
-        docs.push({ path: sel, content: res.ok ? await res.text() : '' });
       }
+      const noteDocs = await Promise.all(
+        notePaths.map(async (sel) => {
+          const res = await fetch(`/api/github/raw?path=${encodeURIComponent(sel)}`);
+          return { path: sel, content: res.ok ? await res.text() : '' };
+        })
+      );
+      const docs = [...mistakeDocs, ...noteDocs];
       const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
       const job: CompileJob = {
         id: `${Date.now()}`,

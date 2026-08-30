@@ -11,7 +11,8 @@ export default async function MistakesPage() {
     const owner = requireAdminEnv();
     const { data, error: dbErr } = await supabaseAdmin()
       .from('mistakes')
-      .select('id, subject, tags, image_urls, voice_note_url, is_mastered, transcript, summary, created_at')
+      // transcript（单条上限 5000 字）不进列表 payload：500 条时最大头，详情弹窗按需经 /api/mistakes/detail 取
+      .select('id, subject, tags, image_urls, voice_note_url, is_mastered, summary, created_at')
       .eq('user_id', owner)
       .order('created_at', { ascending: false })
       .limit(500);

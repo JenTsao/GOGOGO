@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
@@ -19,7 +19,7 @@ import { readDailyCache } from '@/lib/background';
 import { R, cardShadow, glassRim, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
 import { AmbientGlow } from '@/components/AmbientGlow';
 import { EggLine } from '@/components/EggLine';
-import { jayEggForToday, jayMilestoneEgg, jayWeeklyEgg, nextJayLine, randomJayTaskDoneLine, randomJayTaskLine } from '@/lib/jayEggs';
+import { jayEggForToday, jayMilestoneEgg, jayWeatherEgg, jayWeeklyEgg, nextJayLine, randomJayTaskDoneLine, randomJayTaskLine } from '@/lib/jayEggs';
 
 const FLOW_BRIGHT = '#F2EFFB';
 
@@ -234,8 +234,19 @@ export default function CockpitScreen() {
     f.reset();
     f.start();
     f.setSuppressNotifications(true);
-    setFlowLine(nextJayLine());
+    // 氛围句优先用天气彩蛋（雨/雪/晴各有专属句），未命中再走随机句池
+    const wEgg = weather ? jayWeatherEgg(weather.temp, weather.desc) : null;
+    setFlowLine(wEgg ?? nextJayLine());
     setInFlow(true);
+  };
+
+  // 天气彩蛋：长按天气 chip 查看（点击仍是刷新，不抢占原交互）
+  const showWeatherEgg = () => {
+    if (!weather) return;
+    Alert.alert(
+      `🎧 天气 · ${weather.desc} ${weather.temp}°`,
+      jayWeatherEgg(weather.temp, weather.desc) ?? weatherTip(weather.temp)
+    );
   };
   const exitFlow = () => {
     const f = useFocusStore.getState();
@@ -279,6 +290,8 @@ export default function CockpitScreen() {
           <TouchableOpacity
             style={styles.weatherChip}
             activeOpacity={0.85}
+            onLongPress={showWeatherEgg}
+            delayLongPress={350}
             onPress={() => {
               if (!weatherKey) router.push('/profile');
               else loadWeather();

@@ -53,6 +53,18 @@ function daysToGaokao() {
   return Math.ceil(Math.max(0, exam.getTime() - Date.now()) / 86400000);
 }
 
+/** 提醒日相对文案：今天 / 明天 / N 天后；过期返回 null（由过期弱化样式表达，避免文案负面对冲） */
+function relDayLabel(date: string, today: string): string | null {
+  const ts = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, m - 1, d).getTime();
+  };
+  const diff = Math.round((ts(date) - ts(today)) / 86400000);
+  if (diff === 0) return '今天';
+  if (diff === 1) return '明天';
+  return diff > 1 ? `${diff} 天后` : null;
+}
+
 export default function ProfileScreen() {
   const C = usePalette();
   const styles = STYLES[useScheme()];
@@ -140,6 +152,14 @@ export default function ProfileScreen() {
     const d = new Date(viewYear, viewMonth + delta, 1);
     setViewYear(d.getFullYear());
     setViewMonth(d.getMonth());
+  };
+  // 浏览非本月时显示「今天」快捷键：一键跳回本月并预填日期输入框
+  const offMonth = viewYear !== Number(today.slice(0, 4)) || viewMonth !== Number(today.slice(5, 7)) - 1;
+  const goToday = () => {
+    const now = new Date();
+    setViewYear(now.getFullYear());
+    setViewMonth(now.getMonth());
+    setReminderDate(today);
   };
 
   const submitReminder = () => {
@@ -726,9 +746,16 @@ export default function ProfileScreen() {
                   <Ionicons name="chevron-back" size={20} color={C.text2} />
                 </TouchableOpacity>
                 <Text style={styles.calTitle}>{viewYear} 年 {viewMonth + 1} 月</Text>
-                <TouchableOpacity onPress={() => shiftMonth(1)} hitSlop={HIT_SLOP}>
-                  <Ionicons name="chevron-forward" size={20} color={C.text2} />
-                </TouchableOpacity>
+                <View style={styles.calHeaderRight}>
+                  {offMonth && (
+                    <TouchableOpacity style={styles.calTodayBtn} onPress={goToday} hitSlop={HIT_SLOP} activeOpacity={0.85}>
+                      <Text style={styles.calTodayBtnText}>今天</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={() => shiftMonth(1)} hitSlop={HIT_SLOP}>
+                    <Ionicons name="chevron-forward" size={20} color={C.text2} />
+                  </TouchableOpacity>
+                </View>
               </View>
               <View style={styles.calWeek}>
                 {['日', '一', '二', '三', '四', '五', '六'].map((w) => (
@@ -749,12 +776,13 @@ export default function ProfileScreen() {
                       <Text style={[styles.calDay, date === today && styles.calDayToday, reminderDate === date && styles.calDaySelected]}>
                         {Number(date.slice(8))}
                       </Text>
-                      {reminderDates.has(date) && <View style={styles.calDot} />}
+                      {/* 选中态填充主色后紫点不可见，隐藏避免叠色 */}
+                      {reminderDates.has(date) && reminderDate !== date && <View style={styles.calDot} />}
                     </TouchableOpacity>
                   )
                 )}
               </View>
-              <Text style={styles.calHint}>点击日期填入；红点 = 已有提醒</Text>
+              <Text style={styles.calHint}>点击日期填入输入框 · 紫点 = 当天有提醒</Text>
             </View>
             <Text style={styles.label}>提醒内容</Text>
             <View style={styles.reminderRow}>
@@ -764,16 +792,32 @@ export default function ProfileScreen() {
             <TouchableOpacity style={styles.button} onPress={submitReminder} activeOpacity={0.85}>
               <Text style={styles.buttonText}>添加提醒</Text>
             </TouchableOpacity>
-            {reminders.slice().sort((a, b) => a.date.localeCompare(b.date)).map((r) => (
-              <View key={r.id} style={styles.reminderItem}>
-                <Text style={[styles.reminderItemText, r.date < today && styles.reminderExpired]}>
-                  {r.date < today ? '（已过期）' : ''}{r.date} · {r.content}
-                </Text>
-                <TouchableOpacity onPress={() => removeReminder(r.id)} hitSlop={HIT_SLOP}>
-                  <Ionicons name="close" size={16} color={C.text3} />
-                </TouchableOpacity>
-              </View>
-            ))}
+            {reminders.length === 0 ? (
+              <Text style={styles.placeholder}>还没有提醒。在日历上点个日子，写下要记的事</Text>
+            ) : (
+              reminders.slice().sort((a, b) => a.date.localeCompare(b.date)).map((r) => {
+                const past = r.date < today;
+                const isToday = r.date === today;
+                const rel = relDayLabel(r.date, today);
+                return (
+                  <View key={r.id} style={[styles.reminderItem, past && styles.reminderItemPast]}>
+                    {/* 日期胶囊：今天主色强调，未来软橙底，过期灰化 */}
+                    <View style={[styles.reminderChip, isToday && styles.reminderChipToday, past && styles.reminderChipPast]}>
+                      <Text style={[styles.reminderChipText, isToday && styles.reminderChipTextToday, past && styles.reminderChipTextPast]}>
+                        {r.date.slice(5)}
+                      </Text>
+                    </View>
+                    <View style={styles.reminderBody}>
+                      <Text style={[styles.reminderItemText, past && styles.reminderExpired]}>{r.content}</Text>
+                      {!!rel && <Text style={styles.reminderRel}>{rel}</Text>}
+                    </View>
+                    <TouchableOpacity onPress={() => removeReminder(r.id)} hitSlop={HIT_SLOP} accessibilityLabel="删除提醒">
+                      <Ionicons name="close" size={16} color={C.text3} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })
+            )}
           </>
         )}
       </View>
@@ -893,18 +937,33 @@ const STYLES = themedStyles((C) => ({
   calCard: { backgroundColor: C.bg, borderRadius: R.md, padding: 12, marginTop: 8 },
   calHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, paddingHorizontal: 4 },
   calTitle: { fontSize: 15, fontWeight: '700', color: C.text },
+  // 头部右侧：「今天」快捷键 + 下月箭头（跨月浏览时才出现快捷键）
+  calHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  calTodayBtn: { backgroundColor: C.primarySoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  calTodayBtnText: { fontSize: 11, fontWeight: '700', color: C.primary },
   calWeek: { flexDirection: 'row' },
   calWeekText: { width: `${100 / 7}%` as unknown as number, textAlign: 'center', fontSize: 11, color: C.text3, paddingVertical: 4, fontWeight: '500' },
   calWeekend: { color: C.red },
   calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   calCell: { width: `${100 / 7}%` as unknown as number, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
-  calCellToday: { borderWidth: 1.5, borderColor: C.primary },
+  // 今天 = 软紫底圆角块（比描边环更醒目）；选中 = 主色实心，两者叠加时选中态优先
+  calCellToday: { backgroundColor: C.primarySoft },
   calCellSelected: { backgroundColor: C.primary },
   calDay: { fontSize: 13, color: C.text, fontVariant: ['tabular-nums'] },
   calDayToday: { color: C.primary, fontWeight: '700' },
   calDaySelected: { color: C.onPrimary, fontWeight: '700' },
-  calDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.red, marginTop: 2 },
+  calDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.primary, marginTop: 2 },
   calHint: { fontSize: 12, color: C.text3, marginTop: 8, lineHeight: 18 },
+  // 提醒列表：日期胶囊 + 内容 + 相对天数（今天/明天/N 天后）
+  reminderChip: { backgroundColor: C.orangeSoft, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginRight: 10 },
+  reminderChipText: { fontSize: 12, fontWeight: '700', color: C.amberDeep, fontVariant: ['tabular-nums'] },
+  reminderChipToday: { backgroundColor: C.primary },
+  reminderChipTextToday: { color: C.onPrimary },
+  reminderChipPast: { backgroundColor: 'transparent' },
+  reminderChipTextPast: { color: C.text3, fontWeight: '500' },
+  reminderBody: { flex: 1 },
+  reminderRel: { fontSize: 11, color: C.primary, fontWeight: '600', marginTop: 1 },
+  reminderItemPast: { opacity: 0.7 },
   syncResult: { fontSize: 13, color: C.text2, lineHeight: 21, marginTop: 10 },
   // —— 关于页 ——
   aboutHero: { alignItems: 'center', paddingVertical: 24 },

@@ -130,6 +130,23 @@ body::after { width: 480px; height: 480px; bottom: -160px; left: -160px; backgro
 .panel h2 { color: var(--text); }
 .placeholder { color: var(--text3); line-height: 1.7; }
 
+/* ---------- 加载骨架（loading.tsx）：柔和呼吸闪烁，深浅色自动适配 ---------- */
+.skeleton { overflow: hidden; }
+.skeleton-line {
+  height: 14px;
+  border-radius: 7px;
+  margin: 12px 0;
+  background: var(--surface-alt);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line { animation: none; }
+}
+
 /* ---------- 按钮 ---------- */
 .btn {
   background: var(--primary);
@@ -230,6 +247,15 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); box-sh
 .mistake-mastered { opacity: 0.72; }
 .mistake-thumb { border: none; padding: 0; cursor: zoom-in; background: var(--surface-alt); display: block; }
 .mistake-thumb img { width: 100%; height: 170px; object-fit: cover; display: block; }
+.mistake-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 170px;
+  color: var(--text3);
+  font-size: 13px;
+}
 .mistake-meta { padding: 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .mistake-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .badge { background: var(--surface-alt); color: var(--text2); border-radius: 6px; padding: 2px 8px; font-size: 12px; }
