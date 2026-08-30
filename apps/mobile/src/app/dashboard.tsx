@@ -55,7 +55,10 @@ export default function DashboardScreen() {
   const snippetCount = useSandboxStore((s) => s.snippets.length);
   const mistakes = useMistakeStore((s) => s.mistakes);
   const moodCheckins = useMoodStore((s) => s.checkins);
-  const { targetUniversity, targetScore, tavilyKey } = useSettingsStore();
+  // 逐字段原始值 selector：整包解构会订阅整个 store，任意 settings 写入（改 Key/切主题）都会触发整页重渲染
+  const targetUniversity = useSettingsStore((s) => s.targetUniversity);
+  const targetScore = useSettingsStore((s) => s.targetScore);
+  const tavilyKey = useSettingsStore((s) => s.tavilyKey);
 
   // 危险学科：错题最多的科目；卡壳词云：错题标签 top5
   const dangerSubject = useMemo(() => {
@@ -71,13 +74,15 @@ export default function DashboardScreen() {
     return [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [mistakes]);
 
-  // 学科掌握度：已记录重做结果的错题正确率（0-100）
-  const masteryRate = useMemo(() => {
+  // 学科掌握度：已记录重做结果的错题正确率（0-100）+ 已判题数，一次 memo 供两处使用
+  const { masteryRate, gradedCount } = useMemo(() => {
     const graded = mistakes.filter((m) => m.correct);
-    if (graded.length === 0) return 0;
-    return (graded.filter((m) => m.correct === 'right').length / graded.length) * 100;
+    const right = graded.filter((m) => m.correct === 'right').length;
+    return {
+      masteryRate: graded.length ? (right / graded.length) * 100 : 0,
+      gradedCount: graded.length,
+    };
   }, [mistakes]);
-  const gradedCount = mistakes.filter((m) => m.correct).length;
 
   // 情绪信号：错题语音反思 + 情绪打卡语音/备注转写中的消极词 top3（蓝皮书「搞不懂即时加权」）
   // 必须返回数组：Map.entries() 是一次性迭代器，被 memo 缓存后首次渲染即耗尽，
@@ -114,35 +119,51 @@ export default function DashboardScreen() {
   const [weekly, setWeekly] = useState<WeeklyReview | null>(null);
   const [weeklyState, setWeeklyState] = useState<'idle' | 'loading' | 'none' | 'error'>('idle');
 
+  // 会话一次预处理：本地日期 / 起始小时 / 分钟 / 是否近 7 天。
+  // 此前这些口径各自为战（每日柱状 7 次全量 filter、断签扫描最坏 365 天 × sessions.some、热力与深度各一遍），
+  // 云端同步 200 条时一次触发数万次 new Date + localDateStr 分配；现在只算一遍，下游全部查表
+  const sessMeta = useMemo(() => {
+    const now = Date.now();
+    return sessions.map((s) => {
+      const ended = new Date(s.endedAt);
+      return {
+        date: localDateStr(ended),
+        startHour: new Date(ended.getTime() - s.duration * 1000).getHours(),
+        min: s.duration / 60,
+        fresh: now - ended.getTime() <= 7 * 86400000,
+      };
+    });
+  }, [sessions]);
+
+  // 本地日期 → 累计分钟（每日柱状 / 今日速览 / 断签的统一查表源）
+  const dayMinutes = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of sessMeta) map.set(m.date, (map.get(m.date) ?? 0) + m.min);
+    return map;
+  }, [sessMeta]);
+
   // 近 7 天每天专注分钟（含今天）
   const dailyMinutes = useMemo(() => {
     const days: { date: string; min: number }[] = [];
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000);
-      const date = localDateStr(d);
-      const min = Math.round(
-        sessions.filter((s) => localDateStr(new Date(s.endedAt)) === date).reduce((sum, s) => sum + s.duration, 0) / 60
-      );
-      days.push({ date, min });
+      const date = localDateStr(new Date(Date.now() - i * 86400000));
+      days.push({ date, min: Math.round(dayMinutes.get(date) ?? 0) });
     }
     return days;
-  }, [sessions]);
+  }, [dayMinutes]);
 
   // 今日速览：今日专注分钟 + 连续专注天数（今天还没专注不断签，从昨天起算——激励指标不宜因「还没开始学」清零）
   const todayStat = useMemo(() => {
     const today = localDateStr(new Date());
-    const todayMin = Math.round(
-      sessions.filter((s) => localDateStr(new Date(s.endedAt)) === today).reduce((sum, s) => sum + s.duration, 0) / 60
-    );
-    const has = (date: string) => sessions.some((s) => localDateStr(new Date(s.endedAt)) === date);
-    const start = has(today) ? 0 : 1;
+    const todayMin = Math.round(dayMinutes.get(today) ?? 0);
+    const start = dayMinutes.has(today) ? 0 : 1;
     let n = 0;
     for (let i = start; i < 365; i++) {
-      if (has(localDateStr(new Date(Date.now() - i * 86400000)))) n++;
+      if (dayMinutes.has(localDateStr(new Date(Date.now() - i * 86400000)))) n++;
       else break;
     }
     return { todayMin, streak: start === 0 ? Math.max(1, n) : n };
-  }, [sessions]);
+  }, [dayMinutes]);
 
   // 六维评分（上限 100）
   const dims = useMemo<RadarDim[]>(() => {
@@ -150,8 +171,8 @@ export default function DashboardScreen() {
     const weekMin = week.reduce((s, d) => s + d.min, 0);
     const activeDays = week.filter((d) => d.min > 0).length;
     // 专注深度 = 近 7 天平均单次会话时长（此前误用「周总分钟 ÷ 会话数」，同式但语义混：分子按天聚合、分母按会话，统一为会话口径）
-    const weekSessions = sessions.filter((s) => Date.now() - new Date(s.endedAt).getTime() <= 7 * 86400000);
-    const avgMin = weekSessions.length ? weekSessions.reduce((sum, s) => sum + s.duration, 0) / 60 / weekSessions.length : 0;
+    const fresh = sessMeta.filter((m) => m.fresh);
+    const avgMin = fresh.length ? fresh.reduce((sum, m) => sum + m.min, 0) / fresh.length : 0;
     const doneRatio = top3.length ? (top3.filter((t) => t.status === 'done').length / top3.length) * 100 : 0;
     return [
       { label: '专注投入', score: Math.min(100, (weekMin / 300) * 100) },

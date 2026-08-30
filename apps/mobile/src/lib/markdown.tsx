@@ -303,10 +303,11 @@ const FenceCode = memo(function FenceCode({
 
 /**
  * markdown-display 自定义渲染规则（与默认规则浅合并）：
- * - fence：语言标签 + 高亮 + 复制 + 折叠；
+ * - fence：语言标签 + 高亮 + 复制 + 折叠（node.source=代码、node.settings=语言，v7 AST 字段）；
  * - table：宽表横向滚动（默认实现会溢出裁切）。
+ * 返回类型靠推断：少参函数可赋给 RenderRules 的四参签名。
  */
-export function markdownRules(c: Palette, scale: MarkdownScale): Record<string, unknown> {
+export function markdownRules(c: Palette, scale: MarkdownScale) {
   return {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fence: (node: any) => (
@@ -370,7 +371,7 @@ export function texToText(tex: string): string {
     [/\\parallel/g, '∥'], [/\\perp/g, '⊥'], [/\\because/g, '∵'], [/\\therefore/g, '∴'],
     [/\\circ|\\degree/g, '°'], [/\\prime/g, '′'],
     [/\\(?:c|l)dots|\\dots/g, '…'],
-    [/\\(?:lfloor|lceil)/g, '⌈'], [/\\(?:rfloor|rceil)/g, '⌉'],
+    [/\\lfloor/g, '⌊'], [/\\rfloor/g, '⌋'], [/\\lceil/g, '⌈'], [/\\rceil/g, '⌉'],
     [/\\(?:varnothing|emptyset)/g, '∅'],
     [/\\mathbb\{R\}/g, 'ℝ'], [/\\mathbb\{Z\}/g, 'ℤ'], [/\\mathbb\{N\}/g, 'ℕ'], [/\\mathbb\{Q\}/g, 'ℚ'], [/\\mathbb\{C\}/g, 'ℂ'],
     // 希腊字母

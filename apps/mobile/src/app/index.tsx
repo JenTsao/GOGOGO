@@ -18,6 +18,7 @@ import { fetchDaily, DailyLearning } from '@/lib/cloud';
 import { readDailyCache } from '@/lib/background';
 import { R, cardShadow, glassRim, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
 import { AmbientGlow } from '@/components/AmbientGlow';
+import { jayEggForToday, nextJayLine } from '@/lib/jayEggs';
 
 const FLOW_BRIGHT = '#F2EFFB';
 
@@ -71,13 +72,16 @@ export default function CockpitScreen() {
   const [showAnswer, setShowAnswer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [today, setToday] = useState(() => new Date());
+  // 心流氛围句：进入心流时随机抽一句周杰伦「歌名梗」彩蛋
+  const [flowLine, setFlowLine] = useState('');
 
   useEffect(() => {
     const id = setInterval(() => setToday(new Date()), 60000);
     return () => clearInterval(id);
   }, []);
   const todayStr = localDateStr(today);
-  const greeting = useMemo(() => greetingByHour(today.getHours()), [today]);
+  // 特定日期（周董生日/专辑发行日）问候语被彩蛋接管，其余日期走常规时段问候
+  const greeting = useMemo(() => jayEggForToday(today) ?? greetingByHour(today.getHours()), [today]);
 
   const examDate = useMemo(() => {
     const now = new Date();
@@ -225,6 +229,7 @@ export default function CockpitScreen() {
     f.reset();
     f.start();
     f.setSuppressNotifications(true);
+    setFlowLine(nextJayLine());
     setInFlow(true);
   };
   const exitFlow = () => {
@@ -515,6 +520,7 @@ export default function CockpitScreen() {
             <Text style={styles.flowHint}>心流进行中 · 通知已静默</Text>
           </View>
           <FlowTimerDisplay />
+          {!!flowLine && <Text style={styles.flowEgg}>{flowLine}</Text>}
           {Platform.OS === 'android' && (
             <TouchableOpacity style={styles.zenBtn} onPress={openZenMode} activeOpacity={0.85}>
               <Ionicons name="notifications-off-outline" size={16} color={C.inkDim} />
@@ -623,6 +629,8 @@ const STYLES = themedStyles((C) => ({
   },
   flowHint: { color: C.inkSub, fontSize: 13, letterSpacing: 2 },
   flowTimer: { color: FLOW_BRIGHT, fontSize: 68, fontWeight: '200', marginVertical: 32, fontVariant: ['tabular-nums'] },
+  // 心流氛围句：负 margin 收紧计时器下方的空隙；恒深场景用 inkDim
+  flowEgg: { color: C.inkDim, fontSize: 12, marginTop: -20, marginBottom: 16, textAlign: 'center' },
   flowStop: {
     borderWidth: 1, borderColor: C.glassDarkBorder, backgroundColor: C.glassDark,
     borderRadius: 24, paddingHorizontal: 32, paddingVertical: 12,

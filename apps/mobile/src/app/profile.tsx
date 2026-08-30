@@ -17,6 +17,7 @@ import { writeDailyCache } from '@/lib/background';
 import { fetchRepoPaths } from '@/lib/github';
 import { R, cardShadow, glassRim, HIT_SLOP, themedStyles, usePalette, useScheme, type ThemeMode } from '@/theme';
 import { AmbientGlow } from '@/components/AmbientGlow';
+import { nextJayLine } from '@/lib/jayEggs';
 
 type ViewMode = 'hub' | 'settings' | 'about';
 type Sec =
@@ -157,6 +158,14 @@ export default function ProfileScreen() {
 
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  // 隐藏歌单彩蛋：关于页版本徽章连点 5 次解锁，之后每点一次换一句
+  const [eggTaps, setEggTaps] = useState(0);
+  const [eggLine, setEggLine] = useState<string | null>(null);
+  const tapEgg = () => {
+    const n = eggTaps + 1;
+    setEggTaps(n);
+    if (n >= 5) setEggLine(nextJayLine());
+  };
   const runSync = async () => {
     setSyncing(true);
     setSyncResult(null);
@@ -877,4 +886,7 @@ const STYLES = themedStyles((C) => ({
   infoValue: { fontSize: 14, color: C.text, fontWeight: '600', fontVariant: ['tabular-nums'] },
   aboutPrivacy: { fontSize: 13, color: C.text2, lineHeight: 21 },
   aboutFooter: { fontSize: 12, color: C.text3, textAlign: 'center', marginTop: 6, marginBottom: 8 },
+  // —— 隐藏歌单彩蛋 ——
+  aboutEgg: { fontSize: 14, color: C.text, lineHeight: 22 },
+  aboutEggHint: { fontSize: 12, color: C.text3, marginTop: 8 },
 }));

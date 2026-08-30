@@ -5,8 +5,8 @@ import Markdown from 'react-native-markdown-display';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useKnowledgeStore } from '@/store/knowledgeStore';
 import { fetchRepoPaths, fetchRawFile } from '@/lib/github';
-import { markdownTheme, mathLite, transformOutsideFences } from '@/lib/markdown';
-import { R, cardShadow, glassRim, themedStyles, usePalette, useScheme } from '@/theme';
+import { markdownTheme, markdownRules, noteFlavor, transformOutsideFences } from '@/lib/markdown';
+import { R, cardShadow, glassRim, palettes, themedStyles, usePalette, useScheme } from '@/theme';
 
 // 知识库：按需从 GitHub 拉取 Obsidian 目录树，点击单篇下载 Markdown 并渲染（缓存后离线可读）
 interface TreeNode {
@@ -101,8 +101,9 @@ function wikilinkToMd(md: string): string {
   });
 }
 
+// Obsidian 风格（callout/高亮/标签/脚注）→ LaTeX 轻量化 → [[双链]] 转跳转链接
 const renderContent = (md: string) =>
-  wikilinkToMd(transformOutsideFences(stripFrontmatter(md), mathLite));
+  wikilinkToMd(transformOutsideFences(stripFrontmatter(md), noteFlavor));
 
 export function KnowledgeView() {
   const C = usePalette();
@@ -240,7 +241,7 @@ export function KnowledgeView() {
       )}
       <ScrollView style={styles.reader} nestedScrollEnabled>
         {content !== null ? (
-          <Markdown style={MD_STYLES[scheme]} onLinkPress={handleLinkPress}>
+          <Markdown style={MD_STYLES[scheme]} rules={MD_RULES[scheme]} onLinkPress={handleLinkPress}>
             {renderContent(content)}
           </Markdown>
         ) : (
@@ -298,5 +299,9 @@ const STYLES = themedStyles((C) => ({
   readerPlaceholder: { alignItems: 'center', gap: 10, paddingVertical: 40 },
 }));
 
-// Markdown 渲染样式：共享工厂 reader 档（随主题双套，代码围栏/引用块深浅底互换保证对比度）
+// Markdown 渲染样式 + 规则：共享工厂 reader 档（随主题双套，fence 高亮/复制/折叠 + 表格横滑）
 const MD_STYLES = themedStyles((C) => markdownTheme(C, 'reader'));
+const MD_RULES = {
+  light: markdownRules(palettes.light, 'reader'),
+  dark: markdownRules(palettes.dark, 'reader'),
+} as const;
