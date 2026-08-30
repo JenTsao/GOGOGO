@@ -158,7 +158,8 @@ export async function generateWeekly(opts: { force?: boolean } = {}): Promise<{ 
   // 专注分钟按天聚合
   const minutesByDay = new Map<string, number>();
   for (const s of sessions.data ?? []) {
-    const day = new Date(s.started_at).toISOString().slice(0, 10);
+    // started_at 是 UTC（timestamptz），+8h 归一到北京日期口径，否则 00:00–07:59 的专注会被算进前一天
+    const day = new Date(new Date(s.started_at).getTime() + 8 * 3600 * 1000).toISOString().slice(0, 10);
     minutesByDay.set(day, (minutesByDay.get(day) ?? 0) + Math.round(s.duration / 60));
   }
 
