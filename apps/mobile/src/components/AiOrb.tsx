@@ -22,12 +22,13 @@ import { BlurView } from 'expo-blur';
 import { useAiStore, STATUS_EMOTION } from '@/store/aiStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { describeToolCall } from '@/lib/aiTools';
-import { markdownTheme, mathLite, transformOutsideFences } from '@/lib/markdown';
+import { markdownTheme, markdownRules, chatPreprocess } from '@/lib/markdown';
 import {
   R,
   cardShadow,
   GLASS_BLUR,
   glassShadowFor,
+  palettes,
   HIT_SLOP,
   themedStyles,
   usePalette,
@@ -48,11 +49,15 @@ const BALL_URLS = [
 ];
 const BALL_CACHE = `${FileSystem.cacheDirectory}grok-ball-v3.html`;
 
-// AI 回复 Markdown 样式：共享工厂 chat 档（随主题双套，切换零重建）
+// AI 回复 Markdown 样式 + 渲染规则：共享工厂 chat 档（随主题双套，切换零重建）
 const CHAT_MD_STYLES = themedStyles((C) => markdownTheme(C, 'chat'));
+const CHAT_MD_RULES = {
+  light: markdownRules(palettes.light, 'chat'),
+  dark: markdownRules(palettes.dark, 'chat'),
+} as const;
 
-/** AI 回复渲染前预处理：代码围栏外的 LaTeX 转轻量 Unicode（与知识库阅读器同一套规则） */
-const renderChatContent = (md: string) => transformOutsideFences(md, mathLite);
+/** AI 回复渲染前预处理：剥 <think> → Obsidian 风格 → LaTeX 轻量 Unicode（与知识库同一套规则） */
+const renderChatContent = (md: string) => chatPreprocess(md);
 
 type OrbMode = 'black' | 'white';
 
@@ -422,9 +427,9 @@ export function AiOrb() {
                       {m.role === 'user' ? (
                         <Text style={styles.bubbleUserText}>{m.content}</Text>
                       ) : (
-                        // AI 回复按 Markdown 渲染（标题/列表/代码/表格），LaTeX 已轻量化为 Unicode
+                        // AI 回复按 Markdown 渲染（标题/列表/高亮代码/横滑表格），LaTeX 已轻量化为 Unicode
                         // 流式生成中尾部追加光标「▍」作为逐字输出指示器
-                        <Markdown style={CHAT_MD_STYLES[scheme]}>
+                        <Markdown style={CHAT_MD_STYLES[scheme]} rules={CHAT_MD_RULES[scheme]}>
                           {renderChatContent(m.content) + (m.streaming ? ' ▍' : '')}
                         </Markdown>
                       )}

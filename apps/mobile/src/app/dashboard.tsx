@@ -687,6 +687,9 @@ const STYLES = themedStyles((CLR) => ({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 96 },
   cardTitle: { fontSize: 17, fontWeight: '700', color: CLR.text, marginTop: 18, marginBottom: 8, letterSpacing: 0.3 },
+  // 图表卡片标题行：主标题 + 右侧汇总小字（基线对齐）
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  titleAside: { fontSize: 11, color: CLR.text3, fontWeight: '500', fontVariant: ['tabular-nums'] },
   card: { backgroundColor: CLR.glassCard, borderRadius: RAD.lg, padding: 16, minHeight: 60, ...glassRim(CLR), ...cardShadow },
   profileCard: { borderWidth: 1, borderColor: CLR.border },
   center: { alignItems: 'center' },
