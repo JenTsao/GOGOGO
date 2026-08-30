@@ -1,4 +1,4 @@
-import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform, StyleSheet, BackHandler } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, Platform, StyleSheet, BackHandler } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -18,7 +18,7 @@ import { fetchRepoPaths } from '@/lib/github';
 import { R, cardShadow, glassRim, HIT_SLOP, themedStyles, usePalette, useScheme, type ThemeMode } from '@/theme';
 import { AmbientGlow } from '@/components/AmbientGlow';
 
-type ViewMode = 'hub' | 'settings';
+type ViewMode = 'hub' | 'settings' | 'about';
 type Sec =
   | 'appearance'
   | 'llm'
@@ -31,6 +31,20 @@ type Sec =
   | 'reminder'
   | 'sync'
   | 'keepalive';
+
+// 关于页核心能力清单：模块级常量避免每次渲染重建；soft 底 + 语义色图标与全站菜单行一致
+const ABOUT_FEATURES: {
+  icon: keyof typeof Ionicons.glyphMap;
+  color: 'primary' | 'blue' | 'green' | 'orange';
+  soft: 'primarySoft' | 'blueSoft' | 'greenSoft' | 'orangeSoft';
+  title: string;
+  desc: string;
+}[] = [
+  { icon: 'timer-outline', color: 'primary', soft: 'primarySoft', title: '驾驶舱与心流', desc: '高考倒计时 · 今日三件事 · 全屏心流计时' },
+  { icon: 'albums-outline', color: 'blue', soft: 'blueSoft', title: '弹药库', desc: '代码沙盒 · 知识库双链阅读 · 拍照错题本' },
+  { icon: 'sparkles-outline', color: 'green', soft: 'greenSoft', title: 'AI 陪伴', desc: '悬浮球对话 · 拍题讲解 · 工具调度' },
+  { icon: 'stats-chart-outline', color: 'orange', soft: 'orangeSoft', title: '学习画像', desc: '六维雷达 · 专注热力 · 情绪与横向对标' },
+];
 
 function daysToGaokao() {
   const now = new Date();
@@ -71,10 +85,10 @@ export default function ProfileScreen() {
 
   useEffect(() => { void init(); }, [init]);
 
-  // 总设置是页内二级视图：拦截系统返回，回到「我的」中心，而不是跳出到驾驶舱 Tab
+  // 总设置/关于是页内二级视图：拦截系统返回，回到「我的」中心，而不是跳出到驾驶舱 Tab
   useFocusEffect(
     useCallback(() => {
-      if (view !== 'settings') return undefined;
+      if (view === 'hub') return undefined;
       const onBack = () => {
         setView('hub');
         return true;
@@ -209,14 +223,6 @@ export default function ProfileScreen() {
   };
 
   const appVersion = Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? '1.0.0';
-
-  const showAbout = () => {
-    Alert.alert(
-      '高考副驾驶',
-      `版本 ${appVersion}\n平台 ${Platform.OS}\n\n专注 · 错题 · AI 陪伴备考\n配置项请进入「总设置」。`,
-      [{ text: '知道了' }]
-    );
-  };
 
   const MenuRow = ({
     icon, color, title, subtitle, onPress, right,
@@ -363,9 +369,102 @@ export default function ProfileScreen() {
             color={C.text2}
             title="关于"
             subtitle={`版本 ${appVersion}`}
-            onPress={showAbout}
+            onPress={() => setView('about')}
           />
         </View>
+      </ScrollView>
+      </View>
+    );
+  }
+
+  if (view === 'about') {
+    return (
+      <View style={styles.screen}>
+        <AmbientGlow />
+        <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity style={styles.backRow} onPress={() => setView('hub')} activeOpacity={0.85}>
+          <Ionicons name="chevron-back" size={22} color={C.primary} />
+          <Text style={styles.backText}>返回「我的」</Text>
+        </TouchableOpacity>
+
+        {/* 品牌头卡：Logo + 名称 + 版本徽章 + 定位标语 */}
+        <View style={[styles.section, styles.aboutHero]}>
+          <View style={styles.aboutLogo}>
+            <Ionicons name="school" size={34} color={C.onPrimary} />
+          </View>
+          <Text style={styles.aboutName}>高考副驾驶</Text>
+          <View style={styles.aboutVersionChip}>
+            <Text style={styles.aboutVersionText}>
+              v{appVersion} · {Platform.OS === 'ios' ? 'iOS' : 'Android'}
+            </Text>
+          </View>
+          <Text style={styles.aboutTagline}>专注 · 错题 · AI 陪伴备考</Text>
+          <Text style={styles.aboutSlogan}>本地瞬时响应 · 云端永不关机 · 知识资产专业化治理</Text>
+        </View>
+
+        {/* 核心能力：四大模块一览 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeadStatic}>
+            <Ionicons name="sparkles" size={16} color={C.primary} />
+            <Text style={styles.sectionTitle}>核心能力</Text>
+          </View>
+          {ABOUT_FEATURES.map((f) => (
+            <View key={f.title} style={styles.featureRow}>
+              <View style={[styles.featureIcon, { backgroundColor: C[f.soft] }]}>
+                <Ionicons name={f.icon} size={18} color={C[f.color]} />
+              </View>
+              <View style={styles.featureBody}>
+                <Text style={styles.featureTitle}>{f.title}</Text>
+                <Text style={styles.featureDesc}>{f.desc}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* 运行信息：版本 / 构建 / 系统 / 运行环境 / 倒计时 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeadStatic}>
+            <Ionicons name="information-circle-outline" size={16} color={C.blue} />
+            <Text style={styles.sectionTitle}>运行信息</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>应用版本</Text>
+            <Text style={styles.infoValue}>v{appVersion}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>构建号</Text>
+            <Text style={styles.infoValue}>{Constants.nativeBuildVersion ?? '—'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>操作系统</Text>
+            <Text style={styles.infoValue}>
+              {Platform.OS === 'ios' ? 'iOS' : 'Android'} {String(Platform.Version)}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>运行环境</Text>
+            <Text style={styles.infoValue}>
+              {Constants.appOwnership === 'expo' ? 'Expo Go（开发模式）' : '独立安装'}
+            </Text>
+          </View>
+          <View style={[styles.infoRow, styles.infoRowLast]}>
+            <Text style={styles.infoLabel}>距离高考</Text>
+            <Text style={[styles.infoValue, { color: C.primary }]}>{gaokaoDays} 天</Text>
+          </View>
+        </View>
+
+        {/* 隐私与数据：讲清 BYOK 与本地优先策略，建立信任 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeadStatic}>
+            <Ionicons name="lock-closed-outline" size={16} color={C.green} />
+            <Text style={styles.sectionTitle}>隐私与数据</Text>
+          </View>
+          <Text style={styles.aboutPrivacy}>
+            AI 与搜索服务的 API Key 仅保存在本机，请求由设备直连对应服务商；错题照片、专注记录等数据默认存于本机，仅在手动同步时经你配置的云端中转。应用本身不经手、不持有任何密钥与学习数据。
+          </Text>
+        </View>
+
+        <Text style={styles.aboutFooter}>为每一个追梦的高三人而作</Text>
       </ScrollView>
       </View>
     );
@@ -750,4 +849,32 @@ const STYLES = themedStyles((C) => ({
   calDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.red, marginTop: 2 },
   calHint: { fontSize: 12, color: C.text3, marginTop: 8, lineHeight: 18 },
   syncResult: { fontSize: 13, color: C.text2, lineHeight: 21, marginTop: 10 },
+  // —— 关于页 ——
+  aboutHero: { alignItems: 'center', paddingVertical: 24 },
+  aboutLogo: {
+    width: 76, height: 76, borderRadius: 22, backgroundColor: C.primary,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 12, ...cardShadow,
+  },
+  aboutName: { fontSize: 22, fontWeight: '800', color: C.text },
+  aboutVersionChip: {
+    marginTop: 10, paddingHorizontal: 12, paddingVertical: 4, borderRadius: R.pill,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: C.border, backgroundColor: C.bg,
+  },
+  aboutVersionText: { fontSize: 12, fontWeight: '600', color: C.text2, fontVariant: ['tabular-nums'] },
+  aboutTagline: { fontSize: 14, fontWeight: '600', color: C.primary, marginTop: 12 },
+  aboutSlogan: { fontSize: 12, color: C.text3, marginTop: 4, textAlign: 'center' },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  featureIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  featureBody: { flex: 1 },
+  featureTitle: { fontSize: 15, fontWeight: '700', color: C.text },
+  featureDesc: { fontSize: 12, color: C.text3, marginTop: 2, lineHeight: 17 },
+  infoRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
+  },
+  infoRowLast: { borderBottomWidth: 0 },
+  infoLabel: { fontSize: 14, color: C.text2 },
+  infoValue: { fontSize: 14, color: C.text, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  aboutPrivacy: { fontSize: 13, color: C.text2, lineHeight: 21 },
+  aboutFooter: { fontSize: 12, color: C.text3, textAlign: 'center', marginTop: 6, marginBottom: 8 },
 }));
