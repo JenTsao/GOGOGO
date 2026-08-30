@@ -18,6 +18,7 @@ import { fetchDaily, DailyLearning } from '@/lib/cloud';
 import { readDailyCache } from '@/lib/background';
 import { R, cardShadow, glassRim, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
 import { AmbientGlow } from '@/components/AmbientGlow';
+import { EggLine } from '@/components/EggLine';
 import { jayEggForToday, jayMilestoneEgg, nextJayLine, randomJayTaskDoneLine, randomJayTaskLine } from '@/lib/jayEggs';
 
 const FLOW_BRIGHT = '#F2EFFB';
@@ -430,7 +431,7 @@ export default function CockpitScreen() {
             </View>
           )}
           {top3.length > 0 && top3Done === top3.length && (
-            <Text style={styles.taskDoneEgg}>🎧 {taskDoneLine}</Text>
+            <EggLine line={taskDoneLine} tone="soft" style={{ marginTop: 10 }} />
           )}
           {top3.length === 0 && (
             <View style={styles.emptyBox}>
@@ -531,7 +532,7 @@ export default function CockpitScreen() {
             <Text style={styles.flowHint}>心流进行中 · 通知已静默</Text>
           </View>
           <FlowTimerDisplay />
-          {!!flowLine && <Text style={styles.flowEgg}>{flowLine}</Text>}
+          {!!flowLine && <EggLine line={flowLine} tone="ink" style={{ marginTop: -20, marginBottom: 16 }} />}
           {Platform.OS === 'android' && (
             <TouchableOpacity style={styles.zenBtn} onPress={openZenMode} activeOpacity={0.85}>
               <Ionicons name="notifications-off-outline" size={16} color={C.inkDim} />
@@ -640,10 +641,6 @@ const STYLES = themedStyles((C) => ({
   },
   flowHint: { color: C.inkSub, fontSize: 13, letterSpacing: 2 },
   flowTimer: { color: FLOW_BRIGHT, fontSize: 68, fontWeight: '200', marginVertical: 32, fontVariant: ['tabular-nums'] },
-  // 心流氛围句：负 margin 收紧计时器下方的空隙；恒深场景用 inkDim
-  flowEgg: { color: C.inkDim, fontSize: 12, marginTop: -20, marginBottom: 16, textAlign: 'center' },
-  // 三件事全勤彩蛋：greenDeep 保证玻璃卡上小字号对比度
-  taskDoneEgg: { color: C.greenDeep, fontSize: 12, marginTop: 10 },
   flowStop: {
     borderWidth: 1, borderColor: C.glassDarkBorder, backgroundColor: C.glassDark,
     borderRadius: 24, paddingHorizontal: 32, paddingVertical: 12,

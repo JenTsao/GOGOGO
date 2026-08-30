@@ -477,7 +477,9 @@ export const useAiStore = create<AiState>((set, get) => ({
       await new Promise<void>((resolve) => {
         speakResolve = resolve;
         sound.setOnPlaybackStatusUpdate((st: AVPlaybackStatus) => {
-          if (st.isLoaded && (st.didJustFinish || st.error)) {
+          // !isLoaded（播放中途出错转 ErrorToLoad）也要 resolve：否则等待 Promise 永远悬挂
+          // error 字段用 in 守卫读取：部分 expo-av 版本的 AVPlaybackStatusSuccess 不声明该字段
+          if (!st.isLoaded || st.didJustFinish || ('error' in st && !!st.error)) {
             finished = true;
             resolve();
           }
@@ -503,7 +505,9 @@ export const useAiStore = create<AiState>((set, get) => ({
     if (get().voiceState !== 'speaking' && !soundRef && !speakResolve) return;
     speakGen++; // 使进行中的 speak 判定为「已中断」，其 finally 不再抢状态
     if (soundRef) {
-      void soundRef.stopAndUnloadAsync().catch(() => {});
+      // expo-av 的 Sound 没有 stopAndUnloadAsync（那是 Recording 的 API）：先停后卸两步走
+      void soundRef.stopAsync().catch(() => {});
+      void soundRef.unloadAsync().catch(() => {});
       soundRef = null;
     }
     if (speakResolve) {

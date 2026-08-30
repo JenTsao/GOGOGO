@@ -478,14 +478,17 @@ export default function ProfileScreen() {
           </Text>
         </View>
 
-        {/* 隐藏歌单：连点版本徽章 5 次解锁的周杰伦歌名梗彩蛋 */}
+        {/* 隐藏歌单：连点版本徽章 5 次解锁的周杰伦歌名梗彩蛋（歌词引句卡样式） */}
         {eggLine && (
           <View style={styles.section}>
             <View style={styles.sectionHeadStatic}>
               <Ionicons name="musical-notes" size={16} color={C.primary} />
               <Text style={styles.sectionTitle}>隐藏歌单</Text>
             </View>
-            <Text style={styles.aboutEgg}>{eggLine}</Text>
+            <View style={styles.aboutEggQuote}>
+              <View style={styles.aboutEggBar} />
+              <Text style={styles.aboutEggText}>{eggLine}</Text>
+            </View>
             <Text style={styles.aboutEggHint}>第 {eggTaps - 4} 句 · 共 {jayLineCount} 句 · 继续点版本徽章换一句</Text>
           </View>
         )}
@@ -920,7 +923,9 @@ const STYLES = themedStyles((C) => ({
   infoValue: { fontSize: 14, color: C.text, fontWeight: '600', fontVariant: ['tabular-nums'] },
   aboutPrivacy: { fontSize: 13, color: C.text2, lineHeight: 21 },
   aboutFooter: { fontSize: 12, color: C.text3, textAlign: 'center', marginTop: 6, marginBottom: 8 },
-  // —— 隐藏歌单彩蛋 ——
-  aboutEgg: { fontSize: 14, color: C.text, lineHeight: 22 },
-  aboutEggHint: { fontSize: 12, color: C.text3, marginTop: 8 },
+  // —— 隐藏歌单彩蛋：歌词引句卡（主色竖条 + 斜体金句） ——
+  aboutEggQuote: { flexDirection: 'row', gap: 10 },
+  aboutEggBar: { width: 3, borderRadius: 2, backgroundColor: C.primary },
+  aboutEggText: { flex: 1, fontSize: 14, lineHeight: 22, color: C.text, fontStyle: 'italic' },
+  aboutEggHint: { fontSize: 12, color: C.text3, marginTop: 10 },
 }));
