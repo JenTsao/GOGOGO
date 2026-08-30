@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import Constants from 'expo-constants';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSettingsStore } from '@/store/settingsStore';
+import { gaokaoExamDate, useSettingsStore } from '@/store/settingsStore';
 import { useAuthStore } from '@/store/authStore';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
 import { useFocusStore } from '@/store/focusStore';
@@ -49,13 +49,8 @@ const ABOUT_FEATURES: {
 ];
 
 function daysToGaokao() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const exam =
-    now.getTime() >= new Date(y, 5, 7, 9, 0, 0).getTime()
-      ? new Date(y + 1, 5, 7, 9, 0, 0)
-      : new Date(y, 5, 7, 9, 0, 0);
-  return Math.ceil(Math.max(0, exam.getTime() - now.getTime()) / 86400000);
+  const exam = gaokaoExamDate();
+  return Math.ceil(Math.max(0, exam.getTime() - Date.now()) / 86400000);
 }
 
 export default function ProfileScreen() {
@@ -63,9 +58,11 @@ export default function ProfileScreen() {
   const styles = STYLES[useScheme()];
   const insets = useSafeAreaInsets();
   const [view, setView] = useState<ViewMode>('hub');
+  // 年份选项基準：本次渲染的当前年（自动 + 未来 3 年可选）
+  const baseYear = new Date().getFullYear();
 
   const {
-    weatherKey, weatherCity, targetUniversity, targetScore, githubRepo, githubBranch,
+    weatherKey, weatherCity, targetUniversity, targetScore, examYear, githubRepo, githubBranch,
     llmProvider, llmBaseUrl, llmModel, llmApiKey,
     sttBaseUrl, sttApiKey, sttModel,
     ttsBaseUrl, ttsApiKey, ttsModel, ttsVoice,
@@ -689,6 +686,20 @@ export default function ProfileScreen() {
             <TextInput style={styles.input} placeholder="如：浙江大学" placeholderTextColor={C.text3} value={targetUniversity} onChangeText={(v) => update({ targetUniversity: v })} />
             <Text style={styles.label}>目标总分（0–750）</Text>
             <TextInput style={styles.input} placeholder="如：630" placeholderTextColor={C.text3} value={targetScore === null ? '' : String(targetScore)} onChangeText={(v) => { const n = parseInt(v, 10); update({ targetScore: Number.isFinite(n) && n > 0 && n <= 750 ? n : null }); }} keyboardType="number-pad" />
+            <Text style={styles.label}>高考年份（倒计时目标）</Text>
+            <View style={styles.presetRow}>
+              {([{ key: null as number | null, label: '自动' }, ...[0, 1, 2, 3].map((i) => ({ key: baseYear + i as number | null, label: String(baseYear + i) }))]).map((opt) => (
+                <TouchableOpacity
+                  key={String(opt.key)}
+                  style={[styles.presetChip, examYear === opt.key && styles.presetChipActive]}
+                  onPress={() => update({ examYear: opt.key })}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.presetText, examYear === opt.key && styles.presetTextActive]}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.placeholder}>自动：今年 6 月 7 日未到算今年，已过算明年（如复读生可手动指定）</Text>
           </>
         )}
       </View>

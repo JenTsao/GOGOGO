@@ -8,7 +8,7 @@ import * as Location from 'expo-location';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { useTaskStore } from '@/store/taskStore';
 import { useFocusStore } from '@/store/focusStore';
-import { useSettingsStore } from '@/store/settingsStore';
+import { gaokaoExamDate, useSettingsStore } from '@/store/settingsStore';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
 import { useAiStore } from '@/store/aiStore';
 import { useMoodStore } from '@/store/moodStore';
@@ -19,7 +19,7 @@ import { readDailyCache } from '@/lib/background';
 import { R, cardShadow, glassRim, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
 import { AmbientGlow } from '@/components/AmbientGlow';
 import { EggLine } from '@/components/EggLine';
-import { jayEggForToday, jayMilestoneEgg, nextJayLine, randomJayTaskDoneLine, randomJayTaskLine } from '@/lib/jayEggs';
+import { jayEggForToday, jayMilestoneEgg, jayWeeklyEgg, nextJayLine, randomJayTaskDoneLine, randomJayTaskLine } from '@/lib/jayEggs';
 
 const FLOW_BRIGHT = '#F2EFFB';
 
@@ -86,13 +86,9 @@ export default function CockpitScreen() {
   }, []);
   const todayStr = localDateStr(today);
 
-  const examDate = useMemo(() => {
-    const now = new Date();
-    const y = now.getFullYear();
-    return now.getTime() >= new Date(y, 5, 7, 9, 0, 0).getTime()
-      ? new Date(y + 1, 5, 7, 9, 0, 0)
-      : new Date(y, 5, 7, 9, 0, 0);
-  }, []);
+  // 高考日期：「我的」自定义年份优先，未设置自动推断；以 today（60s 刷新）为基准，跨天/改设置即时生效
+  const examYearSetting = useSettingsStore((s) => s.examYear);
+  const examDate = useMemo(() => gaokaoExamDate(today), [today, examYearSetting]);
   const examYear = examDate.getFullYear();
   const msLeft = Math.max(0, examDate.getTime() - today.getTime());
   const daysLeft = Math.ceil(msLeft / 86400000);
@@ -520,7 +516,10 @@ export default function CockpitScreen() {
             <Text style={styles.focusBtnText}>进入心流</Text>
           </TouchableOpacity>
           {sessions.length > 0 && (
-            <Text style={styles.sessionHint}>最近一次 {Math.round(sessions[0].duration / 60)} 分钟 · 累计 {sessions.length} 次</Text>
+            <Text style={styles.sessionHint}>
+              最近一次 {Math.round(sessions[0].duration / 60)} 分钟 · 累计 {sessions.length} 次
+              {sessions[0].duration >= 45 * 60 ? ' · 《以父之名》级的坚持' : ''}
+            </Text>
           )}
         </View>
       </ScrollView>

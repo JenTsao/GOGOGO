@@ -198,6 +198,10 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); box-sh
 .panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
 .panel-head h2 { margin: 0; font-size: 16px; }
 .panel-link { font-size: 13px; color: var(--primary); text-decoration: none; font-weight: 600; }
+
+/* ---------- 彩蛋金句：🎧 + 斜体，颜色走令牌深浅自适配 ---------- */
+.egg-line { display: flex; align-items: center; gap: 8px; margin: -12px 0 20px; color: var(--text2); font-size: 13px; font-style: italic; }
+.egg-line::before { content: '🎧'; font-style: normal; }
 .muted-line { font-size: 12px; color: var(--text3); margin: 0 0 6px; }
 .review-summary { font-size: 14px; line-height: 1.8; margin: 4px 0; color: var(--text); }
 .risk-line { font-size: 13px; line-height: 1.7; margin: 4px 0; color: var(--orange); }

@@ -5,7 +5,7 @@ import { chatWithLlmStream, ChatMessage, imageTextContent } from '@/lib/llm';
 import { TOOL_SCHEMAS, WRITE_TOOLS, executeTool, describeToolCall, AiToolName } from '@/lib/aiTools';
 import { transcribeAudio } from '@/lib/stt';
 import { synthesizeSpeech, speakableText } from '@/lib/tts';
-import { useSettingsStore } from './settingsStore';
+import { gaokaoExamDate, useSettingsStore } from './settingsStore';
 import { useTaskStore } from './taskStore';
 
 // L4 级 AI 悬浮球状态（六大专属工具调度占位）
@@ -73,12 +73,8 @@ function zhDate(d: Date): string {
 // （否则 AI 不知道今天几号、还剩多少天，所有回答都泛泛而谈）
 function buildSystemPrompt(): string {
   const now = new Date();
-  const y = now.getFullYear();
-  // 高考固定 6 月 7 日 9 点开考；今年已过则算次年
-  const exam =
-    now.getTime() >= new Date(y, 5, 7, 9, 0, 0).getTime()
-      ? new Date(y + 1, 5, 7, 9, 0, 0)
-      : new Date(y, 5, 7, 9, 0, 0);
+  // 高考日期与驾驶舱同口径（「我的」自定义年份优先，未设置自动推断）
+  const exam = gaokaoExamDate(now);
   const daysLeft = Math.ceil((exam.getTime() - now.getTime()) / 86400000);
   const week = '日一二三四五六'[now.getDay()];
   const ctx: string[] = [

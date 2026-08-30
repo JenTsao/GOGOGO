@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { useMoodStore } from '@/store/moodStore';
+import { jayMoodLine } from '@/lib/jayEggs';
+import { EggLine } from '@/components/EggLine';
 import { useSettingsStore } from '@/store/settingsStore';
 import { transcribeAudio } from '@/lib/stt';
 import { R, cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
@@ -262,6 +264,8 @@ export default function MoodCheckin() {
           <Text style={styles.transcript}>{today.transcript}</Text>
         </View>
       ) : null}
+      {/* 情绪彩蛋：按当日打卡 emoji 分档的周杰伦歌名句（打卡后才出现） */}
+      {today ? <EggLine line={jayMoodLine(today.emojiCode)} tone="soft" style={{ marginTop: 10 }} /> : null}
     </View>
   );
 }

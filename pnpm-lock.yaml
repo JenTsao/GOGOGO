@@ -44,6 +44,9 @@ importers:
       expo-blur:
         specifier: ~13.0.1
         version: 13.0.3(expo@51.0.39(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7)))
+      expo-clipboard:
+        specifier: ~6.0.3
+        version: 6.0.3(expo@51.0.39(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7)))
       expo-constants:
         specifier: ~16.0.2
         version: 16.0.2(expo@51.0.39(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7)))
@@ -2575,6 +2578,11 @@ packages:
 
   expo-blur@13.0.3:
     resolution: {integrity: sha512-z5W9ZGlG6ZiRLuoJZG1AHRvjK8j+2+nc/mtvEtyAa8T/8iTNpUnX4eC8xXDoTL/H4y2pc3cHvytDjCXJG26pcQ==}
+    peerDependencies:
+      expo: '*'
+
+  expo-clipboard@6.0.3:
+    resolution: {integrity: sha512-RIKDsuHkYfaspifbFpVC8sBVFKR05L7Pj7mU2/XkbrW9m01OBNvdpGraXEMsTFCx97xMGsZpEw9pPquL4j4xVg==}
     peerDependencies:
       expo: '*'
 
@@ -8582,6 +8590,10 @@ snapshots:
       expo-task-manager: 11.8.2(expo@51.0.39(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7)))
 
   expo-blur@13.0.3(expo@51.0.39(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))):
+    dependencies:
+      expo: 51.0.39(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))
+
+  expo-clipboard@6.0.3(expo@51.0.39(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))):
     dependencies:
       expo: 51.0.39(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))
 

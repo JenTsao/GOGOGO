@@ -1,9 +1,11 @@
 /**
- * 周杰伦彩蛋库：文案全部为「歌名梗」原创句——歌名与日期是事实性引用，
- * 句子本身自创并化用歌曲意境；歌词原文不直接引用（版权文本）。
+ * 周杰伦彩蛋库（web 端）：与移动端 src/lib/jayEggs.ts 同源——句池与日期表保持一致，
+ * 改文案请两端同步。差异点：本文件为纯 TS（可被服务端组件引用），且日期判定统一
+ * 北京时间口径（+8h 后读 UTC 日历），任意时区服务器/开发机结果一致。
+ * 歌名与日期为事实性引用，句子为化用意境的自创文案；歌词原文不直接引用（版权红线）。
  */
 
-// 通用氛围句池：心流界面 / 隐藏歌单随机取用
+// 通用氛围句池：控制台横幅 / Konami 成就随机取用（与移动端一致）
 const JAY_LINES: string[] = [
   '《晴天》会过去，题也会做完',
   '《简单爱》学习：一道一道来，不贪多',
@@ -35,7 +37,7 @@ const JAY_LINES: string[] = [
   '哎哟，不错哦——这节心流，保持住',
 ];
 
-// 倒计时里程碑句：命中天数由驾驶舱问候语接管
+// 倒计时里程碑句：总览页按距高考天数命中
 const MILESTONE_LINES: Record<number, string> = {
   100: '倒计时 100 天——像《蜗牛》一样，一寸一寸往上',
   50: '倒计时 50 天——切换《以父之名》模式：安静，但强大',
@@ -48,10 +50,10 @@ const MILESTONE_LINES: Record<number, string> = {
   0: '高考首日——去写你的《最伟大的作品》',
 };
 
-// 特定日期彩蛋（MM-DD）：生日 / 专辑与单曲发行日 / 高考日，命中才显示
+// 特定日期彩蛋（北京日期 MM-DD）：生日 / 专辑与单曲发行日 / 高考日
 const JAY_DATES: Record<string, string> = {
   '01-18': '🎂 今天是周杰伦生日，戴上耳机开工吧',
-  '07-16': '🌾 《以父之名》周杰伦日（2003）——音乐的皇帝',
+  '07-16': '🌾 《七里香》单曲首播纪念日（2004）——这个夏天，属于你',
   '07-19': '🎹 《八度空间》发行日（2002）——音阶往上，你也一样',
   '07-31': '🎷 《叶惠美》发行日（2003）——谢谢妈妈，也谢谢努力的自己',
   '08-03': '🌾 《七里香》专辑发行日（2004）——这个夏天，属于你',
@@ -71,65 +73,20 @@ export function nextJayLine(): string {
   return JAY_LINES[i];
 }
 
-/** 氛围句池总量（隐藏歌单展示用） */
+/** 氛围句池总量 */
 export const jayLineCount = JAY_LINES.length;
 
-// 今日三件事空状态句：随机取一句，兼具引导性
-const TASK_EMPTY_LINES: string[] = [
-  '《搁浅》的事，先捞一件——写下今天第一件事',
-  '《简单爱》学习：今天从一件小事开始',
-  '《最伟大的作品》从第一件开始——写下今天的要事',
-];
-
-/** 任务空状态随机句（组件挂载时取一次，避免每帧重抽闪烁） */
-export function randomJayTaskLine(): string {
-  return TASK_EMPTY_LINES[Math.floor(Math.random() * TASK_EMPTY_LINES.length)];
+/** 完整句池（按声明顺序）：Konami 三连击的终极成就用它输出歌单目录 */
+export function allJayLines(): string[] {
+  return [...JAY_LINES];
 }
 
-// 三件事全部完成句：达成时刻的确定性奖励
-const TASK_DONE_LINES: string[] = [
-  '《最伟大的作品》今天的版本，你已经写完了',
-  '《轨迹》又向前一格——今天的三件事，全部说好不哭地完成了',
-  '《以父之名》级的执行力：安静地，把今天做完了',
-];
-
-/** 三件事全勤随机句（挂载时取一次） */
-export function randomJayTaskDoneLine(): string {
-  return TASK_DONE_LINES[Math.floor(Math.random() * TASK_DONE_LINES.length)];
-}
-
-// 错题入库句：收录成功那一刻的安慰与鼓励
-const MISTAKE_LINES: string[] = [
-  '《对不起》说给昨天的粗心——重做一遍，就是最好的回答',
-  '错题本又厚一页——《轨迹》不会骗人，你离考点更近了',
-  '《回到过去》不如写好现在：这道题会感谢今天收录它的你',
-];
-
-/** 错题入库随机句 */
-export function randomJayMistakeLine(): string {
-  return MISTAKE_LINES[Math.floor(Math.random() * MISTAKE_LINES.length)];
-}
-
-// 情绪打卡句：按 emoji 分档——负面情绪给安慰，正面情绪给燃料
-const MOOD_LINES: Record<string, string> = {
-  '😊': '《阳光宅男》配这张表情——电量满格，继续保持',
-  '😃': '《星晴》也不过如此——今天的光是你自己发的',
-  '😐': '《安静》地过完一天也算赢，明天《晴天》见',
-  '😟': '焦虑是《龙卷风》前的风平——深呼吸，把它写进语音备忘里',
-  '😫': '累了就听《稻香》——简单一点，早点睡',
-};
-
-/** 按当日打卡 emoji 取句（未知 emoji 回退通用句） */
-export function jayMoodLine(emoji: string): string {
-  return MOOD_LINES[emoji] ?? '《晴天》或《夜曲》，都是你——今天也记下一笔';
-}
-
-// 周常彩蛋：周一早晨「开课」问候（优先级低于日期/里程碑彩蛋）
-const WEEKLY_MONDAY = '周一早——《三年二班》开课了，这周也稳住节奏';
-
-/** 周一早晨（5-11 点）返回开课句，其余时间 null */
-export function jayWeeklyEgg(d: Date): string | null {
-  return d.getDay() === 1 && d.getHours() >= 5 && d.getHours() < 11 ? WEEKLY_MONDAY : null;
+/** 周常彩蛋：周一早晨「开课」问候（北京口径），其余时间 null */
+export function jayWeeklyEgg(d: Date = new Date()): string | null {
+  const bj = new Date(d.getTime() + 8 * 3600 * 1000);
+  return bj.getUTCDay() === 1 && bj.getUTCHours() >= 5 && bj.getUTCHours() < 11
+    ? '周一早——《三年二班》开课了，这周也稳住节奏'
+    : null;
 }
 
 /** 倒计时里程碑彩蛋：命中返回句子，未命中 null */
@@ -137,8 +94,19 @@ export function jayMilestoneEgg(daysLeft: number): string | null {
   return MILESTONE_LINES[daysLeft] ?? null;
 }
 
-/** 当天是否命中日期彩蛋；未命中返回 null（问候语回退里程碑/常规逻辑） */
+/** 当天日期彩蛋：统一北京日期口径（+8h 后读 UTC 日历），未命中返回 null */
 export function jayEggForToday(d: Date = new Date()): string | null {
-  const key = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const bj = new Date(d.getTime() + 8 * 3600 * 1000);
+  const key = `${String(bj.getUTCMonth() + 1).padStart(2, '0')}-${String(bj.getUTCDate()).padStart(2, '0')}`;
   return JAY_DATES[key] ?? null;
+}
+
+/** 距高考天数（6 月 7 日 09:00 北京时间，与移动端口径一致） */
+export function daysToGaokaoBJ(now: Date = new Date()): number {
+  const y = new Date(now.getTime() + 8 * 3600 * 1000).getUTCFullYear();
+  // 09:00 北京时间 = 01:00 UTC
+  const exam = now.getTime() >= Date.UTC(y, 5, 7, 1, 0, 0)
+    ? Date.UTC(y + 1, 5, 7, 1, 0, 0)
+    : Date.UTC(y, 5, 7, 1, 0, 0);
+  return Math.ceil((exam - now.getTime()) / 86400000);
 }

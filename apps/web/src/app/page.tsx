@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { supabaseAdmin, requireAdminEnv } from '@/lib/supabaseAdmin';
 import { Countdown } from '@/components/Countdown';
+import { daysToGaokaoBJ, jayEggForToday, jayMilestoneEgg, jayWeeklyEgg } from '@/lib/jayEggs';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,10 +106,13 @@ export default async function OverviewPage() {
   }
 
   const w = data.weekly?.content;
+  // 周杰伦彩蛋：特定日期 > 倒计时里程碑 > 周一开课，命中才显示（与移动端驾驶舱问候语同源）
+  const egg = jayEggForToday() ?? jayMilestoneEgg(daysToGaokaoBJ()) ?? jayWeeklyEgg();
 
   return (
     <>
       <h1 className="page-title">总览</h1>
+      {egg && <p className="egg-line">{egg}</p>}
 
       <div className="stat-grid">
         <div className="panel stat-card">

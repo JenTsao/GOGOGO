@@ -8,6 +8,7 @@ export interface Settings {
   weatherCity: string;
   targetUniversity: string;
   targetScore: number | null; // 本人目标总分（横向对标数值化：与检索到的分数线计算差距）
+  examYear: number | null; // 高考年份：null = 自动推断（今年 6·7 未到算今年，已过算明年）
   githubRepo: string; // Obsidian 仓库，格式 owner/repo（知识库用）
   githubBranch: string;
   themeMode: ThemeMode; // 深色模式：system 跟随系统 / light / dark 手动固定
@@ -41,6 +42,7 @@ const DEFAULTS: Settings = {
   weatherCity: '',
   targetUniversity: '',
   targetScore: null,
+  examYear: null,
   githubRepo: '',
   githubBranch: 'main',
   themeMode: 'system', // 默认跟随系统深色模式
@@ -88,3 +90,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     storage.set(SETTINGS_KEY, JSON.stringify(rest));
   },
 }));
+
+/** 高考日期（6 月 7 日 9:00 开考）：驾驶舱倒计时 / AI 提示词 / 画像共用的唯一口径。
+ *  自定义年份优先（考试当天 9 点后 msLeft 钳为 0，不会跳到下一年）；
+ *  未设置或设置已过期（跨年忘改）时回退自动推断 */
+export function gaokaoExamDate(now: Date = new Date()): Date {
+  const { examYear } = useSettingsStore.getState();
+  const y = now.getFullYear();
+  if (examYear && examYear >= y) return new Date(examYear, 5, 7, 9, 0, 0);
+  return now.getTime() >= new Date(y, 5, 7, 9, 0, 0).getTime()
+    ? new Date(y + 1, 5, 7, 9, 0, 0)
+    : new Date(y, 5, 7, 9, 0, 0);
+}

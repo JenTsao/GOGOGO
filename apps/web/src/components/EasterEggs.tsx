@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { allJayLines, jayLineCount, nextJayLine } from '@/lib/jayEggs';
 
 /**
  * 控制台与页面小彩蛋（零依赖，仅客户端）：
@@ -63,6 +64,8 @@ export function EasterEggs() {
       '%c专注 · 错题 · AI 陪伴备考\n\n👀 打开了 F12？好奇心 +1，这个习惯很适合排查 Bug。\n🎮 隐藏彩蛋：依次按下 ↑ ↑ ↓ ↓ ← → ← → B A',
       'color:#7c3aed;font-size:12px;line-height:1.9;'
     );
+    // 周杰伦歌名梗金句：每次打开控制台随机一句（与移动端句池同源）
+    console.log(`%c🎧 ${nextJayLine()}`, 'font-style:italic;color:#a78bfa;font-size:12px;');
     /* eslint-enable no-console */
 
     const baseTitle = document.title;
@@ -77,8 +80,9 @@ export function EasterEggs() {
     };
     document.addEventListener('visibilitychange', onVisibility);
 
-    // —— 彩蛋 3：Konami 秘籍 ——
+    // —— 彩蛋 3：Konami 秘籍（触发三次解锁终极成就：隐藏歌单全曲目录） ——
     let idx = 0;
+    let konamiCount = 0;
     const onKey = (e: KeyboardEvent) => {
       // 带 Ctrl/Cmd/Alt 的组合键是编辑器快捷键（如 Ctrl+S），不参与秘籍判定
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -86,15 +90,27 @@ export function EasterEggs() {
       idx = key === KONAMI[idx] ? idx + 1 : key === KONAMI[0] ? 1 : 0;
       if (idx === KONAMI.length) {
         idx = 0;
+        konamiCount += 1;
         burstConfetti();
         document.title = '🎉 彩蛋已解锁';
         setTimeout(() => {
           if (!document.hidden) document.title = baseTitle;
         }, 3000);
         console.log(
-          '%c🎉 解锁隐藏成就：科米老玩家\n情怀 +100，专注力请留给学习。',
+          `%c🎉 解锁隐藏成就：科米老玩家（第 ${konamiCount} 次）\n情怀 +100，专注力请留给学习。\n\n🎧 ${nextJayLine()}`,
           'font-size:14px;font-weight:700;color:#f59e0b;line-height:1.8;'
         );
+        // 终极成就：第三次触发，输出完整隐藏歌单目录
+        if (konamiCount === 3) {
+          console.log(
+            `%c🏆 终极成就：隐藏歌单全曲目录（共 ${jayLineCount} 句）`,
+            'font-size:15px;font-weight:700;color:#7c3aed;'
+          );
+          allJayLines().forEach((line, i) => {
+            console.log(`%c${String(i + 1).padStart(2, '0')}. ${line}`, 'color:#a9a3c4;font-size:12px;');
+          });
+          document.title = '🏆 隐藏歌单已解锁';
+        }
       }
     };
     window.addEventListener('keydown', onKey);
