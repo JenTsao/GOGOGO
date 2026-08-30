@@ -25,8 +25,9 @@ function gcdBig(a: bigint, b: bigint): bigint {
 function reduce(f: Frac): Frac {
   if (f.d < 0n) return reduce({ n: -f.n, d: -f.d });
   const g = gcdBig(f.n, f.d);
-  const d = f.d / g;
-  return { n: f.n / g, d: d === 0n ? 1n : d };
+  // d=0n 必须原样保留（不能改成 1n）：调用方靠 A.d === 0n 检测「分母为 0」报错，
+  // 此处篡改会让 5/0 被静默算成 1/1。g 恒 ≥ 1n，除法无除零风险
+  return { n: f.n / g, d: f.d / g };
 }
 
 export function FractionCalc() {
