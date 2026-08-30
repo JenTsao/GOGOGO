@@ -15,7 +15,8 @@ import { LLM_PRESETS } from '@/lib/llm';
 import { fetchDaily } from '@/lib/cloud';
 import { writeDailyCache } from '@/lib/background';
 import { fetchRepoPaths } from '@/lib/github';
-import { R, cardShadow, HIT_SLOP, themedStyles, usePalette, useScheme, type ThemeMode } from '@/theme';
+import { R, cardShadow, glassRim, HIT_SLOP, themedStyles, usePalette, useScheme, type ThemeMode } from '@/theme';
+import { AmbientGlow } from '@/components/AmbientGlow';
 
 type ViewMode = 'hub' | 'settings';
 type Sec =
@@ -250,7 +251,9 @@ export default function ProfileScreen() {
 
   if (view === 'hub') {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}>
+      <View style={styles.screen}>
+        <AmbientGlow />
+        <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}>
         <View style={styles.heroCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initial}</Text>
@@ -364,11 +367,14 @@ export default function ProfileScreen() {
           />
         </View>
       </ScrollView>
+      </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}>
+    <View style={styles.screen}>
+      <AmbientGlow />
+      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}>
       <TouchableOpacity style={styles.backRow} onPress={() => setView('hub')} activeOpacity={0.85}>
         <Ionicons name="chevron-back" size={22} color={C.primary} />
         <Text style={styles.backText}>返回「我的」</Text>
@@ -643,16 +649,19 @@ export default function ProfileScreen() {
           </>
         )}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const STYLES = themedStyles((C) => ({
-  container: { flex: 1, backgroundColor: C.bg },
+  // 底色容器：光斑铺在这一层之上、滚动内容之下（container 透明让光斑可见）
+  screen: { flex: 1, backgroundColor: C.bg },
+  container: { flex: 1 },
   content: { padding: 16, paddingBottom: 104 },
   heroCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: C.card,
-    borderRadius: R.lg, padding: 16, gap: 14, ...cardShadow,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: C.glassCard,
+    borderRadius: R.lg, padding: 16, gap: 14, ...glassRim(C), ...cardShadow,
   },
   avatar: {
     width: 56, height: 56, borderRadius: 28, backgroundColor: C.primary,
@@ -664,8 +673,8 @@ const STYLES = themedStyles((C) => ({
   heroSub: { fontSize: 13, color: C.text3, marginTop: 2 },
   heroGoal: { fontSize: 13, color: C.primary, fontWeight: '600', marginTop: 4 },
   statsRow: {
-    flexDirection: 'row', backgroundColor: C.card, borderRadius: R.lg,
-    marginTop: 12, paddingVertical: 14, ...cardShadow,
+    flexDirection: 'row', backgroundColor: C.glassCard, borderRadius: R.lg,
+    marginTop: 12, paddingVertical: 14, ...glassRim(C), ...cardShadow,
   },
   statCell: { flex: 1, alignItems: 'center' },
   statNum: { fontSize: 18, fontWeight: '800', color: C.text, fontVariant: ['tabular-nums'] },
@@ -686,7 +695,10 @@ const STYLES = themedStyles((C) => ({
   backText: { fontSize: 15, color: C.primary, fontWeight: '600' },
   settingsTitle: { fontSize: 22, fontWeight: '800', color: C.text, marginBottom: 4 },
   settingsHint: { fontSize: 12, color: C.text3, lineHeight: 18, marginBottom: 12 },
-  section: { backgroundColor: C.card, borderRadius: R.lg, padding: 16, marginBottom: 10, ...cardShadow },
+  section: {
+    backgroundColor: C.glassCard, borderRadius: R.lg, padding: 16, marginBottom: 10,
+    ...glassRim(C), ...cardShadow,
+  },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: C.text, flex: 1 },
   label: { fontSize: 13, color: C.text2, marginTop: 12, marginBottom: 4, fontWeight: '500' },

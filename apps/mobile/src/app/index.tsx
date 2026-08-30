@@ -16,7 +16,8 @@ import { useMistakeStore } from '@/store/mistakeStore';
 import { useAuthStore } from '@/store/authStore';
 import { fetchDaily, DailyLearning } from '@/lib/cloud';
 import { readDailyCache } from '@/lib/background';
-import { R, cardShadow, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
+import { R, cardShadow, glassRim, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
+import { AmbientGlow } from '@/components/AmbientGlow';
 
 const FLOW_BRIGHT = '#F2EFFB';
 
@@ -243,7 +244,9 @@ export default function CockpitScreen() {
   };
 
   return (
-    <>
+    <View style={styles.screen}>
+      {/* 环境光斑：半透玻璃卡透出的色彩来源，必须铺在滚动内容之下 */}
+      <AmbientGlow />
       {/* 心流隐藏状态栏；非心流时必须显式跟随主题——expo-status-bar 后挂载者优先，
           缺省 style 会覆盖根布局的动态设置，导致手动深色模式下状态栏图标不可见 */}
       <StatusBar hidden={inFlow} animated style={scheme === 'dark' ? 'light' : 'dark'} />
@@ -523,12 +526,14 @@ export default function CockpitScreen() {
           </TouchableOpacity>
         </View>
       </Modal>
-    </>
+    </View>
   );
 }
 
 const STYLES = themedStyles((C) => ({
-  container: { flex: 1, backgroundColor: C.bg },
+  // 底色容器：光斑铺在这一层之上、滚动内容之下（container 透明让光斑可见）
+  screen: { flex: 1, backgroundColor: C.bg },
+  container: { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 104 },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
   topBarLeft: { flex: 1, marginRight: 10 },
@@ -540,7 +545,8 @@ const STYLES = themedStyles((C) => ({
     paddingHorizontal: 10, paddingVertical: 6, marginTop: 2, maxWidth: 120,
   },
   weatherChipText: { color: C.primaryDeep, fontSize: 12, fontWeight: '600' },
-  card: { backgroundColor: C.card, borderRadius: R.lg, padding: 14, marginTop: 10, ...cardShadow },
+  // 玻璃卡：半透面透出环境光斑 + 顶缘受光描边；深色模式 glassCard 自动切换为实底
+  card: { backgroundColor: C.glassCard, borderRadius: R.lg, padding: 14, marginTop: 10, ...glassRim(C), ...cardShadow },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cardBadge: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   badgePurple: { backgroundColor: C.primarySoft },

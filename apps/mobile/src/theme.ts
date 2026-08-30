@@ -57,6 +57,8 @@ const light = {
   // 面略透，让 BlurView 透出下层；Strong 用于正文面板，保证可读
   glassSurface: 'rgba(255,255,255,0.52)',
   glassSurfaceStrong: 'rgba(255,255,255,0.72)',
+  // 玻璃卡：浅色下半透（透出环境光斑产生折射层次）；深色下实底（可读优先，玻璃感靠描边高光）
+  glassCard: 'rgba(255,255,255,0.74)',
   glassDark: 'rgba(255,255,255,0.10)',
   glassBorder: 'rgba(255,255,255,0.55)', // 侧缘
   glassBorderSoft: 'rgba(255,255,255,0.22)',
@@ -64,6 +66,10 @@ const light = {
   // 顶缘受光高光（模拟玻璃折射）
   glassHighlight: 'rgba(255,255,255,0.88)',
   glassHighlightSoft: 'rgba(255,255,255,0.45)',
+  // 环境光斑（AmbientGlow 绝对定位大圆）：给半透玻璃「透」出色彩层次
+  glowPrimary: 'rgba(124,58,237,0.10)',
+  glowBlue: 'rgba(37,99,235,0.07)',
+  glowGreen: 'rgba(15,157,110,0.06)',
   // 遮罩（Modal 背后压暗，略偏紫以贴合品牌）
   glassDim: 'rgba(18,14,34,0.42)',
 };
@@ -107,12 +113,18 @@ const dark: typeof light = {
   // 深色玻璃：低透白面 + 弱受光描边（AI 面板承载正文用近实底保证可读）
   glassSurface: 'rgba(36,32,56,0.55)',
   glassSurfaceStrong: 'rgba(30,27,46,0.82)',
+  // 深色下玻璃卡取实底：7% 白透光斑在深底上噪声大于收益，可读优先；玻璃感靠 rim 顶光
+  glassCard: '#1E1B2E',
   glassDark: 'rgba(255,255,255,0.08)',
   glassBorder: 'rgba(255,255,255,0.16)',
   glassBorderSoft: 'rgba(255,255,255,0.08)',
   glassDarkBorder: 'rgba(255,255,255,0.18)',
   glassHighlight: 'rgba(255,255,255,0.28)',
   glassHighlightSoft: 'rgba(255,255,255,0.12)',
+  // 深色光斑：亮紫/亮蓝低透明，深底上透出微光
+  glowPrimary: 'rgba(167,139,250,0.10)',
+  glowBlue: 'rgba(96,165,250,0.07)',
+  glowGreen: 'rgba(52,211,153,0.06)',
   glassDim: 'rgba(8,6,16,0.55)',
 };
 
@@ -133,12 +145,6 @@ export const cardShadow: ViewStyle = StyleSheet.create({
     elevation: 3,
   },
 }).shadow;
-
-/** 玻璃面板统一受光描边（随调色板取色） */
-export const glassEdge = (c: Palette): ViewStyle => ({
-  borderWidth: StyleSheet.hairlineWidth,
-  borderColor: c.glassBorder,
-});
 
 /**
  * 液态玻璃双边：顶缘高光 + 侧/底弱描边，模拟折射与厚度。

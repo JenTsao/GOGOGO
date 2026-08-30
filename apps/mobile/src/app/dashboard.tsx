@@ -14,7 +14,8 @@ import { localDateStr } from '@/store/reminderStore';
 import { countNegativeWords } from '@/lib/stt';
 import { fetchWeekly, WeeklyReview } from '@/lib/cloud';
 import MoodCheckin from '@/components/MoodCheckin';
-import { R as RAD, cardShadow, HEAT_SCALE, HEAT_SCALE_DARK, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
+import { R as RAD, cardShadow, glassRim, HEAT_SCALE, HEAT_SCALE_DARK, HIT_SLOP, themedStyles, usePalette, useScheme } from '@/theme';
+import { AmbientGlow } from '@/components/AmbientGlow';
 
 // Tab 3：仪表盘 —— 激进模式画像
 // 六维雷达基于可计算数据（专注/任务/知识积累 + 错题重做正确率的学科掌握）
@@ -267,7 +268,9 @@ export default function DashboardScreen() {
   };
 
   return (
-    <>
+    <View style={styles.screen}>
+      {/* 环境光斑：半透玻璃卡透出的色彩来源 */}
+      <AmbientGlow />
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
@@ -619,7 +622,7 @@ export default function DashboardScreen() {
           </View>
         </ScrollView>
       </Modal>
-    </>
+    </View>
   );
 }
 
@@ -634,10 +637,12 @@ const ADVICE: Record<string, string> = {
 };
 
 const STYLES = themedStyles((CLR) => ({
-  container: { flex: 1, backgroundColor: CLR.bg },
+  // 底色容器：光斑铺在这一层之上、滚动内容之下（container 透明让光斑可见）
+  screen: { flex: 1, backgroundColor: CLR.bg },
+  container: { flex: 1 },
   content: { padding: 16, paddingBottom: 96 },
   cardTitle: { fontSize: 17, fontWeight: '700', color: CLR.text, marginTop: 18, marginBottom: 8, letterSpacing: 0.3 },
-  card: { backgroundColor: CLR.card, borderRadius: RAD.lg, padding: 16, minHeight: 60, ...cardShadow },
+  card: { backgroundColor: CLR.glassCard, borderRadius: RAD.lg, padding: 16, minHeight: 60, ...glassRim(CLR), ...cardShadow },
   profileCard: { borderWidth: 1, borderColor: CLR.border },
   center: { alignItems: 'center' },
   placeholder: { color: CLR.text3, fontSize: 13, lineHeight: 20, marginTop: 4 },

@@ -5,7 +5,7 @@ import Markdown from 'react-native-markdown-display';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useKnowledgeStore } from '@/store/knowledgeStore';
 import { fetchRepoPaths, fetchRawFile } from '@/lib/github';
-import { R, cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
+import { R, cardShadow, glassRim, themedStyles, usePalette, useScheme } from '@/theme';
 
 // 知识库：按需从 GitHub 拉取 Obsidian 目录树，点击单篇下载 Markdown 并渲染（缓存后离线可读）
 interface TreeNode {
@@ -315,21 +315,19 @@ const STYLES = themedStyles((C) => ({
     padding: 24,
     marginHorizontal: 16,
     borderRadius: R.lg,
-    borderWidth: 1.5,
-    borderColor: C.border,
+    backgroundColor: C.glassCard,
+    ...glassRim(C),
     borderStyle: 'dashed',
-    backgroundColor: C.card,
   },
   emptyText: { color: C.text3, fontSize: 14, lineHeight: 22, textAlign: 'center' },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
   errorText: { color: C.red, fontSize: 13, flex: 1 },
   tree: {
     maxHeight: 220,
-    backgroundColor: C.card,
+    backgroundColor: C.glassCard,
     borderRadius: R.md,
-    borderWidth: 1,
-    borderColor: C.border,
     padding: 8,
+    ...glassRim(C),
     ...cardShadow,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7 },
@@ -342,11 +340,10 @@ const STYLES = themedStyles((C) => ({
   wikiMiss: { fontSize: 12, color: C.red },
   reader: {
     flex: 1,
-    backgroundColor: C.card,
+    backgroundColor: C.glassSurfaceStrong, // 正文阅读面板：高可读玻璃面
     borderRadius: R.md,
-    borderWidth: 1,
-    borderColor: C.border,
     padding: 14,
+    ...glassRim(C),
     ...cardShadow,
   },
   readerPlaceholder: { alignItems: 'center', gap: 10, paddingVertical: 40 },

@@ -7,6 +7,7 @@ import { CodeSandbox } from '@/components/CodeSandbox';
 import { KnowledgeView } from '@/components/KnowledgeView';
 import { MistakeView } from '@/components/MistakeView';
 import { GlassCard } from '@/components/Glass';
+import { AmbientGlow } from '@/components/AmbientGlow';
 import { R, cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
 
 // Tab 2：弹药库（工具与知识）
@@ -24,7 +25,10 @@ export default function ArsenalScreen() {
   ];
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
+    <View style={styles.screen}>
+      {/* 环境光斑：半透玻璃卡透出的色彩来源 */}
+      <AmbientGlow />
+      <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
       <View style={styles.switch}>
         {TABS.map((t) => (
           <TouchableOpacity
@@ -74,12 +78,15 @@ export default function ArsenalScreen() {
           </GlassCard>
         </TouchableOpacity>
       </ScrollView>
+      </View>
     </View>
   );
 }
 
 const STYLES = themedStyles((C) => ({
-  container: { flex: 1, backgroundColor: C.bg },
+  // 底色容器：光斑铺在这一层之上、内容之下（container 透明让光斑可见）
+  screen: { flex: 1, backgroundColor: C.bg },
+  container: { flex: 1 },
   switch: {
     flexDirection: 'row',
     marginHorizontal: 16,
