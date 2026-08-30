@@ -675,4 +675,5 @@ const STYLES = themedStyles((C) => ({
     justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: C.border },
+  sendBtnStop: { backgroundColor: C.red },
 }));

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Nav } from '@/components/Nav';
+import { EasterEggs } from '@/components/EasterEggs';
 import { THEME_BOOTSTRAP } from '@/lib/webTheme';
 import './globals.css';
 
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </aside>
           <main className="main">{children}</main>
         </div>
+        <EasterEggs />
       </body>
     </html>
   );
