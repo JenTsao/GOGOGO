@@ -69,6 +69,7 @@ export default function LibraryGraph({
         y: Math.sin(angle) * (110 + (i % 5) * 20),
         vx: 0,
         vy: 0,
+        r: 0, // 先占位，links 统计完 deg 后在下方按度数重算
       };
       byPath.set(n.path, s);
       return s;
@@ -192,7 +193,8 @@ export default function LibraryGraph({
     return { x: (clientX - rect.left - rect.width / 2 - ox) / k, y: (clientY - rect.top - rect.height / 2 - oy) / k };
   };
 
-  const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>, idx: number | null) => {
+  // 事件源可能是 svg 根（平移）或 circle（拖节点），放宽为 Element
+  const onPointerDown = (e: ReactPointerEvent<Element>, idx: number | null) => {
     (e.target as Element).setPointerCapture?.(e.pointerId);
     dragRef.current = { kind: idx === null ? 'pan' : 'node', idx: idx ?? -1, sx: e.clientX, sy: e.clientY };
   };
