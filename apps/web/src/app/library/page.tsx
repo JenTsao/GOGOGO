@@ -42,11 +42,13 @@ interface GraphData {
   nodes: GraphNode[];
   edges: [string, string][];
   unresolved: Record<string, number>;
+  unresolvedBy: Record<string, string[]>;
 }
 
 // 双链解析索引：全路径 → 文件名 → 别名 三级匹配（与图谱 API 服务端规则一致）
+// 全部映射到「完整仓库路径（含 .md）」——双链跳转要拿完整路径请求 raw，缺扩展名会 404
 interface LinkIndex {
-  exact: Set<string>;
+  byPath: Map<string, string>;
   byBase: Map<string, string>;
   byAlias: Map<string, string>;
 }
@@ -73,11 +75,13 @@ function writeList(key: string, list: string[]) {
 
 function buildIndex(entries: string[], graph: GraphData | null): LinkIndex {
   const idx: LinkIndex = {
-    exact: new Set(entries.map((p) => p.replace(/\.md$/, ''))),
+    byPath: new Map(),
     byBase: new Map(),
     byAlias: new Map(),
   };
   for (const p of entries) {
+    const stripped = p.replace(/\.md$/, '');
+    if (!idx.byPath.has(stripped)) idx.byPath.set(stripped, p);
     const base = p.split('/').pop()?.replace(/\.md$/, '') ?? '';
     if (base && !idx.byBase.has(base)) idx.byBase.set(base, p);
   }
@@ -89,14 +93,12 @@ function buildIndex(entries: string[], graph: GraphData | null): LinkIndex {
   return idx;
 }
 
-// [[目标]] → 仓库路径：全路径（含/不含 .md）→ 文件名（Obsidian 最短路径）→ 别名
+// [[目标]] → 完整仓库路径（含 .md）：全路径（含/不含 .md）→ 文件名（Obsidian 最短路径）→ 别名
 function resolveLink(target: string, idx: LinkIndex): string | null {
   const t = target.trim().replace(/#.*$/, '').replace(/\^[\w-]+$/, '').replace(/^["']|["']$/g, '');
   if (!t) return null;
   const stripped = t.replace(/\.md$/, '');
-  if (idx.exact.has(stripped)) return stripped;
-  if (idx.exact.has(t)) return t;
-  return idx.byBase.get(stripped) ?? idx.byAlias.get(stripped) ?? idx.byAlias.get(t) ?? null;
+  return idx.byPath.get(stripped) ?? idx.byPath.get(t) ?? idx.byBase.get(stripped) ?? idx.byAlias.get(stripped) ?? idx.byAlias.get(t) ?? null;
 }
 
 // 扁平路径列表 → 目录树（目录在前、各自按中文字序）
@@ -334,7 +336,12 @@ export default function LibraryPage() {
         const r = await fetch('/api/library/graph');
         const data = (await r.json()) as GraphData & { error?: string };
         if (!alive) return;
-        if (r.ok) setGraph({ nodes: data.nodes, edges: data.edges, unresolved: data.unresolved });
+        if (r.ok) setGraph({
+          nodes: data.nodes,
+          edges: data.edges,
+          unresolved: data.unresolved ?? {},
+          unresolvedBy: data.unresolvedBy ?? {},
+        });
       } catch {
         // 图谱加载失败不影响阅读主流程
       }
@@ -351,9 +358,13 @@ export default function LibraryPage() {
     () => (selected && graph ? graph.edges.filter(([, t]) => t === selected).map(([s]) => s) : []),
     [selected, graph]
   );
-  // 出链：图谱里从当前笔记出发的边（去重）
+  // 出链：图谱里从当前笔记出发的边（去重）+ 本篇未解析的双链（❓ 标注，不可跳转）
   const outlinks = useMemo(
     () => (selected && graph ? [...new Set(graph.edges.filter(([s]) => s === selected).map(([, t]) => t))] : []),
+    [selected, graph]
+  );
+  const missingOut = useMemo(
+    () => (selected && graph ? graph.unresolvedBy?.[selected] ?? [] : []),
     [selected, graph]
   );
 
@@ -642,14 +653,19 @@ export default function LibraryPage() {
                         {backlinks.length > 30 && <div className="muted-line">…还有 {backlinks.length - 30} 篇</div>}
                       </div>
                       <div className="lib-links-col">
-                        <div className="lib-links-title">↗ 出链（{outlinks.length}）</div>
+                        <div className="lib-links-title">↗ 出链（{outlinks.length}{missingOut.length > 0 ? ` · ❓ ${missingOut.length} 未解析` : ''}）</div>
                         {outlinks.slice(0, 30).map((p) => (
                           <div key={p} className="lib-link-row" onClick={() => openNote(p)}>
                             {p.split('/').pop()?.replace(/\.md$/, '')}
                             <span className="lib-sw-path"> · {p}</span>
                           </div>
                         ))}
-                        {outlinks.length === 0 && <div className="muted-line">本篇暂无双链出链</div>}
+                        {missingOut.map((t) => (
+                          <div key={t} className="lib-link-row lib-link-missing" title="未解析：库内没有匹配的笔记">
+                            ❓ {t}
+                          </div>
+                        ))}
+                        {outlinks.length === 0 && missingOut.length === 0 && <div className="muted-line">本篇暂无双链出链</div>}
                       </div>
                     </div>
                   )}

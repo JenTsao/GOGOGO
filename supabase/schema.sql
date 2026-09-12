@@ -306,6 +306,7 @@ create table if not exists public.daily_questions (
   material_title text,   -- 素材标题
   material_source text,  -- 素材来源（媒体名/URL，或 'AI 生成'）
   content jsonb not null, -- {material, questions:[{type,stem,options?,answer,analysis}], tip}
+  prompt_version text,    -- 命题 prompt 版本（lib/agents 原则 3：版本化入库，调 prompt 后可对比质量）
   created_at timestamptz default now(),
   unique (user_id, date, subject) -- 幂等唯一约束：cron 重投/并发重试 upsert 兜底
 );

@@ -488,6 +488,14 @@ html[data-theme='dark'] .tool-card-active { color: var(--primary); }
 .tools-history-name { font-size: 13px; font-weight: 600; }
 .tools-history-snippet { font-size: 12px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tools-history-time { flex: none; font-size: 12px; color: var(--text3); }
+/* ---------- 命题 Agent 实验室（/agents，布局复用 .tools-*） ---------- */
+.tools-input-hint { font-size: 13px; color: var(--text2); margin: 0 0 8px; }
+.agents-json {
+  max-height: 62vh; overflow: auto; margin: 0; padding: 12px 14px;
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--r-sm);
+  font-size: 12.5px; line-height: 1.6; color: var(--text); white-space: pre; font-family: Consolas, Monaco, monospace;
+}
+
 @media (max-width: 900px) {
   .tools-layout { flex-direction: column; }
   .tools-side { width: 100%; position: static; }
@@ -537,8 +545,11 @@ html[data-theme='dark'] .tool-card-active { color: var(--primary); }
 .lib-links-col { min-width: 0; }
 @media (max-width: 900px) { .lib-links { grid-template-columns: 1fr; } }
 .lib-links-title { font-size: 13px; font-weight: 700; color: var(--text2); margin-bottom: 6px; }
+.lib-links-col { min-width: 0; }
 .lib-link-row { padding: 5px 8px; border-radius: 7px; cursor: pointer; font-size: 14px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .lib-link-row:hover { background: var(--primary-soft); color: var(--primary-deep); }
+.lib-link-missing { color: var(--text3); cursor: default; }
+.lib-link-missing:hover { background: none; color: var(--text3); }
 
 /* 未解析双链置灰（正文渲染后由页面标注） */
 .lib-md .md-wikilink-missing { color: var(--text3); border-bottom: 1px dashed var(--text3); cursor: default; background: none; }

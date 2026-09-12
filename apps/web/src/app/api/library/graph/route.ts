@@ -20,7 +20,8 @@ interface GraphNode {
 interface GraphPayload {
   nodes: GraphNode[];
   edges: [string, string][];
-  unresolved: Record<string, number>; // 解析不到笔记的双链目标 → 出现次数
+  unresolved: Record<string, number>; // 全局未解析目标 → 出现次数（左栏汇总用）
+  unresolvedBy: Record<string, string[]>; // 按笔记记录：笔记路径 → 其未解析双链目标（出链面板 ❓ 用）
   generatedAt: string;
 }
 
@@ -45,14 +46,18 @@ async function mapPool<T, R>(items: T[], concurrency: number, fn: (item: T) => P
   return results;
 }
 
-// 双链目标 → 仓库路径：全路径（含/不含 .md）→ 文件名（Obsidian 最短路径）→ frontmatter 别名
-function resolveLink(target: string, exact: Set<string>, byBase: Map<string, string>, byAlias: Map<string, string>): string | null {
+// 双链目标 → 完整仓库路径（含 .md）：全路径（含/不含 .md）→ 文件名（Obsidian 最短路径）→ frontmatter 别名
+// 返回值必须与 nodes.path 同构（含 .md），否则图谱边端点对不上节点、反链匹配恒为空
+function resolveLink(
+  target: string,
+  byPath: Map<string, string>,
+  byBase: Map<string, string>,
+  byAlias: Map<string, string>
+): string | null {
   const t = target.trim().replace(/#.*$/, '').replace(/\^[\w-]+$/, '').replace(/^["']|["']$/g, '');
   if (!t) return null;
   const stripped = t.replace(/\.md$/, '');
-  if (exact.has(stripped)) return stripped;
-  if (exact.has(t)) return t;
-  return byBase.get(stripped) ?? byAlias.get(stripped) ?? byAlias.get(t) ?? null;
+  return byPath.get(stripped) ?? byPath.get(t) ?? byBase.get(stripped) ?? byAlias.get(stripped) ?? byAlias.get(t) ?? null;
 }
 
 // 提取正文双链目标（剥代码块；![[图片]] 嵌入不算笔记节点）
@@ -103,7 +108,9 @@ export async function GET() {
 
   const { entries } = await fetchRepoTree();
   const paths = entries.map((e) => e.path);
-  const exact = new Set(paths.map((p) => p.replace(/\.md$/, '')));
+  // 去掉 .md 的目标 → 完整仓库路径（双链常省略扩展名）
+  const byPath = new Map<string, string>();
+  for (const p of paths) byPath.set(p.replace(/\.md$/, ''), p);
   const contents = await mapPool(entries, 6, (e) => fetchRawFile(e.path));
 
   // 别名/文件名索引（同名取先出现的：Obsidian 对歧义链接也会提示而非随机）
@@ -124,16 +131,21 @@ export async function GET() {
   const backCount = new Map<string, number>();
   const edges: [string, string][] = [];
   const unresolved: Record<string, number> = {};
+  const unresolvedBy: Record<string, string[]> = {};
   const outCount = new Map<string, number>();
 
   contents.forEach((md, i) => {
     if (!md) return;
     const src = paths[i];
     const seen = new Set<string>();
+    const missing = new Set<string>();
     for (const target of extractWikilinks(md)) {
-      const resolved = resolveLink(target, exact, byBase, byAlias);
-      if (!resolved || resolved === src.replace(/\.md$/, '') || seen.has(resolved)) {
-        if (!resolved) unresolved[target] = (unresolved[target] ?? 0) + 1;
+      const resolved = resolveLink(target, byPath, byBase, byAlias);
+      if (!resolved || resolved === src || seen.has(resolved)) {
+        if (!resolved) {
+          unresolved[target] = (unresolved[target] ?? 0) + 1;
+          missing.add(target);
+        }
         continue;
       }
       seen.add(resolved);
@@ -141,6 +153,7 @@ export async function GET() {
       outCount.set(src, (outCount.get(src) ?? 0) + 1);
       backCount.set(resolved, (backCount.get(resolved) ?? 0) + 1);
     }
+    if (missing.size > 0) unresolvedBy[src] = [...missing];
   });
 
   const data: GraphPayload = {
@@ -153,6 +166,7 @@ export async function GET() {
     })),
     edges,
     unresolved,
+    unresolvedBy,
     generatedAt: new Date().toISOString(),
   };
   cache = { key, at: Date.now(), data };

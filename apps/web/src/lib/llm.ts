@@ -85,14 +85,21 @@ async function fetchWithRetry(url: string, init: RequestInit, timeoutMs: number,
 
 export async function chatCompletion(
   messages: ChatMessage[],
-  opts?: { provider?: string; model?: string; temperature?: number }
+  opts?: { provider?: string; model?: string; temperature?: number; maxTokens?: number }
 ): Promise<string> {
   const p = pick(LLM_PROVIDERS, opts?.provider ?? process.env.LLM_PROVIDER, opts?.model ?? process.env.LLM_MODEL, 'deepseek');
   if (!p.apiKey) throw new Error(`未配置 ${p.info.apiKeyEnv}（.env.local）`);
   const res = await fetchWithRetry(`${p.info.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${p.apiKey}` },
-    body: JSON.stringify({ model: p.model, messages, temperature: opts?.temperature ?? 0.7 }),
+    body: JSON.stringify({
+      model: p.model,
+      messages,
+      temperature: opts?.temperature ?? 0.7,
+      // 不传 = 供应商默认；命题 Agent（Adapter/ItemWriter 等长文输出）必须显式放宽，
+      // 否则改编正文常在 max_tokens 处被拦腰截断产生非法 JSON
+      ...(opts?.maxTokens ? { max_tokens: opts.maxTokens } : {}),
+    }),
   }, 120000);
   if (!res.ok) throw new Error(`LLM ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };

@@ -228,7 +228,6 @@ export default function LibraryGraph({
   };
 
   const sims = simRef.current;
-  const pathToIdx = new Map(sims.map((s, i) => [s.path, i]));
 
   return (
     <div className="lib-graph">
