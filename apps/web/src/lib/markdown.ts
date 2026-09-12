@@ -6,9 +6,8 @@
  * 并补齐 Obsidian 语法降级（处理策略与移动端 src/lib/markdown.tsx 对齐）：
  * - 预处理（需避开代码围栏）：frontmatter 剥离、callout 降级、脚注；
  * - 自定义 inline 规则：`$...$` / `$$...$$` → KaTeX(MathML)、`==高亮==` → <mark>、`#标签` → chip、
- *   `[[双链]]` → 可读名。inline 规则天然不会作用于代码围栏内容，无需额外的围栏隔离逻辑。
- *
- * 未支持（待后续按需扩展）：任务列表 checkbox。
+ *   `[[双链]]` → 可读名。inline 规则天然不会作用于代码围栏内容，无需额外的围栏隔离逻辑；
+ * - core 规则：GFM 任务列表 `- [ ]` / `- [x]` → 禁用态 checkbox。
  */
 import MarkdownIt from 'markdown-it';
 import * as katex from 'katex';
@@ -155,6 +154,39 @@ function renderTex(tex: string, displayMode: boolean): string {
   }
 }
 
+/**
+ * GFM 任务列表：`- [ ]` / `- [x]` → 禁用态 checkbox。
+ * markdown-it 原生不支持，且不能引 markdown-it-task-lists——它插的是 html_inline token，
+ * 在 html:false 下会被 renderer 转义成可见文本。这里改成插入自定义 token（md_checkbox）
+ * 交给自己的 renderer 规则，同时把 list_item 标记为 md-task-item 以便去掉列表符号。
+ * 判定条件与 GFM 对齐：list_item 的首个 paragraph.inline 以 `[ ] `/`[x] `（含空格）开头。
+ */
+function taskListPlugin(md: MarkdownIt): void {
+  md.core.ruler.after('inline', 'md_task_list', (state) => {
+    const tokens = state.tokens as any[];
+    for (let i = 2; i < tokens.length; i++) {
+      const inline = tokens[i];
+      if (inline.type !== 'inline') continue;
+      // list_item_open → paragraph_open → inline（紧凑/松散列表均为此结构）
+      if (tokens[i - 1]?.type !== 'paragraph_open' || tokens[i - 2]?.type !== 'list_item_open') continue;
+      const m = /^\[([ xX])\]\s+/.exec(inline.content as string);
+      if (!m) continue;
+
+      // 摘掉前缀 '[x] '（共 4 字符）：正文 content 与首个 text 子节点各一处
+      inline.content = (inline.content as string).slice(4);
+      const children: any[] = inline.children ?? [];
+      const firstText = children.find((c) => c.type === 'text' && /^\[[ xX]\]\s/.test(c.content));
+      if (firstText) firstText.content = firstText.content.slice(4);
+
+      tokens[i - 2].attrJoin('class', 'md-task-item');
+      const checkbox = new state.Token('md_checkbox', '', 0);
+      checkbox.content = m[1].toLowerCase() === 'x' ? 'checked' : '';
+      children.unshift(checkbox);
+      inline.children = children;
+    }
+  });
+}
+
 function createRenderer(breaks: boolean): MarkdownIt {
   // html: false —— 笔记里的原始 HTML 一律转义，避免产物 HTML（打印页）出现注入面
   const md = new MarkdownIt({ html: false, linkify: true, breaks, typographer: false });
@@ -174,6 +206,9 @@ function createRenderer(breaks: boolean): MarkdownIt {
     const meta = tokens[idx].meta as { displayMode?: boolean } | undefined;
     return renderTex(tokens[idx].content, Boolean(meta?.displayMode));
   };
+  md.renderer.rules.md_checkbox = (tokens, idx) =>
+    `<input type="checkbox" disabled${tokens[idx].content ? ' checked' : ''}> `;
+  taskListPlugin(md);
   return md;
 }
 
