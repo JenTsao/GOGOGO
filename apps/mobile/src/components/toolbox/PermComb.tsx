@@ -49,12 +49,14 @@ export function PermComb() {
     if (m > n) return { error: 'm 不能大于 n（A/C 定义要求 m ≤ n）' };
     if (n > 200) return { error: 'n 上限 200（A(200,100) 已是数百位大数）' };
     const value = mode === 'A' ? perm(n, m) : comb(n, m);
-    return { value, digits: value.toString().length };
+    // BigInt→string 是 O(位数²)（数百位大数尤其贵）：只转一次，渲染与复制共用
+    const valueStr = value.toString();
+    return { valueStr, digits: valueStr.length };
   }, [mode, n, m]);
 
   const copy = async () => {
-    if (!result.value) return;
-    await Clipboard.setStringAsync(result.value.toString());
+    if (!result.valueStr) return;
+    await Clipboard.setStringAsync(result.valueStr);
     setCopied(true);
     if (copyTimer.current) clearTimeout(copyTimer.current);
     copyTimer.current = setTimeout(() => setCopied(false), 1200);
@@ -121,7 +123,7 @@ export function PermComb() {
         <View style={styles.results}>
           <View style={[styles.resultRow, styles.valueRow]}>
             <Text style={styles.resultValue}>
-              {mode}({n},{m}) = {result.value!.toString()}
+              {mode}({n},{m}) = {result.valueStr}
             </Text>
             <TouchableOpacity onPress={() => void copy()} hitSlop={HIT_SLOP} accessibilityLabel="复制结果">
               <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color={copied ? C.green : C.text2} />

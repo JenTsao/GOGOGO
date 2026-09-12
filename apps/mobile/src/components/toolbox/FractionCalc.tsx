@@ -11,6 +11,10 @@ type Op = '+' | '−' | '×' | '÷';
 
 const OPS: Op[] = ['+', '−', '×', '÷'];
 
+// 小数近似用的量级常量：模块级算一次（此前每次键入都重复 10n ** 8n 幂运算）
+const E6 = 10n ** 6n; // 分母 ≤ 10⁶ 才做小数近似
+const E8 = 10n ** 8n; // 保留 8 位小数
+
 interface Frac {
   n: bigint; // 分子（可负）
   d: bigint; // 分母（恒正）
@@ -72,9 +76,9 @@ export function FractionCalc() {
       whole > 0n && r.d > 1n ? (rem === 0n ? `${sign}${whole}` : `${sign}${whole} ${rem}/${r.d}`) : null;
     // 小数近似：分母 ≤ 10⁶ 才除（除尽 6 位内显示精确值，否则带 …）
     let decimal: string | null = null;
-    if (r.d !== 0n && r.d <= 10n ** 6n) {
-      const q = (absN * 10n ** 8n) / r.d;
-      const s = (q / 10n ** 8n).toString() + '.' + (q % 10n ** 8n).toString().padStart(8, '0');
+    if (r.d !== 0n && r.d <= E6) {
+      const q = (absN * E8) / r.d;
+      const s = (q / E8).toString() + '.' + (q % E8).toString().padStart(8, '0');
       decimal = `${sign}${s.replace(/0+$/, '')}` + (/^\d+\.\d{8}$/.test(s) ? '…' : '');
     }
     return { plain, mixed, decimal, expr: `${n1 || 0}/${d1 || 1} ${op} ${n2 || 0}/${d2 || 1}` };

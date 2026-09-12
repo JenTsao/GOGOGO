@@ -53,3 +53,20 @@ jobs:
 
       - name: 类型检查
         run: pnpm --filter @gk/mobile lint
+
+  lockfile-check:
+    name: Lockfile 一致性校验
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 校验 lockfile 与 package.json 同步
+        # --frozen-lockfile：lock 与 manifest 不一致立即失败；--lockfile-only：仅校验不装 node_modules
+        run: pnpm install --frozen-lockfile --lockfile-only

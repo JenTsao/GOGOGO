@@ -1,69 +1,73 @@
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { themedStyles, usePalette, useScheme } from '@/theme';
 import { toolBase } from './shared';
 
-// 工具箱 · 质因数分解：BigInt 试除到 √n，输出幂形式 + 约数个数
-// BigInt 是硬要求：12 位数的因子运算在 Number 上已会撞 2^53 失真
+// 工具箱 · 质因数分解：试除到 √n，输出幂形式 + 约数个数
+// 输入限 12 位（≤ 10¹² < 2⁵³）：Number 全程精确且比 BigInt 快约两个数量级
+// （早先误用 BigInt 且每轮迭代重算牛顿开方：12 位质数 = 50 万次 BigInt 取模 + 每轮 20 次 BigInt 除法，单次键入可卡秒级）
+// 另用 useDeferredValue 把大数分解挪到低优先级渲染：键入即时回显，结果稍后补上
 
 const SUPERSCRIPT: Record<string, string> = {
   '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
   '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
 };
 
-/** BigInt 整数平方根（牛顿迭代）：BigInt 无原生 sqrt，试除终止条件 i*i > n 需要它 */
-function isqrt(n: bigint): bigint {
-  if (n < 2n) return n;
-  let x = 1n << BigInt(Math.ceil(n.toString(2).length / 2)); // 初值 2^⌈bits/2⌉ ≥ √n
-  let y = (x + n / x) >> 1n;
-  while (y < x) {
-    x = y;
-    y = (x + n / x) >> 1n;
-  }
-  return x;
-}
-
 const toSuper = (digits: string) => digits.split('').map((d) => SUPERSCRIPT[d] ?? d).join('');
+
+/** 整数平方根：Math.sqrt 有舍入，floor 可能偏差 1，回调校正（n < 2⁵³ 时 r·r 无溢出） */
+function isqrt(n: number): number {
+  let r = Math.floor(Math.sqrt(n));
+  while (r * r > n) r--;
+  while ((r + 1) * (r + 1) <= n) r++;
+  return r;
+}
 
 export function PrimeFactor() {
   const C = usePalette();
   const styles = STYLES[useScheme()];
   const [raw, setRaw] = useState('360');
+  // 12 位质数试除 ~50 万次循环：挪到 deferred 渲染，键入不被阻塞
+  const deferredRaw = useDeferredValue(raw);
 
   const onChange = (v: string) => {
     setRaw(v.replace(/\D/g, '').slice(0, 12)); // 12 位上限：试除 √n ≤ 10⁶，循环量可控
   };
 
   const result = useMemo(() => {
-    const n = BigInt(raw || '0');
-    if (n < 2n) return null;
-    // 试除：2 单独处理，之后只走奇数
-    const factors: { p: bigint; e: number }[] = [];
+    const n = parseInt(deferredRaw || '0', 10);
+    if (!Number.isFinite(n) || n < 2) return null;
+    // 试除：2/3 单独处理，之后只走奇数
+    const factors: { p: number; e: number }[] = [];
     let rest = n;
-    for (const p of [2n, 3n]) {
+    for (const p of [2, 3]) {
       let e = 0;
-      while (rest % p === 0n) {
+      while (rest % p === 0) {
         rest /= p;
         e++;
       }
       if (e) factors.push({ p, e });
     }
-    for (let i = 5n, limit = isqrt(rest); i <= limit; i += 2n) {
+    // 上限只在除出因子后收缩（rest 变小才需要更小的 √rest；每轮重算是 BigInt 版的卡顿根源）
+    let limit = isqrt(rest);
+    for (let i = 5; i <= limit; i += 2) {
       let e = 0;
-      while (rest % i === 0n) {
+      while (rest % i === 0) {
         rest /= i;
         e++;
       }
-      if (e) factors.push({ p: i, e });
-      limit = isqrt(rest); // 除掉因子后上限收缩，合数因子到不了（小因子先被除尽）
+      if (e) {
+        factors.push({ p: i, e });
+        limit = isqrt(rest);
+      }
     }
-    if (rest > 1n) factors.push({ p: rest, e: 1 });
+    if (rest > 1) factors.push({ p: rest, e: 1 });
     const divisorCount = factors.reduce((s, f) => s * (f.e + 1), 1);
     const powerForm = factors.map((f) => (f.e > 1 ? `${f.p}${toSuper(String(f.e))}` : `${f.p}`)).join(' × ');
-    const expandForm = factors.flatMap((f) => Array(f.e).fill(f.p)).join(' × ');
+    const expandForm = factors.flatMap((f) => Array(f.e).fill(`${f.p}`)).join(' × ');
     return { n, factors, divisorCount, powerForm, expandForm, isPrime: factors.length === 1 && factors[0].e === 1 };
-  }, [raw]);
+  }, [deferredRaw]);
 
   return (
     <View style={styles.panel}>
@@ -85,7 +89,7 @@ export function PrimeFactor() {
 
       {result ? (
         <View style={styles.results}>
-          {result.isPrime && <Text style={styles.primeTag}>{result.n.toString()} 是质数</Text>}
+          {result.isPrime && <Text style={styles.primeTag}>{result.n} 是质数</Text>}
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>分解式</Text>
             <Text style={styles.resultValue}>{result.powerForm}</Text>

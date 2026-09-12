@@ -51,6 +51,15 @@ export function BaseConverter() {
   const parsed = useMemo(() => (trimmed ? parseBig(trimmed, fromBase) : null), [trimmed, fromBase]);
   // 纯负号 = 用户正在输入负数但还没敲数字：不判非法
   const invalid = !!trimmed && parsed === null && trimmed !== '-';
+  // 四个进制的展示值一次算齐（BASES 与 rowValues 按下标对齐）：
+  // 复制回执 setState 等无关重渲染不再触发 3 次 BigInt toString(radix)
+  const rowValues = useMemo(
+    () =>
+      parsed === null
+        ? BASES.map(() => null)
+        : BASES.map((b) => (b === fromBase ? trimmed.toUpperCase() : fmtBig(parsed, b))),
+    [parsed, fromBase, trimmed]
+  );
 
   const onChange = (v: string) => {
     const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz'.slice(0, fromBase);
@@ -115,9 +124,9 @@ export function BaseConverter() {
 
       {/* 结果：四个进制各一行，源进制行高亮 */}
       <View style={styles.rows}>
-        {BASES.map((b) => {
+        {BASES.map((b, i) => {
           const isSrc = b === fromBase;
-          const value = parsed !== null ? (isSrc ? trimmed.toUpperCase() : fmtBig(parsed, b)) : null;
+          const value = rowValues[i];
           return (
             <View key={b} style={[styles.resultRow, isSrc && styles.rowSrc]}>
               <Text style={styles.resultLabel}>{BASE_LABEL[b]}</Text>

@@ -43,29 +43,20 @@ export function Toolbox() {
   return (
     <View>
       <Text style={styles.gridTitle}>数学工具</Text>
+      {/* 软色底映射：每渲染建一次供五个 cell 共用（模板字符串索引 Palette 类型不安全，显式枚举） */}
       <View style={styles.grid}>
-        {TOOLS.map((t) => {
-          // 软色底映射：模板字符串索引 Palette 类型不安全，显式枚举更稳
-          const soft: Record<ToolEntry['color'], string> = {
-            primary: C.primarySoft,
-            green: C.greenSoft,
-            orange: C.orangeSoft,
-            blue: C.blueSoft,
-            red: C.redSoft,
-          };
-          return (
-            <TouchableOpacity key={t.id} style={styles.cell} onPress={() => setActive(t)} activeOpacity={0.85}>
-              <View style={[styles.cellIcon, { backgroundColor: soft[t.color] }]}>
-                <Ionicons name={t.icon as keyof typeof Ionicons.glyphMap} size={20} color={C[t.color]} />
-              </View>
-              <View style={styles.cellBody}>
-                <Text style={styles.cellName}>{t.name}</Text>
-                <Text style={styles.cellDesc}>{t.desc}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={14} color={C.text3} />
-            </TouchableOpacity>
-          );
-        })}
+        {TOOLS.map((t) => (
+          <TouchableOpacity key={t.id} style={styles.cell} onPress={() => setActive(t)} activeOpacity={0.85}>
+            <View style={[styles.cellIcon, { backgroundColor: soft[t.color] }]}>
+              <Ionicons name={t.icon as keyof typeof Ionicons.glyphMap} size={20} color={C[t.color]} />
+            </View>
+            <View style={styles.cellBody}>
+              <Text style={styles.cellName}>{t.name}</Text>
+              <Text style={styles.cellDesc}>{t.desc}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={C.text3} />
+          </TouchableOpacity>
+        ))}
       </View>
     </View>
   );

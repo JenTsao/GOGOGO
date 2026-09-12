@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, RefreshControl, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, RefreshControl, ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as IntentLauncher from 'expo-intent-launcher';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { useTaskStore } from '@/store/taskStore';
 import { useFocusStore } from '@/store/focusStore';
 import { gaokaoExamDate, useSettingsStore } from '@/store/settingsStore';
@@ -32,12 +33,13 @@ function greetingByHour(h: number) {
   return '夜深了，注意休息';
 }
 
-/** 心流计时器独立订阅 seconds，避免每秒重绘驾驶舱整页 */
-function FlowTimerDisplay() {
+/** 心流计时器独立订阅 seconds，避免每秒重绘驾驶舱整页；横屏用更大字号 */
+function FlowTimerDisplay({ landscape }: { landscape?: boolean }) {
   const seconds = useFocusStore((s) => s.seconds);
   const fmt = (s: number) =>
     `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-  return <Text style={STYLES[useScheme()].flowTimer}>{fmt(seconds)}</Text>;
+  const styles = STYLES[useScheme()];
+  return <Text style={landscape ? styles.flowTimerLand : styles.flowTimer}>{fmt(seconds)}</Text>;
 }
 
 export default function CockpitScreen() {
@@ -238,6 +240,9 @@ export default function CockpitScreen() {
     const wEgg = weather ? jayWeatherEgg(weather.temp, weather.desc) : null;
     setFlowLine(wEgg ?? nextJayLine());
     setInFlow(true);
+    // 心流期间解锁方向（跟随系统自动旋转；App 其余时间保持 app.json 的 portrait 锁）。
+    // 失败静默：Expo Go 边缘环境不支持时退化为纯竖屏，不阻断心流
+    void ScreenOrientation.unlockAsync().catch(() => {});
   };
 
   // 天气彩蛋：长按天气 chip 查看（点击仍是刷新，不抢占原交互）
@@ -253,6 +258,17 @@ export default function CockpitScreen() {
     f.stop();
     f.setSuppressNotifications(false);
     setInFlow(false);
+    // 回到 App 全局竖屏（即使当前横屏也强制转回），心流外不允许横屏
+    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+  };
+
+  // 心流横竖屏：心流期间 unlock 后系统自动旋转即生效；宽度 > 高度视为横屏布局
+  const { width: winW, height: winH } = useWindowDimensions();
+  const isLandscape = winW > winH;
+  const toggleFlowOrientation = () => {
+    void ScreenOrientation.lockAsync(
+      isLandscape ? ScreenOrientation.OrientationLock.PORTRAIT_UP : ScreenOrientation.OrientationLock.LANDSCAPE
+    ).catch(() => {});
   };
 
   const openZenMode = async () => {
@@ -538,22 +554,53 @@ export default function CockpitScreen() {
       </ScrollView>
 
       <Modal visible={inFlow} animationType="fade" statusBarTranslucent onRequestClose={exitFlow}>
-        <View style={[styles.flow, { paddingTop: insets.top }]}>
-          <View style={styles.flowBadge}>
-            <Ionicons name="moon" size={14} color={C.inkSub} />
-            <Text style={styles.flowHint}>心流进行中 · 通知已静默</Text>
+        <View
+          style={[
+            styles.flow,
+            // 横屏：左右分栏（左计时右控制），左右安全区让开刘海/挖孔；竖屏：顶部安全区
+            isLandscape
+              ? [styles.flowLand, { paddingLeft: insets.left + 20, paddingRight: insets.right + 20 }]
+              : { paddingTop: insets.top },
+          ]}
+        >
+          {/* 组一：徽章（竖屏置顶）+ 计时器（横屏独占左半屏） */}
+          <View style={isLandscape ? styles.flowLandTimer : styles.flowHead}>
+            {!isLandscape && (
+              <View style={styles.flowBadge}>
+                <Ionicons name="moon" size={14} color={C.inkSub} />
+                <Text style={styles.flowHint}>心流进行中 · 通知已静默</Text>
+              </View>
+            )}
+            <FlowTimerDisplay landscape={isLandscape} />
           </View>
-          <FlowTimerDisplay />
-          {!!flowLine && <EggLine line={flowLine} tone="ink" style={{ marginTop: -20, marginBottom: 16 }} />}
-          {Platform.OS === 'android' && (
-            <TouchableOpacity style={styles.zenBtn} onPress={openZenMode} activeOpacity={0.85}>
-              <Ionicons name="notifications-off-outline" size={16} color={C.inkDim} />
-              <Text style={styles.zenBtnText}>开启系统免打扰</Text>
+          {/* 组二：氛围句 + 系统操作 + 结束（横屏为右列，竖屏纵向跟随） */}
+          <View style={isLandscape ? styles.flowLandSide : styles.flowTail}>
+            {isLandscape && (
+              <View style={styles.flowBadge}>
+                <Ionicons name="moon" size={14} color={C.inkSub} />
+                <Text style={styles.flowHint}>心流进行中 · 通知已静默</Text>
+              </View>
+            )}
+            {!!flowLine && <EggLine line={flowLine} tone="ink" />}
+            {Platform.OS === 'android' && (
+              <TouchableOpacity style={styles.zenBtn} onPress={openZenMode} activeOpacity={0.85}>
+                <Ionicons name="notifications-off-outline" size={16} color={C.inkDim} />
+                <Text style={styles.zenBtnText}>开启系统免打扰</Text>
+              </TouchableOpacity>
+            )}
+            {/* 系统自动旋转关闭时物理旋转无效，此按钮强制切横屏/回竖屏 */}
+            <TouchableOpacity style={styles.zenBtn} onPress={toggleFlowOrientation} activeOpacity={0.85}>
+              <Ionicons
+                name={isLandscape ? 'phone-portrait-outline' : 'phone-landscape-outline'}
+                size={16}
+                color={C.inkDim}
+              />
+              <Text style={styles.zenBtnText}>{isLandscape ? '回到竖屏' : '横屏专注'}</Text>
             </TouchableOpacity>
-          )}
-          <TouchableOpacity style={styles.flowStop} onPress={exitFlow} activeOpacity={0.8}>
-            <Text style={styles.flowStopText}>结束心流</Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.flowStop} onPress={exitFlow} activeOpacity={0.8}>
+              <Text style={styles.flowStopText}>结束心流</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </View>
@@ -652,14 +699,22 @@ const STYLES = themedStyles((C) => ({
     paddingHorizontal: 14, paddingVertical: 7,
   },
   flowHint: { color: C.inkSub, fontSize: 13, letterSpacing: 2 },
-  flowTimer: { color: FLOW_BRIGHT, fontSize: 68, fontWeight: '200', marginVertical: 32, fontVariant: ['tabular-nums'] },
+  // 竖屏组一（徽章+计时）与组二（氛围句+操作+结束）：间距由容器 gap 统一驱动，横竖屏共用子样式
+  flowHead: { alignItems: 'center', gap: 30 },
+  flowTail: { alignItems: 'center', gap: 18, marginTop: 14 },
+  flowTimer: { color: FLOW_BRIGHT, fontSize: 68, fontWeight: '200', fontVariant: ['tabular-nums'] },
+  // 横屏：左计时右控制分栏，计时器独占左半屏更大气
+  flowLand: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
+  flowLandTimer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  flowLandSide: { width: '42%', maxWidth: 340, alignItems: 'center', gap: 14 },
+  flowTimerLand: { color: FLOW_BRIGHT, fontSize: 84, fontWeight: '200', fontVariant: ['tabular-nums'] },
   flowStop: {
     borderWidth: 1, borderColor: C.glassDarkBorder, backgroundColor: C.glassDark,
     borderRadius: 24, paddingHorizontal: 32, paddingVertical: 12,
   },
   flowStopText: { color: C.inkText, fontSize: 15 },
   zenBtn: {
-    marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1,
     borderColor: C.glassDarkBorder, backgroundColor: C.glassDark, borderRadius: R.sm,
     paddingHorizontal: 16, paddingVertical: 10,
   },
