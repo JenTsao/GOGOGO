@@ -5,12 +5,13 @@
  * 且全部 escapeHtml（表格、加粗、链接、行内代码都不渲染）。本模块用 markdown-it 统一替代，
  * 并补齐 Obsidian 语法降级（处理策略与移动端 src/lib/markdown.tsx 对齐）：
  * - 预处理（需避开代码围栏）：frontmatter 剥离、callout 降级、脚注；
- * - 自定义 inline 规则：`==高亮==` → <mark>、`#标签` → chip、`[[双链]]` → 可读名。
- *   inline 规则天然不会作用于代码围栏内容，无需额外的围栏隔离逻辑。
+ * - 自定义 inline 规则：`$...$` / `$$...$$` → KaTeX(MathML)、`==高亮==` → <mark>、`#标签` → chip、
+ *   `[[双链]]` → 可读名。inline 规则天然不会作用于代码围栏内容，无需额外的围栏隔离逻辑。
  *
- * 暂未支持（待后续按需扩展）：LaTeX（需再引 KaTeX）、任务列表 checkbox。
+ * 未支持（待后续按需扩展）：任务列表 checkbox。
  */
 import MarkdownIt from 'markdown-it';
+import * as katex from 'katex';
 
 // callout 类型 → 中文标识（Obsidian 官方类型全集，与移动端 markdown.tsx 同一映射）
 const CALLOUT: Record<string, string> = {
@@ -107,7 +108,52 @@ function wikilinkRule(state: any, silent: boolean): boolean {
   }
   return true;
 }
+
+// $...$ / $$...$$ → KaTeX。$$ 允许跨行（段落内的多行公式），$ 不允许跨行且要求首尾紧贴非空白
+function mathRule(state: any, silent: boolean): boolean {
+  const start = state.pos as number;
+  const src = state.src as string;
+  if (src.charCodeAt(start) !== 0x24) return false;
+  const isBlock = src.charCodeAt(start + 1) === 0x24;
+  const marker = isBlock ? '$$' : '$';
+  const from = start + marker.length;
+  const end = src.indexOf(marker, from);
+  if (end < 0) return false;
+  const tex = src.slice(from, end);
+  if (!tex.trim()) return false;
+  if (!isBlock) {
+    // 边界规则：开 $ 后 / 闭 $ 前不能是空白，闭 $ 后不能紧跟数字（规避 $5、a$6 这类误判）
+    if (/^\s/.test(tex) || /\s$/.test(tex)) return false;
+    if (/\d/.test(src[end + 1] ?? '')) return false;
+  }
+  state.pos = end + marker.length;
+  if (!silent) {
+    const token = state.push('md_math', '', 0);
+    token.content = tex;
+    token.meta = { displayMode: isBlock };
+  }
+  return true;
+}
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+/**
+ * KaTeX 渲染：output 固定 'mathml'。
+ * 产物只含 MathML，浏览器原生渲染——打印 HTML / Anki 卡片因此无需引入 katex.min.css 与字体文件
+ * （若用默认的 htmlAndMathml，自包含产物就得内联 20+ 个 woff2 字体，不现实）。
+ * throwOnError:false 让公式写错时显示红色原文而非中断整篇导出；外层再兜一层 try/catch。
+ */
+function renderTex(tex: string, displayMode: boolean): string {
+  try {
+    return katex.renderToString(tex, {
+      displayMode,
+      output: 'mathml',
+      throwOnError: false,
+      strict: false,
+    });
+  } catch {
+    return `<code>${escapeHtml(displayMode ? `$$${tex}$$` : `$${tex}$`)}</code>`;
+  }
+}
 
 function createRenderer(breaks: boolean): MarkdownIt {
   // html: false —— 笔记里的原始 HTML 一律转义，避免产物 HTML（打印页）出现注入面
@@ -116,11 +162,17 @@ function createRenderer(breaks: boolean): MarkdownIt {
   md.inline.ruler.before('link', 'md_wikilink', wikilinkRule);
   md.inline.ruler.before('link', 'md_tag', tagRule);
   md.inline.ruler.before('emphasis', 'md_mark', markRule);
+  // math 放在 emphasis 之前即可：escape 规则更靠前，公式里的 \$ 转义仍能先生效
+  md.inline.ruler.before('emphasis', 'md_math', mathRule);
   md.renderer.rules.md_mark = (tokens, idx) => `<mark>${escapeHtml(tokens[idx].content)}</mark>`;
   md.renderer.rules.md_tag = (tokens, idx) => `<span class="md-tag">#${escapeHtml(tokens[idx].content)}</span>`;
   md.renderer.rules.md_wikilink = (tokens, idx) => {
     const [target, alias] = tokens[idx].content.split('|');
     return `<span class="md-wikilink">${escapeHtml((alias ?? target).trim())}</span>`;
+  };
+  md.renderer.rules.md_math = (tokens, idx) => {
+    const meta = tokens[idx].meta as { displayMode?: boolean } | undefined;
+    return renderTex(tokens[idx].content, Boolean(meta?.displayMode));
   };
   return md;
 }

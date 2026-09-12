@@ -135,6 +135,7 @@ table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 11pt; 
 th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
 th { background: #f0f4fa; }
 mark { background: #fff3bf; padding: 0 2px; border-radius: 3px; }
+math[display="block"] { display: block; text-align: center; margin: 10px 0; }
 .md-tag { color: #7c3aed; font-size: 10.5pt; }
 .md-wikilink { color: #1a4d8f; border-bottom: 1px dashed #9db8dd; }
 .pagebreak { page-break-after: always; }

@@ -52,7 +52,7 @@ apps/
     src/app/api/           # github 代理（tree/raw/save/image/versions）/ workshop/refine / tags
                            # compile/apkg / export / cron（daily/weekly/knowledge）
                            # knowledge sync / search / mistakes / mood / tasks sync / timer sync
-    src/lib/               # llm（供应商注册表加一行即扩）/ apkg / markdown（markdown-it 引擎）/ knowledgeSync / supabaseAdmin / access / github
+    src/lib/               # llm（供应商注册表加一行即扩）/ apkg / markdown（markdown-it + KaTeX 引擎）/ knowledgeSync / supabaseAdmin / access / github
 supabase/schema.sql        # 11 张表 + pgvector + RPC + Auth 触发器 + 存储桶 + RLS
 .github/workflows/ci.yml   # 安装/类型检查/构建全部在 GitHub Actions（本地零安装）
 .github/workflows/build-apk.yml  # APK 打包（dispatch 或 v* tag 触发）
@@ -178,6 +178,7 @@ Expo Go 不支持 background fetch，日常使用建议装构建版：
 
 - **Anki 产物**：真 .apkg（sql.js 构建 SQLite，内容哈希 guid 去重）；服务端构建失败自动降级为 TSV 导入格式
 - **PDF**：浏览器打印视图（A4 排版）而非服务端直出——嵌入中文字体需数 MB 字体文件，不值得
+- **公式渲染**：KaTeX 固定 `output:'mathml'`——产物只有 MathML，打印 HTML / Anki 卡片无需引入 `katex.min.css` 与 20+ 个 woff2 字体即可自包含；代价是渲染质量取决于浏览器 MathML 实现（2026 主流浏览器均原生支持）
 - **多设备任务合并**：并集 + 墓碑，无版本向量——A 端删除后 B 端未拉取又推送会复活（单用户可接受）
 - **对标分数线**：启发式数值提取（480-700 可信区间），省份/批次差异需人工核对来源
 - **DND**：App 自身通知可真静默；其他 App 通知只能深链引导用户开系统免打扰（Android 沙箱限制）
