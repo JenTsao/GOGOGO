@@ -35,7 +35,7 @@
 - **每日猜题流水线**（每日 04:20）：按科目执行——Tavily 全文检索时文素材（语文取人民日报等时评出论述类阅读+作文猜测；英语取新闻语料出阅读理解+语法填空）→ 知识库笔记按科目关键词随机 3 篇作考点锚（每天自然轮换）→ 提示词预算装配（材料不可截断、锚点按剩余空间注入）→ LLM 严格 JSON 命题 → 写 `daily_questions`（按科目幂等，单科目失败不拖垮其他）。未配 Tavily 自动降级 AI 自拟材料（来源标注「AI 生成」）；移动端经 `get_questions_by_key` RPC 免登录读取
 - **周复盘**（每周一 04:30）：近 7 天全量数据 + Tavily 双检索（考纲变动/资讯）→ LLM 教练复盘 → `weekly_reviews` → 手机画像详情展示
 - **12 张核心表** + RLS（`user_id = auth.uid()`）+ mistakes/mood/compilations 存储桶
-- **云同步**：tasks（并集合并 + 墓碑删除）/ timer_sessions（append-only 并集）/ mistakes（推→拉→回填）/ mood（同日覆盖 upsert），驾驶舱启动静默触发，离线本地优先
+- **云同步**：tasks（并集合并 + 墓碑删除）/ timer_sessions（append-only 并集）/ mistakes（推→拉→回填）/ mood（同日覆盖 upsert），驾驶舱启动静默触发，离线本地优先；**通用增量同步仓库**（`lib/syncRepo.ts`，`/api/sync/{table}`）：列白名单类型清洗 + 按行 id 批量幂等 upsert + `last_modified` 增量游标 + 软删墓碑（删除也是变更，可增量传播），tasks 已接入，其余表按 def 注册即用
 - **Supabase Auth**：邮箱密码登录，注册触发器自动建档并生成 access_key，登录自动回填——多设备登录同一账号即数据收敛
 - **后台唤醒**（expo-background-fetch）：当日提醒本地通知（去重）+ 每日备课内容预取
 

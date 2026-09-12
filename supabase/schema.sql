@@ -122,6 +122,13 @@ create table if not exists public.reminders (
 -- 索引
 -- ============================================================
 create index if not exists idx_tasks_user_status on public.tasks (user_id, status);
+
+-- tasks 同步字段约定（03-通用增量同步仓库算法移植）：
+-- 隔离键映射：MyWorkSpace 的 device_id 维度在本项目统一为 user_id（单用户多设备收敛于同一账号），
+-- 故不增设 device_id 列；last_modified 由服务端写入时归一（服务端权威时钟，规避设备回拨漏拉）
+alter table public.tasks add column if not exists last_modified timestamptz not null default now();
+alter table public.tasks add column if not exists is_deleted boolean not null default false; -- 软删墓碑：删除=标记，增量传播
+create index if not exists idx_tasks_user_lm on public.tasks (user_id, last_modified); -- 增量游标 pull 路径
 create index if not exists idx_knowledge_embeddings_user on public.knowledge_embeddings (user_id);
 create index if not exists idx_obsidian_metadata_user_path on public.obsidian_metadata (user_id, file_path);
 -- 标签树聚合/重写走 tags 数组过滤，GIN 加速

@@ -65,7 +65,8 @@ export async function POST(req: NextRequest) {
   const { data: existing, error: selErr } = await sb
     .from('tasks')
     .select('content, status, date')
-    .eq('user_id', owner);
+    .eq('user_id', owner)
+    .eq('is_deleted', false); // 软删墓碑行不参与并集（03-通用增量同步仓库引入，见 lib/syncRepo.ts）
   if (selErr) return NextResponse.json({ error: `任务读取失败：${selErr.message}` }, { status: 500 });
   const existingKeys = new Set((existing ?? []).map((r) => `${r.status}|${r.content}|${r.date ?? ''}`));
   const missing = rows.filter((r) => !existingKeys.has(`${r.status}|${r.content}|${r.date ?? ''}`));
@@ -79,6 +80,7 @@ export async function POST(req: NextRequest) {
     .from('tasks')
     .select('id, content, subject, status, date')
     .eq('user_id', owner)
+    .eq('is_deleted', false) // 规范池不含墓碑行
     .order('created_at', { ascending: true });
   if (allErr) return NextResponse.json({ error: `任务读取失败：${allErr.message}` }, { status: 500 });
 

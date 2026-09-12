@@ -66,6 +66,7 @@ export async function generateDaily(opts: { force?: boolean } = {}): Promise<{ d
       .select('content, subject, date')
       .eq('user_id', owner)
       .eq('status', 'done')
+      .eq('is_deleted', false) // 软删墓碑行不进备课素材（lib/syncRepo.ts 引入的软删标记）
       .gte('date', yesterday)
       .lte('date', today)
       .limit(20),
@@ -153,7 +154,7 @@ export async function generateWeekly(opts: { force?: boolean } = {}): Promise<{ 
   const weekAgoDate = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10);
   const [sessions, tasks, mistakes, moods] = await Promise.all([
     supabaseAdmin().from('timer_sessions').select('duration, started_at').eq('user_id', owner).gte('started_at', weekAgoIso).limit(500),
-    supabaseAdmin().from('tasks').select('content, subject, status, date').eq('user_id', owner).gte('date', weekAgoDate).limit(100),
+    supabaseAdmin().from('tasks').select('content, subject, status, date').eq('user_id', owner).eq('is_deleted', false).gte('date', weekAgoDate).limit(100),
     supabaseAdmin().from('mistakes').select('subject, tags, is_mastered, created_at').eq('user_id', owner).gte('created_at', weekAgoIso).limit(100),
     supabaseAdmin().from('mood_checkins').select('emoji_code, date, daily_summary').eq('user_id', owner).gte('date', weekAgoDate).limit(10),
   ]);

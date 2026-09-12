@@ -47,6 +47,7 @@ async function loadOverview(): Promise<OverviewData> {
       .select('status')
       .eq('user_id', owner)
       .eq('date', today)
+      .eq('is_deleted', false) // 墓碑行不计入今日任务统计
       .limit(50),
     // 计数用 head 请求（count: exact, head: true）：不拉行数据，替代原「拉 2000 行内存计数」
     supabaseAdmin()

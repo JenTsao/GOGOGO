@@ -31,7 +31,7 @@ async function loadInsights(): Promise<InsightData> {
 
   const [sessions, tasks, moods, mistakes, notes] = await Promise.all([
     supabaseAdmin().from('timer_sessions').select('duration, started_at').eq('user_id', owner).gte('started_at', d30Iso).limit(2000),
-    supabaseAdmin().from('tasks').select('status, date').eq('user_id', owner).gte('date', d30Date).limit(500),
+    supabaseAdmin().from('tasks').select('status, date').eq('user_id', owner).eq('is_deleted', false).gte('date', d30Date).limit(500),
     supabaseAdmin().from('mood_checkins').select('emoji_code, date, daily_summary').eq('user_id', owner).gte('date', d30Date).order('date', { ascending: true }).limit(31),
     supabaseAdmin().from('mistakes').select('is_mastered').eq('user_id', owner).limit(2000),
     supabaseAdmin().from('obsidian_metadata').select('id').eq('user_id', owner).limit(1000),
