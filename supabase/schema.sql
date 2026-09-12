@@ -295,6 +295,47 @@ $$;
 grant execute on function public.get_weekly_by_key(text) to anon, authenticated;
 
 -- ============================================================
+-- daily_questions: 每日猜题流水线产物（知识库考点锚 + 外部时文素材 → LLM 命题）
+-- 语文/英语等科目每天一套；content 结构见 lib/questionSubjects.ts 注释
+-- ============================================================
+create table if not exists public.daily_questions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  date date not null,
+  subject text not null,
+  material_title text,   -- 素材标题
+  material_source text,  -- 素材来源（媒体名/URL，或 'AI 生成'）
+  content jsonb not null, -- {material, questions:[{type,stem,options?,answer,analysis}], tip}
+  created_at timestamptz default now(),
+  unique (user_id, date, subject) -- 幂等唯一约束：cron 重投/并发重试 upsert 兜底
+);
+alter table public.daily_questions enable row level security;
+drop policy if exists "owners manage own daily questions" on public.daily_questions;
+create policy "owners manage own daily questions" on public.daily_questions
+  for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+create index if not exists idx_daily_questions_user_date on public.daily_questions (user_id, date desc);
+
+-- 移动端免登录读取某日猜题（security definer 内部显式校验 access_key，不放宽 RLS）
+create or replace function public.get_questions_by_key(
+  p_access_key text,
+  p_date date default (now() at time zone 'Asia/Shanghai')::date
+)
+returns table (date date, subject text, material_title text, material_source text, content jsonb)
+language sql stable
+security definer
+set search_path = public
+as $$
+  select q.date, q.subject, q.material_title, q.material_source, q.content
+  from public.daily_questions q
+  join public.profiles p on p.user_id = q.user_id
+  where p.access_key = p_access_key
+    and q.date = p_date
+  order by q.created_at desc
+$$;
+grant execute on function public.get_questions_by_key(text, date) to anon, authenticated;
+
+-- ============================================================
 -- Supabase Auth 登录（多设备一致）
 -- 登录 = 身份引导层：注册自动建档并生成 access_key，多设备登录同一账号
 -- → 同一 access_key → 既有全部同步链路（tasks/timer/mistakes/mood/daily/weekly）自动收敛

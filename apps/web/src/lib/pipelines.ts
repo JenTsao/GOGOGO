@@ -1,5 +1,7 @@
 import { chatCompletion, parseJsonLoose } from '@/lib/llm';
 import { requireAdminEnv, supabaseAdmin } from '@/lib/supabaseAdmin';
+import { fetchRepoTree, fetchRawFile, isGithubConfigured } from '@/lib/github';
+import { QUESTION_SUBJECTS, type QuestionSubject } from '@/lib/questionSubjects';
 
 /**
  * 备课流水线核心：从 cron route 抽出，供 Vercel Cron 与管理台「手动触发」共用。
@@ -226,4 +228,183 @@ export async function generateWeekly(opts: { force?: boolean } = {}): Promise<{ 
   if (error) throw new Error(`写入 weekly_reviews 失败：${error.message}`);
 
   return { weekStart: monday, summary: String(json.summary), newsCount: newsList.length };
+}
+
+// ============================================================
+// 每日猜题：知识库考点锚 + 外部时文素材 → LLM 命题 → upsert daily_questions
+// 科目清单与命题规格见 lib/questionSubjects.ts（新增科目只加一条定义）
+// ============================================================
+
+const ARTICLE_MAX_CHARS = 6000; // 命题素材截断：高考阅读语料 350-1500 字，留足余量控 token
+const NOTE_ANCHOR_CHARS = 2000; // 单篇知识库锚点截断
+const NOTE_ANCHOR_COUNT = 3; // 每次最多取 3 篇笔记作考点锚
+
+interface FetchedArticle {
+  title: string;
+  url: string;
+  content: string;
+}
+
+// Tavily 全文检索：include_raw_content 拿文章正文（tavilySearch 的 150 字 snippet 不够命题用）。
+// Key 未配置 / 无合格全文 → null（调用方降级为 AI 自拟材料）
+async function fetchArticle(query: string): Promise<FetchedArticle | null> {
+  const key = process.env.TAVILY_API_KEY;
+  if (!key || !query) return null;
+  try {
+    const res = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: key,
+        query,
+        max_results: 4,
+        search_depth: 'basic',
+        include_raw_content: true,
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      results?: { title: string; url: string; raw_content?: string | null; content?: string }[];
+    };
+    // 只接受正文够长的结果：太短的页面撑不起一套阅读题
+    for (const r of data.results ?? []) {
+      const body = (r.raw_content ?? '').trim();
+      if (body.length >= 500) {
+        return { title: r.title, url: r.url, content: body.slice(0, ARTICLE_MAX_CHARS) };
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// 知识库考点锚：按科目关键词在笔记路径里筛候选，随机取几篇（每天自然轮换）。
+// GitHub 未配置 / 无命中 / 读取失败 → 空串（命题 prompt 降级为高考高频考点）
+async function pickNoteAnchors(keywords: string[]): Promise<string> {
+  if (!isGithubConfigured() || keywords.length === 0) return '';
+  try {
+    const { entries } = await fetchRepoTree();
+    const candidates = entries.filter((e) =>
+      keywords.some((k) => e.path.toLowerCase().includes(k.toLowerCase()))
+    );
+    if (candidates.length === 0) return '';
+    const picked = [...candidates].sort(() => Math.random() - 0.5).slice(0, NOTE_ANCHOR_COUNT);
+    const anchors = await Promise.all(
+      picked.map(async (e) => {
+        const text = await fetchRawFile(e.path).catch(() => '');
+        if (!text) return '';
+        return `【考点笔记：${e.path}】\n${text.slice(0, NOTE_ANCHOR_CHARS)}`;
+      })
+    );
+    return anchors.filter(Boolean).join('\n\n');
+  } catch {
+    return '';
+  }
+}
+
+export interface QuestionSubjectResult {
+  subject: string;
+  status: 'done' | 'skipped' | 'failed';
+  detail?: string;
+}
+
+/** 每日猜题流水线：逐科目执行，单科目失败不影响其他科目 */
+export async function generateDailyQuestions(opts: { force?: boolean } = {}): Promise<{
+  date: string;
+  results: QuestionSubjectResult[];
+}> {
+  const owner = requireAdminEnv();
+  const { today } = beijingToday();
+  const results: QuestionSubjectResult[] = [];
+
+  for (const subj of QUESTION_SUBJECTS) {
+    try {
+      results.push(await generateOneSubject(owner, today, subj, opts.force === true));
+    } catch (e) {
+      results.push({ subject: subj.subject, status: 'failed', detail: (e as Error).message });
+    }
+  }
+  return { date: today, results };
+}
+
+async function generateOneSubject(
+  owner: string,
+  date: string,
+  subj: QuestionSubject,
+  force: boolean
+): Promise<QuestionSubjectResult> {
+  // 幂等按科目检查：单科目重跑不会覆盖其他科目的产物
+  if (!force) {
+    const { data: exist } = await supabaseAdmin()
+      .from('daily_questions')
+      .select('id')
+      .eq('user_id', owner)
+      .eq('date', date)
+      .eq('subject', subj.subject)
+      .maybeSingle();
+    if (exist) return { subject: subj.subject, status: 'skipped', detail: '已存在' };
+  }
+
+  // 采集：外部时文（可降级 AI 自拟）+ 知识库考点锚（可空）
+  const [article, noteAnchors] = await Promise.all([
+    fetchArticle(subj.searchQuery),
+    pickNoteAnchors(subj.noteKeywords),
+  ]);
+
+  const materialBlock = article
+    ? `命题材料（真实时文，题目须严格基于此文）：
+标题：${article.title}
+${article.content}`
+    : `今日未抓取到合格外部素材。请自拟一篇符合以下口径的命题材料（350-800 字），连同材料一起放进返回 JSON 的 material 字段，另附材料标题在 material_title 字段。选材口径：${subj.sourceLabel}。`;
+
+  const anchorBlock = noteAnchors
+    ? `\n\n知识库考点锚（命题时优先贴合这些笔记覆盖的考点）：\n${noteAnchors}`
+    : '\n\n知识库未提供考点锚，按高考高频考点命题。';
+
+  const raw = await chatCompletion(
+    [
+      { role: 'system', content: subj.systemPrompt },
+      {
+        role: 'user',
+        content:
+          `${subj.questionSpec}\n\nJSON 字段契约：` +
+          `questions 数组每项 {type, stem, options?, answer?, analysis}；结尾 tip 为今日考点点评（60 字内）。` +
+          `${materialBlock}${anchorBlock}`,
+      },
+    ],
+    { temperature: 0.6 }
+  );
+
+  const json = parseJsonLoose(raw);
+  const questions = Array.isArray(json?.questions) ? json.questions : [];
+  if (!json || questions.length === 0) {
+    throw new Error(`命题结果无法解析：${raw.slice(0, 200)}`);
+  }
+
+  // 外部素材直接落库原文（不经 LLM 复述，防失真）；AI 自拟时取 LLM 返回的 material
+  const material = article ? article.content : String(json.material ?? '');
+  if (!material) throw new Error('缺少命题材料（外部抓取失败且 AI 未返回自拟材料）');
+
+  const { error } = await supabaseAdmin()
+    .from('daily_questions')
+    .upsert(
+      {
+        user_id: owner,
+        date,
+        subject: subj.subject,
+        material_title: article ? article.title.slice(0, 200) : String(json.material_title ?? `${date} ${subj.subject}命题材料`).slice(0, 200),
+        material_source: article ? article.url : 'AI 生成',
+        content: {
+          material,
+          questions: questions.slice(0, 12),
+          tip: json.tip ? String(json.tip) : '',
+        },
+      },
+      { onConflict: 'user_id,date,subject' }
+    );
+  if (error) throw new Error(`写入 daily_questions 失败：${error.message}`);
+
+  return { subject: subj.subject, status: 'done' };
 }

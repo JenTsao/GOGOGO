@@ -41,7 +41,34 @@ function resolveRelative(dir: string, rel: string): string {
   return out.join('/');
 }
 
-// GET /api/library/note?path=docs/数学/导数.md → 渲染后的 HTML + 大纲 + 标签
+// frontmatter aliases / alias 解析：写法与 tags 一致（行内数组或块级列表）
+function parseFrontmatterAliases(md: string): string[] {
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(md)?.[1];
+  if (!fm) return [];
+  const out: string[] = [];
+  const keys = /^(aliases|alias):\s*/;
+  const inline = fm.split(/\r?\n/).find((l) => keys.test(l) && l.includes('['));
+  if (inline) {
+    const inner = inline.replace(keys, '').replace(/^\[|\]$/g, '');
+    for (const t of inner.split(',')) {
+      const v = t.trim().replace(/^["']|["']$/g, '');
+      if (v) out.push(v);
+    }
+    return out;
+  }
+  const startLine = fm.split(/\r?\n/).findIndex((l) => keys.test(l));
+  if (startLine < 0) return out;
+  for (const line of fm.split(/\r?\n/).slice(startLine + 1)) {
+    if (!line.trim()) continue;
+    const li = /^\s+-\s+(.+)$/.exec(line);
+    if (!li) break;
+    const v = li[1].trim().replace(/^["']|["']$/g, '');
+    if (v) out.push(v);
+  }
+  return out;
+}
+
+// GET /api/library/note?path=docs/数学/导数.md → 渲染后的 HTML + 大纲 + 标签/别名 + 字数
 // 知识库阅读区的服务端渲染入口：复用导出同源的 Markdown 引擎（callout/公式/双链/任务列表全支持）
 export async function GET(req: NextRequest) {
   if (!isGithubConfigured()) {
@@ -58,10 +85,15 @@ export async function GET(req: NextRequest) {
       if (/^(https?:|data:|\/)/i.test(src)) return full;
       return full.replace(`src="${src}"`, `src="${rawUrl(resolveRelative(dir, src))}"`);
     });
+    // 中文语境字数：去空白后字符数；阅读时长按 400 字/分钟估算（下限 1 分钟）
+    const wordCount = md.replace(/\s/g, '').length;
     return NextResponse.json({
       html,
       headings: extractHeadings(md),
       tags: parseFrontmatterTags(md),
+      aliases: parseFrontmatterAliases(md),
+      wordCount,
+      readMinutes: Math.max(1, Math.round(wordCount / 400)),
     });
   } catch (e) {
     return NextResponse.json({ error: `读取失败：${(e as Error).message}` }, { status: 502 });

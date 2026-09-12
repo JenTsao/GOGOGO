@@ -492,3 +492,61 @@ html[data-theme='dark'] .tool-card-active { color: var(--primary); }
   .tools-layout { flex-direction: column; }
   .tools-side { width: 100%; position: static; }
 }
+
+/* ---------- 每日猜题（/questions） ---------- */
+.q-day { margin-top: 8px; }
+.q-material { border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--field-bg); padding: 14px 16px; margin-bottom: 14px; }
+.q-material-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.q-material-title { font-weight: 700; font-size: 15px; color: var(--text); }
+.q-material-source { font-size: 12.5px; color: var(--text3); }
+.q-material-source a { color: var(--primary); text-decoration: none; }
+.q-material-source a:hover { text-decoration: underline; }
+.q-material-body { max-height: 46vh; overflow: auto; padding-right: 6px; font-size: 14.5px; }
+.q-list { display: flex; flex-direction: column; gap: 12px; }
+.q-card { border: 1px solid var(--border); border-radius: var(--r-sm); padding: 12px 14px; }
+.q-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.q-card-no { font-size: 12.5px; color: var(--text3); }
+.q-stem { font-size: 14.5px; }
+.q-options { margin: 8px 0 0; padding-left: 6px; list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.q-options li { font-size: 14px; color: var(--text); line-height: 1.6; }
+.q-answer { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 8px; }
+.q-answer summary { cursor: pointer; font-size: 13px; color: var(--primary); font-weight: 600; }
+.q-answer-line { font-size: 14px; margin: 8px 0 4px; }
+.q-analysis { font-size: 13.5px; color: var(--text2); }
+.q-tip { margin: 12px 0 0; font-size: 13px; color: var(--text2); border-top: 1px dashed var(--border); padding-top: 10px; }
+
+/* ---------- 知识库 · Obsidian 对标扩展（图谱/反链/快切/书签） ---------- */
+.lib-side-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.lib-missing-box { border: 1px dashed var(--border); border-radius: var(--r-sm); padding: 8px 12px; font-size: 13px; color: var(--text2); }
+.lib-missing-box summary { cursor: pointer; }
+
+/* 快速切换器（Ctrl+K） */
+.lib-sw-mask { position: fixed; inset: 0; background: rgba(20, 18, 30, 0.45); z-index: 60; display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; }
+.lib-sw { width: min(560px, 92vw); background: var(--card-solid); border: 1px solid var(--glass-border); border-radius: var(--r-md); box-shadow: var(--glass-shadow); overflow: hidden; }
+.lib-sw input { width: 100%; border: none; border-bottom: 1px solid var(--border); border-radius: 0; padding: 14px 16px; font-size: 15px; background: var(--card-solid); }
+.lib-sw input:focus { box-shadow: none; }
+.lib-sw-list { max-height: 46vh; overflow: auto; padding: 6px; }
+.lib-sw-item { display: flex; align-items: baseline; gap: 8px; padding: 8px 10px; border-radius: 8px; cursor: pointer; overflow: hidden; }
+.lib-sw-item:hover { background: var(--primary-soft); }
+.lib-sw-active { background: var(--primary-soft); }
+.lib-sw-name { font-weight: 600; color: var(--text); white-space: nowrap; }
+.lib-sw-path { font-size: 12px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 反链 / 出链面板 */
+.lib-links { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; border-top: 1px dashed var(--border); padding-top: 12px; }
+.lib-links-col { min-width: 0; }
+@media (max-width: 900px) { .lib-links { grid-template-columns: 1fr; } }
+.lib-links-title { font-size: 13px; font-weight: 700; color: var(--text2); margin-bottom: 6px; }
+.lib-link-row { padding: 5px 8px; border-radius: 7px; cursor: pointer; font-size: 14px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.lib-link-row:hover { background: var(--primary-soft); color: var(--primary-deep); }
+
+/* 未解析双链置灰（正文渲染后由页面标注） */
+.lib-md .md-wikilink-missing { color: var(--text3); border-bottom: 1px dashed var(--text3); cursor: default; background: none; }
+
+/* 图谱视图 */
+.lib-graph-wrap { height: 68vh; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--field-bg); overflow: hidden; position: relative; }
+.lib-graph { width: 100%; height: 100%; position: relative; }
+.lib-graph-legend { position: absolute; left: 12px; bottom: 10px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--text2); }
+.lib-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.lib-legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.lib-legend-hint { color: var(--text3); }

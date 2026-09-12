@@ -16,6 +16,7 @@ const MENUS = [
   { href: '/mistakes', label: '错题本', icon: '📕' },
   { href: '/insights', label: '画像大屏', icon: '📈' },
   { href: '/review', label: '每日复盘', icon: '🌙' },
+  { href: '/questions', label: '每日猜题', icon: '🎯' },
 ];
 
 // 折叠箭头：展开时朝左（收起方向），折叠态由 CSS 旋转 180°，避免图标依赖水合状态而闪烁
