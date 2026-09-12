@@ -161,19 +161,23 @@ const KEYWORDS: Record<string, string[]> = {
   sql: ['select','from','where','insert','into','values','update','set','delete','create','table','primary','key','foreign','references','join','left','right','inner','outer','on','group','by','order','limit','having','as','and','or','not','null','distinct','count','sum','avg','min','max','index','alter','drop','union','exists','between','like','in','case','when','then','end'],
 };
 
-function familyOf(lang: string): keyof typeof KEYWORDS {
-  const l = lang.toLowerCase();
+function familyOf(lang: string): string | null {
+  const l = lang.trim().toLowerCase();
+  // 无语言标签：按 C 系兜底（笔记里裸代码块多数是 JS 系语法，覆盖面最大）
+  if (!l) return 'js';
   if (/^(py|python|py3)$/.test(l)) return 'python';
   if (/^(json)$/.test(l)) return 'json';
   if (/^(sh|bash|zsh|shell|console)$/.test(l)) return 'bash';
   if (/^(sql|mysql|sqlite|postgres)$/.test(l)) return 'sql';
-  // js/ts/jsx/tsx/其余未识别语言都按 C 系关键字兜底（覆盖面最大）
-  return 'js';
+  if (/^(js|javascript|ts|typescript|jsx|tsx|java|c|h|cpp|cc|go|rust|kt|kotlin|swift)$/.test(l)) return 'js';
+  // 登记之外的语言（mermaid / text / log…）不高亮：拿 JS 关键字去标反而制造噪声
+  return null;
 }
 
 /** 单行 tokenize：注释 / 字符串 / 数字 / 关键字 / 函数调用（后跟括号）/ 标识符 */
 function tokenizeLine(line: string, lang: string, c: Palette): Tok[] {
   const family = familyOf(lang);
+  if (!family) return [{ t: line }]; // 未登记语言：整行原样
   const kws = KEYWORDS[family];
   const sqlCi = family === 'sql'; // SQL 关键字大小写不敏感
   // 注释风格：python/bash 用 #，其余用 //
@@ -395,17 +399,23 @@ export function texToText(tex: string): string {
   return s.replace(/[{}]/g, '').trim();
 }
 
-/** 代码围栏内的内容不转换（数学/双链替换只作用于正文段落） */
+/** 代码围栏内的内容不转换（数学/嵌入/双链替换只作用于正文段落）；``` 与 ~~~ 两种围栏都隔离 */
 export function transformOutsideFences(md: string, fn: (seg: string) => string): string {
   return md
-    .split(/(```[\s\S]*?```)/g)
-    .map((seg) => (seg.startsWith('```') ? seg : fn(seg)))
+    .split(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g)
+    .map((seg) => (seg.startsWith('```') || seg.startsWith('~~~') ? seg : fn(seg)))
     .join('');
 }
 
-/** 块级 $$...$$ 转独立加粗行，行内 $...$ 原位内联转写 */
+/**
+ * 块级公式转独立加粗行，行内公式原位内联转写。
+ * 支持 Obsidian 的四种分隔符：`$$...$$` / `\[...\]`（块级）、`$...$` / `\(...\)`（行内）——
+ * 后两者必须先归一，否则 `\(` 会在后续 markdown 解析中被转义成 `(` 而失配。
+ */
 export function mathLite(md: string): string {
   return md
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_m, tex) => `\n\n**${texToText(tex)}**\n\n`)
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_m, tex) => texToText(tex))
     .replace(/\$\$([\s\S]+?)\$\$/g, (_m, tex) => `\n\n**${texToText(tex)}**\n\n`)
     .replace(/\$([^$\n]+?)\$/g, (_m, tex) => texToText(tex));
 }
@@ -420,23 +430,48 @@ const CALLOUT: Record<string, string> = {
   quote: '引用', important: '重点', caution: '注意',
 };
 
+// callout 图标：与 web 端同一套映射，让降级后的引用块在视觉上可区分类型
+const CALLOUT_ICON: Record<string, string> = {
+  note: '📝', abstract: '📋', info: 'ℹ️', todo: '☑️',
+  tip: '💡', success: '✅', question: '❓', warning: '⚠️',
+  failure: '❌', danger: '⛔', bug: '🐛', example: '🧪',
+  quote: '💬', important: '🔥', caution: '⚠️',
+};
+
 /**
  * Obsidian 特有语法降级为标准 Markdown（在 mathLite 之前跑，均在围栏外）：
- * - ==高亮== → 行内代码 chip（primarySoft 底近似高亮观感）；
- * - #标签 → 行内代码 chip（需前导空白/括号，行首 #+空格 的标题不受影响）；
- * - > [!type] 标题 → 引用块内加粗「类型」标题行；
- * - 脚注引用 [^n] → 上标；脚注定义行 → 引用块。
+ * - `%%注释%%` → 剔除（隐藏注释不该出现在阅读器里）；
+ * - `![[嵌入]]` → 行内 chip（知识库侧可先解析成真实图片，这里兜底避免残留 '!'）；
+ * - `==高亮==` → 行内代码 chip（primarySoft 底近似高亮观感）；
+ * - `#标签` → 行内代码 chip（需前导空白/括号，行首 #+空格 的标题不受影响）；
+ * - `> [!type]± 标题` → 引用块内加粗「图标 类型」标题行（± 折叠标记必须吃掉，否则混进标题）；
+ * - 脚注引用 `[^n]` → 上标；脚注定义行 → 引用块。
  */
 export function obsidianFlavor(seg: string): string {
-  return seg
-    .replace(/==([^=\n]+)==/g, (_m, x: string) => '`' + x + '`')
-    .replace(/(^|[\s(（【,，、;；])#([A-Za-z0-9_\u4e00-\u9fff][\w\u4e00-\u9fff/-]{0,30})/g, (_m, pre: string, tag: string) => `${pre}\`#${tag}\``)
-    .replace(/^> ?\[!(\w+)\][ \t]*(.*)$/gm, (_m, type: string, title: string) => {
-      const label = CALLOUT[type.toLowerCase()] ?? type;
-      return `> **「${label}」${title.trim()}**`;
-    })
-    .replace(/\[\^(\d+)\](?!:)/g, (_m, n: string) => toSup(n))
-    .replace(/^\[\^(\d+)\]:[ \t]*(.+)$/gm, (_m, n: string, text: string) => `> ${toSup(n)} ${text}`);
+  return (
+    seg
+      // %%注释%%（可跨行）剔除：否则 Obsidian 的隐藏注释会直接显示在阅读器里
+      .replace(/%%[\s\S]*?%%/g, '')
+      // ![[嵌入]] 兜底：知识库侧会先尝试解析成真实图片，这里处理解析不到的情况，
+      // 不兜底的话 '!' 会残留，并被后续 [[双链]] 规则接走
+      .replace(/!\[\[([^\]]+)\]\]/g, (_m, inner: string) => {
+        const [target, alias] = inner.split('|');
+        const trimmed = (alias ?? '').trim();
+        const name = (trimmed && !/^\d+(x\d+)?$/.test(trimmed) ? trimmed : target).trim();
+        return '`📎 ' + name + '`';
+      })
+      .replace(/==([^=\n]+)==/g, (_m, x: string) => '`' + x + '`')
+      .replace(/(^|[\s(（【,，、;；])#([A-Za-z0-9_\u4e00-\u9fff][\w\u4e00-\u9fff/-]{0,30})/g, (_m, pre: string, tag: string) => `${pre}\`#${tag}\``)
+      // > [!type]- 标题 → 引用块内加粗行；[-+]? 是 Obsidian 的折叠标记，必须吃掉否则会混进标题
+      .replace(/^> ?\[!(\w+)\][-+]?[ \t]*(.*)$/gm, (_m, type: string, title: string) => {
+        const key = type.toLowerCase();
+        const label = CALLOUT[key] ?? type;
+        const icon = CALLOUT_ICON[key] ?? '📌';
+        return `> **${icon}「${label}」${title.trim()}**`;
+      })
+      .replace(/\[\^(\d+)\](?!:)/g, (_m, n: string) => toSup(n))
+      .replace(/^\[\^(\d+)\]:[ \t]*(.+)$/gm, (_m, n: string, text: string) => `> ${toSup(n)} ${text}`)
+  );
 }
 
 /** 知识库正文预处理：Obsidian 风格 → LaTeX 轻量化（围栏外，frontmatter/双链由调用方处理） */
