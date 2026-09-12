@@ -3,11 +3,14 @@
  *
  * 此前 `api/export` 里是约 35 行的自研 mdToHtml，只认标题/代码块/图片/引用/列表/段落，
  * 且全部 escapeHtml（表格、加粗、链接、行内代码都不渲染）。本模块用 markdown-it 统一替代，
- * 并补齐 Obsidian 语法降级（处理策略与移动端 src/lib/markdown.tsx 对齐）：
- * - 预处理（需避开代码围栏）：frontmatter 剥离、callout 降级、脚注；
- * - 自定义 inline 规则：`$...$` / `$$...$$` → KaTeX(MathML)、`==高亮==` → <mark>、`#标签` → chip、
- *   `[[双链]]` → 可读名。inline 规则天然不会作用于代码围栏内容，无需额外的围栏隔离逻辑；
- * - core 规则：GFM 任务列表 `- [ ]` / `- [x]` → 禁用态 checkbox。
+ * 并补齐 Obsidian 语法（处理策略与移动端 src/lib/markdown.tsx 对齐）：
+ * - 预处理（需避开代码围栏）：frontmatter / `%%注释%%` 剥离、脚注定义行降级；
+ * - inline 规则：`$...$`·`$$...$$`·`\(...\)`·`\[...\]` → KaTeX(MathML)、`==高亮==` → <mark>、
+ *   `#标签` → chip、`[[双链]]` → 可读名、`![[嵌入]]` → 图标降级、`[^n]` → 上标、
+ *   `[!type]` → callout 标签；
+ * - core 规则：GFM 任务列表 `- [ ]`/`- [x]` → 禁用态 checkbox、callout 块级类型着色；
+ * - fence：自研轻量语法高亮（零依赖，配色见导出 CSS 的 .tok-*）。
+ * inline/core 规则天然不会作用于代码围栏内容，无需额外的围栏隔离逻辑。
  */
 import MarkdownIt from 'markdown-it';
 import * as katex from 'katex';
@@ -20,11 +23,19 @@ const CALLOUT: Record<string, string> = {
   quote: '引用', important: '重点', caution: '注意',
 };
 
+// callout 图标：打印页用 emoji，零字体依赖
+const CALLOUT_ICON: Record<string, string> = {
+  note: '📝', abstract: '📋', info: 'ℹ️', todo: '☑️',
+  tip: '💡', success: '✅', question: '❓', warning: '⚠️',
+  failure: '❌', danger: '⛔', bug: '🐛', example: '🧪',
+  quote: '💬', important: '🔥', caution: '⚠️',
+};
+
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// 代码围栏内的内容不参与预处理：callout/脚注正则不能改写代码示例
+// 代码围栏内的内容不参与预处理：注释/脚注正则不能改写代码示例
 function transformOutsideFences(md: string, fn: (seg: string) => string): string {
   return md
     .split(/(```[\s\S]*?```)/g)
@@ -41,13 +52,9 @@ export function stripFrontmatter(md: string): string {
 function preprocess(seg: string): string {
   return (
     seg
-      // > [!warning] 标题 → 引用块内加粗「警告」标题（与移动端 obsidianFlavor 同款降级）
-      .replace(/^> ?\[!(\w+)\][ \t]*(.*)$/gm, (_m, type: string, title: string) => {
-        const label = CALLOUT[type.toLowerCase()] ?? type;
-        return `> **「${label}」${title.trim()}**`;
-      })
-      // 脚注：引用处上标化、定义行转引用块（打印/卡片场景无需回跳锚点）
-      .replace(/\[\^(\d+)\](?!:)/g, '^$1')
+      // %%注释%%（Obsidian 隐藏注释，可跨行）整体剔除：否则注释内容会泄漏进导出产物
+      .replace(/%%[\s\S]*?%%/g, '')
+      // 脚注定义行 → 引用块；引用处的 [^n] 由 inline 规则转上标（打印/卡片无需回跳锚点）
       .replace(/^\[\^(\d+)\]:[ \t]*(.+)$/gm, (_m, n: string, text: string) => `> ^${n} ${text}`)
   );
 }
@@ -108,28 +115,92 @@ function wikilinkRule(state: any, silent: boolean): boolean {
   return true;
 }
 
-// $...$ / $$...$$ → KaTeX。$$ 允许跨行（段落内的多行公式），$ 不允许跨行且要求首尾紧贴非空白
+// 数学公式 → KaTeX。支持四种分隔符：$...$ / \(...\)（行内）、$$...$$ / \[...\]（块级，可跨行）。
+// $ 与 \( 的区别在于边界规则；\( 必须在 escape 规则之前注册，否则会先被转义成 '(' 而失配。
 function mathRule(state: any, silent: boolean): boolean {
   const start = state.pos as number;
   const src = state.src as string;
-  if (src.charCodeAt(start) !== 0x24) return false;
-  const isBlock = src.charCodeAt(start + 1) === 0x24;
-  const marker = isBlock ? '$$' : '$';
-  const from = start + marker.length;
-  const end = src.indexOf(marker, from);
+  const ch = src.charCodeAt(start);
+  let isBlock: boolean;
+  let close: string;
+  if (ch === 0x24 /* $ */) {
+    isBlock = src.charCodeAt(start + 1) === 0x24;
+    close = isBlock ? '$$' : '$';
+  } else if (ch === 0x5c /* \ */) {
+    const next = src.charCodeAt(start + 1);
+    if (next === 0x28 /* ( */) {
+      isBlock = false;
+      close = '\\)';
+    } else if (next === 0x5b /* [ */) {
+      isBlock = true;
+      close = '\\]';
+    } else return false;
+  } else return false;
+
+  const from = start + close.length; // 开合标记等长：$/$$/\(/\[
+  const end = src.indexOf(close, from);
   if (end < 0) return false;
   const tex = src.slice(from, end);
   if (!tex.trim()) return false;
-  if (!isBlock) {
-    // 边界规则：开 $ 后 / 闭 $ 前不能是空白，闭 $ 后不能紧跟数字（规避 $5、a$6 这类误判）
+  // 仅 $...$ 需要边界规则：开 $ 后 / 闭 $ 前不能是空白，闭 $ 后不能紧跟数字（规避 $5、a$6 这类误判）
+  if (close === '$') {
     if (/^\s/.test(tex) || /\s$/.test(tex)) return false;
     if (/\d/.test(src[end + 1] ?? '')) return false;
   }
-  state.pos = end + marker.length;
+  state.pos = end + close.length;
   if (!silent) {
     const token = state.push('md_math', '', 0);
     token.content = tex;
     token.meta = { displayMode: isBlock };
+  }
+  return true;
+}
+
+// [!type] → callout 彩色标签（整块的类型着色由 core 规则挂在 blockquote 上）
+function calloutTagRule(state: any, silent: boolean): boolean {
+  const start = state.pos as number;
+  const src = state.src as string;
+  if (src.charCodeAt(start) !== 0x5b /* [ */ || src.charCodeAt(start + 1) !== 0x21 /* ! */) return false;
+  const m = /^\[!(\w+)\][-+]?/.exec(src.slice(start));
+  if (!m) return false;
+  state.pos = start + m[0].length;
+  if (!silent) {
+    const token = state.push('md_callout_tag', '', 0);
+    token.content = m[1].toLowerCase();
+  }
+  return true;
+}
+
+// ![[嵌入]] → 图标 + 可读名。服务端没有仓库上下文，解析不出真实路径，
+// 故降级为展示（否则 '!' 会残留在正文里，接一个 [[双链]] 渲染出的 span，很难看）。
+function embedRule(state: any, silent: boolean): boolean {
+  const start = state.pos as number;
+  const src = state.src as string;
+  if (src.charCodeAt(start) !== 0x21 /* ! */) return false;
+  if (src.charCodeAt(start + 1) !== 0x5b || src.charCodeAt(start + 2) !== 0x5b) return false;
+  const end = src.indexOf(']]', start + 3);
+  if (end < 0) return false;
+  const inner = src.slice(start + 3, end);
+  if (!inner.trim() || inner.includes('\n')) return false;
+  state.pos = end + 2;
+  if (!silent) {
+    const token = state.push('md_embed', '', 0);
+    token.content = inner;
+  }
+  return true;
+}
+
+// [^n] → 上标（脚注定义行已在预处理阶段转成引用块）
+function footnoteRule(state: any, silent: boolean): boolean {
+  const start = state.pos as number;
+  const src = state.src as string;
+  if (src.charCodeAt(start) !== 0x5b /* [ */ || src.charCodeAt(start + 1) !== 0x5e /* ^ */) return false;
+  const m = /^\[\^(\d+)\](?!:)/.exec(src.slice(start));
+  if (!m) return false;
+  state.pos = start + m[0].length;
+  if (!silent) {
+    const token = state.push('md_fn_ref', '', 0);
+    token.content = m[1];
   }
   return true;
 }
@@ -187,20 +258,117 @@ function taskListPlugin(md: MarkdownIt): void {
   });
 }
 
+/**
+ * Callout 块级着色：给 `> [!type]` 所在的 blockquote 挂 `md-callout md-callout-{type}` 类。
+ * 只加属性、不改 token 结构——结构手术风险高，而打印/卡片场景仅需配色与图标。
+ * 判定：blockquote 内紧跟的段落 inline 以 `[!type]` 开头（与 inline 的 calloutTagRule 同源）。
+ */
+function calloutPlugin(md: MarkdownIt): void {
+  md.core.ruler.after('inline', 'md_callout', (state) => {
+    const tokens = state.tokens as any[];
+    for (let i = 0; i < tokens.length - 2; i++) {
+      if (tokens[i].type !== 'blockquote_open') continue;
+      const inline = tokens[i + 2];
+      if (inline?.type !== 'inline') continue;
+      const m = /^\[!(\w+)\][-+]?/.exec(inline.content as string);
+      if (!m) continue;
+      tokens[i].attrJoin('class', `md-callout md-callout-${m[1].toLowerCase()}`);
+    }
+  });
+}
+
+// ---------- 代码块语法高亮（自研轻量 tokenizer，零依赖） ----------
+// 语言 → 关键字族。未登记的语言不做高亮（避免拿 JS 关键字去误标 mermaid / 纯文本）。
+const LANG_FAMILY: Record<string, string> = {
+  py: 'python', python: 'python', py3: 'python',
+  js: 'js', javascript: 'js', ts: 'js', typescript: 'js', jsx: 'js', tsx: 'js',
+  java: 'js', c: 'js', cpp: 'js', go: 'js', rust: 'js',
+  json: 'json',
+  sh: 'bash', bash: 'bash', zsh: 'bash', shell: 'bash', console: 'bash',
+  sql: 'sql', mysql: 'sql', sqlite: 'sql', postgres: 'sql',
+};
+
+const KEYWORDS: Record<string, string[]> = {
+  python: ['def','class','return','if','elif','else','for','while','in','not','and','or','import','from','as','with','try','except','finally','raise','lambda','pass','break','continue','None','True','False','yield','is','del','assert','async','await','print','range','len','int','str','float','list','dict','set','tuple'],
+  js: ['const','let','var','function','return','if','else','for','while','do','switch','case','break','continue','new','class','extends','super','import','export','from','default','try','catch','finally','throw','typeof','instanceof','in','of','this','null','undefined','true','false','async','await','yield','static','delete','void','console'],
+  json: ['true','false','null'],
+  bash: ['echo','cd','ls','mkdir','rm','cp','mv','cat','grep','awk','sed','curl','wget','if','then','fi','else','elif','for','do','done','while','export','source','sudo','pip','npm','pnpm','git','python','python3','node','return'],
+  sql: ['select','from','where','insert','into','values','update','set','delete','create','table','primary','key','foreign','references','join','left','right','inner','outer','on','group','by','order','limit','having','as','and','or','not','null','distinct','count','sum','avg','min','max','index','alter','drop','union','exists','between','like','in','case','when','then','end'],
+};
+
+/** 单行 → 带语义 class 的 HTML。class 约定：k=关键字 s=字符串 c=注释 n=数字 f=函数名（配色在导出 CSS） */
+function highlightLine(line: string, family: string): string {
+  const kws = KEYWORDS[family] ?? KEYWORDS.js;
+  const sqlCi = family === 'sql'; // SQL 关键字大小写不敏感
+  const commentRe = family === 'python' || family === 'bash' ? '#[^\\n]*' : '//[^\\n]*';
+  const re = new RegExp(
+    `(${commentRe})|("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*')|(\\b\\d+(?:\\.\\d+)?\\b)|([A-Za-z_$][\\w$]*)`,
+    'g'
+  );
+  let out = '';
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(line))) {
+    out += escapeHtml(line.slice(last, m.index));
+    last = m.index + m[0].length;
+    if (m[1]) out += `<span class="tok-c">${escapeHtml(m[0])}</span>`;
+    else if (m[2]) out += `<span class="tok-s">${escapeHtml(m[0])}</span>`;
+    else if (m[3]) out += `<span class="tok-n">${escapeHtml(m[0])}</span>`;
+    else {
+      const word = m[4];
+      const isKw = sqlCi ? kws.includes(word.toLowerCase()) : kws.includes(word);
+      // 函数名：紧跟着（可跨空格的）左括号
+      if (isKw) out += `<span class="tok-k">${escapeHtml(word)}</span>`;
+      else if (line[last] === '(' || /^\s*\(/.test(line.slice(last)))
+        out += `<span class="tok-f">${escapeHtml(word)}</span>`;
+      else out += escapeHtml(word);
+    }
+  }
+  out += escapeHtml(line.slice(last));
+  return out;
+}
+
+/** fence 渲染：登记过的语言走高亮，其余只转义（不猜语言） */
+function renderFence(code: string, lang: string): string {
+  const family = LANG_FAMILY[lang.toLowerCase()];
+  const body = code.replace(/\n$/, '');
+  const html = family ? body.split('\n').map((l) => highlightLine(l, family)).join('\n') : escapeHtml(body);
+  const label = lang ? `<div class="md-code-lang">${escapeHtml(lang)}</div>` : '';
+  return `<pre class="md-code">${label}<code>${html}</code></pre>\n`;
+}
+
 function createRenderer(breaks: boolean): MarkdownIt {
   // html: false —— 笔记里的原始 HTML 一律转义，避免产物 HTML（打印页）出现注入面
   const md = new MarkdownIt({ html: false, linkify: true, breaks, typographer: false });
-  // 注册顺序：wikilink 必须在 link 之前（都被 '[' 触发），否则 [[x]] 会被当链接解析
+  // 注册顺序：wikilink/embed/tag/callout/footnote 都以 '[' 或 '!' 触发，必须排在 link/image 之前，
+  // 否则会被当成链接或图片解析
   md.inline.ruler.before('link', 'md_wikilink', wikilinkRule);
   md.inline.ruler.before('link', 'md_tag', tagRule);
+  md.inline.ruler.before('link', 'md_callout_tag', calloutTagRule);
+  md.inline.ruler.before('link', 'md_fn_ref', footnoteRule);
+  md.inline.ruler.before('image', 'md_embed', embedRule);
   md.inline.ruler.before('emphasis', 'md_mark', markRule);
-  // math 放在 emphasis 之前即可：escape 规则更靠前，公式里的 \$ 转义仍能先生效
-  md.inline.ruler.before('emphasis', 'md_math', mathRule);
+  // math 必须排在 escape 之前：\(...\) 的 \( 会被 escape 规则转义成 '(' 而失配
+  md.inline.ruler.before('escape', 'md_math', mathRule);
   md.renderer.rules.md_mark = (tokens, idx) => `<mark>${escapeHtml(tokens[idx].content)}</mark>`;
   md.renderer.rules.md_tag = (tokens, idx) => `<span class="md-tag">#${escapeHtml(tokens[idx].content)}</span>`;
   md.renderer.rules.md_wikilink = (tokens, idx) => {
     const [target, alias] = tokens[idx].content.split('|');
     return `<span class="md-wikilink">${escapeHtml((alias ?? target).trim())}</span>`;
+  };
+  md.renderer.rules.md_callout_tag = (tokens, idx) => {
+    const type = tokens[idx].content;
+    return `<span class="md-callout-tag">${CALLOUT_ICON[type] ?? '📌'} ${escapeHtml(CALLOUT[type] ?? type)}</span>`;
+  };
+  md.renderer.rules.md_fn_ref = (tokens, idx) => `<sup class="md-fn-ref">${escapeHtml(tokens[idx].content)}</sup>`;
+  md.renderer.rules.md_embed = (tokens, idx) => {
+    // ![[目标|别名]]：别名位若是 300 / 300x200 这类尺寸，展示名回退到文件名
+    const [targetRaw, aliasRaw] = tokens[idx].content.split('|');
+    const target = targetRaw.trim();
+    const alias = (aliasRaw ?? '').trim();
+    const name = alias && !/^\d+(x\d+)?$/.test(alias) ? alias : target;
+    const icon = /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(target) ? '🖼' : '📄';
+    return `<span class="md-embed">${icon} ${escapeHtml(name)}</span>`;
   };
   md.renderer.rules.md_math = (tokens, idx) => {
     const meta = tokens[idx].meta as { displayMode?: boolean } | undefined;
@@ -208,7 +376,13 @@ function createRenderer(breaks: boolean): MarkdownIt {
   };
   md.renderer.rules.md_checkbox = (tokens, idx) =>
     `<input type="checkbox" disabled${tokens[idx].content ? ' checked' : ''}> `;
+  // 代码块：接管 fence，输出带语言标签与语义 class 的高亮 HTML
+  md.renderer.rules.fence = (tokens, idx) => {
+    const info = (tokens[idx].info || '').trim().split(/\s+/)[0] ?? '';
+    return renderFence(tokens[idx].content, info);
+  };
   taskListPlugin(md);
+  calloutPlugin(md);
   return md;
 }
 

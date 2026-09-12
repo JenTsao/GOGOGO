@@ -128,7 +128,19 @@ h2,h3,h4 { color: #1a4d8f; }
 pre { background: #f6f8fa; padding: 8px; border-radius: 6px; font-size: 10pt; white-space: pre-wrap; }
 code { font-family: Consolas, 'Courier New', monospace; background: #f2f4f7; border-radius: 3px; padding: 0 3px; }
 pre code { background: none; padding: 0; }
+.md-code-lang { font-size: 8.5pt; color: #8a8a8a; font-family: Consolas, monospace; margin-bottom: 4px; }
+.tok-k { color: #7c3aed; font-weight: 600; }
+.tok-s { color: #0f9d6e; }
+.tok-c { color: #9b95ae; font-style: italic; }
+.tok-n { color: #d97706; }
+.tok-f { color: #2563eb; }
 blockquote { border-left: 3px solid #1a4d8f; margin: 8px 0; padding: 2px 10px; color: #444; }
+.md-callout { border-left-width: 4px; border-radius: 4px; padding: 6px 12px; background: #f5f8ff; border-left-color: #2563eb; }
+.md-callout-warning, .md-callout-caution { background: #fff8ec; border-left-color: #d97706; }
+.md-callout-danger, .md-callout-failure, .md-callout-bug { background: #fdecec; border-left-color: #dc2626; }
+.md-callout-tip, .md-callout-success, .md-callout-example { background: #eafaf3; border-left-color: #0f9d6e; }
+.md-callout-important { background: #f4f0fd; border-left-color: #7c3aed; }
+.md-callout-tag { font-weight: 700; font-size: 10.5pt; }
 li { margin: 2px 0; }
 img { max-width: 100%; border: 1px solid #eee; border-radius: 4px; }
 table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 11pt; }
@@ -136,6 +148,8 @@ th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
 th { background: #f0f4fa; }
 mark { background: #fff3bf; padding: 0 2px; border-radius: 3px; }
 math[display="block"] { display: block; text-align: center; margin: 10px 0; }
+.md-embed { color: #4b5563; background: #f2f4f7; border-radius: 3px; padding: 0 4px; font-size: 10.5pt; }
+.md-fn-ref { color: #2563eb; font-size: 8.5pt; }
 li.md-task-item { list-style: none; }
 li.md-task-item input[type="checkbox"] { margin-right: 6px; }
 .md-tag { color: #7c3aed; font-size: 10.5pt; }
