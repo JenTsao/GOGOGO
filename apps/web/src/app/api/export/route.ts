@@ -3,6 +3,7 @@ import { getUserByAccessKey } from '@/lib/access';
 import { requireAdminEnv, supabaseAdmin } from '@/lib/supabaseAdmin';
 import { fetchRawFile, isGithubConfigured } from '@/lib/github';
 import { buildApkg } from '@/lib/apkg';
+import { renderMarkdown, stripFrontmatter } from '@/lib/markdown';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -90,10 +91,6 @@ export async function POST(req: NextRequest) {
 
 // ---------- 服务端编译工具 ----------
 
-function stripFrontmatter(md: string): string {
-  return md.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
-}
-
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -107,18 +104,9 @@ function parseCards(docs: { path: string; content: string }[]) {
       const lines = sec.split('\n');
       const head = /^#{2,3}\s+(.*)$/.exec(lines[0] ?? '');
       if (!head) continue;
-      const back = lines
-        .slice(1)
-        .join('\n')
-        .trim()
-        .split('\n')
-        .map((l) => {
-          const img = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/.exec(l.trim());
-          if (img) return `<img src="${escapeHtml(img[2])}" style="max-width:100%">`;
-          return escapeHtml(l);
-        })
-        .join('<br>');
-      if (!back) continue;
+      // 背面交给 Markdown 引擎渲染：表格/加粗/链接/行内代码/==高亮== 此前全部被 escape 丢失
+      const back = renderMarkdown(lines.slice(1).join('\n'));
+      if (!back.trim()) continue;
       cards.push({ front: escapeHtml(head[1]), back });
     }
   }
@@ -127,59 +115,31 @@ function parseCards(docs: { path: string; content: string }[]) {
 
 // A4 打印视图（与 compile 页 print 视图同款风格）
 function printableHtml(docs: { path: string; content: string }[]): string {
+  // 正文交给 Markdown 引擎（内部已剥离 frontmatter 并做 Obsidian 语法降级），不再手工逐行转义
   const body = docs
-    .map((d) => `<h1>${escapeHtml(d.path)}</h1>${mdToHtml(stripFrontmatter(d.content))}`)
+    .map((d) => `<h1>${escapeHtml(d.path)}</h1>${renderMarkdown(d.content)}`)
     .join('<div class="pagebreak"></div>');
   return `<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>高考复习资料</title>
 <style>
 @page { size: A4; margin: 18mm 16mm; }
 body { font: 12pt/1.7 'Microsoft YaHei', 'PingFang SC', sans-serif; color: #1a1a1a; }
 h1 { font-size: 16pt; border-bottom: 2px solid #333; padding-bottom: 4px; }
-h2,h3 { color: #1a4d8f; }
+h2,h3,h4 { color: #1a4d8f; }
 pre { background: #f6f8fa; padding: 8px; border-radius: 6px; font-size: 10pt; white-space: pre-wrap; }
+code { font-family: Consolas, 'Courier New', monospace; background: #f2f4f7; border-radius: 3px; padding: 0 3px; }
+pre code { background: none; padding: 0; }
 blockquote { border-left: 3px solid #1a4d8f; margin: 8px 0; padding: 2px 10px; color: #444; }
 li { margin: 2px 0; }
 img { max-width: 100%; border: 1px solid #eee; border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 11pt; }
+th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
+th { background: #f0f4fa; }
+mark { background: #fff3bf; padding: 0 2px; border-radius: 3px; }
+.md-tag { color: #7c3aed; font-size: 10.5pt; }
+.md-wikilink { color: #1a4d8f; border-bottom: 1px dashed #9db8dd; }
 .pagebreak { page-break-after: always; }
 @media print { .no-print { display: none; } }
 </style></head><body>${body}
 <script class="no-print">document.title='高考复习资料';window.addEventListener('load',()=>{setTimeout(()=>window.print(),600)});</script>
 </body></html>`;
-}
-
-// 极简 Markdown → HTML（标题/图片/代码块/引用/列表/段落）
-function mdToHtml(md: string): string {
-  const out: string[] = [];
-  let inCode = false;
-  for (const line of md.split('\n')) {
-    if (line.trim().startsWith('```')) {
-      out.push(inCode ? '</code></pre>' : '<pre><code>');
-      inCode = !inCode;
-      continue;
-    }
-    if (inCode) {
-      out.push(escapeHtml(line));
-      continue;
-    }
-    const h = /^(#{1,4})\s+(.*)$/.exec(line);
-    if (h) {
-      out.push(`<h${h[1].length}>${escapeHtml(h[2])}</h${h[1].length}>`);
-      continue;
-    }
-    const img = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/.exec(line.trim());
-    if (img) {
-      out.push(`<img src="${escapeHtml(img[2])}" alt="${escapeHtml(img[1])}">`);
-      continue;
-    }
-    if (/^>\s?/.test(line)) {
-      out.push(`<blockquote>${escapeHtml(line.replace(/^>\s?/, ''))}</blockquote>`);
-      continue;
-    }
-    if (/^\s*[-*]\s+/.test(line)) {
-      out.push(`<li>${escapeHtml(line.replace(/^\s*[-*]\s+/, ''))}</li>`);
-      continue;
-    }
-    out.push(line.trim() === '' ? '' : `<p>${escapeHtml(line)}</p>`);
-  }
-  return out.join('\n');
 }

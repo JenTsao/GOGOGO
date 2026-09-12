@@ -52,7 +52,7 @@ apps/
     src/app/api/           # github 代理（tree/raw/save/image/versions）/ workshop/refine / tags
                            # compile/apkg / export / cron（daily/weekly/knowledge）
                            # knowledge sync / search / mistakes / mood / tasks sync / timer sync
-    src/lib/               # llm（供应商注册表加一行即扩）/ apkg / knowledgeSync / supabaseAdmin / access / github
+    src/lib/               # llm（供应商注册表加一行即扩）/ apkg / markdown（markdown-it 引擎）/ knowledgeSync / supabaseAdmin / access / github
 supabase/schema.sql        # 11 张表 + pgvector + RPC + Auth 触发器 + 存储桶 + RLS
 .github/workflows/ci.yml   # 安装/类型检查/构建全部在 GitHub Actions（本地零安装）
 .github/workflows/build-apk.yml  # APK 打包（dispatch 或 v* tag 触发）
