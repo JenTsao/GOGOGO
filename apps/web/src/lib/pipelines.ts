@@ -3,6 +3,7 @@ import { requireAdminEnv, supabaseAdmin } from '@/lib/supabaseAdmin';
 import { fetchRepoTree, fetchRawFile, isGithubConfigured } from '@/lib/github';
 import { QUESTION_SUBJECTS, type QuestionSubject } from '@/lib/questionSubjects';
 import { buildUserPrompt } from '@/lib/promptBudget';
+import { selectMaterial, getWeakTopics } from '@/lib/selector';
 
 /**
  * 备课流水线核心：从 cron route 抽出，供 Vercel Cron 与管理台「手动触发」共用。
@@ -285,6 +286,33 @@ async function fetchArticle(query: string): Promise<FetchedArticle | null> {
   }
 }
 
+/**
+ * 命题素材获取：素材池优先 → Tavily 现抓降级 → null（调用方降级为 AI 自拟）。
+ *
+ * 为什么改成池内优先：原来直接 Tavily 现抓，抓的是「当下的新闻」，
+ * 而命题人选材是回溯过去某段时间的文章，两者语料分布不同；更关键的是
+ * 现抓没有质量锚和考向先验，本质上仍是 LLM 自由发挥。
+ * 池内素材带着 gaokao_fit / topic / difficulty，且已按选材比例配额采集。
+ */
+async function pickMaterial(
+  owner: string,
+  date: string,
+  subj: QuestionSubject
+): Promise<FetchedArticle | null> {
+  try {
+    const weakTopics = await getWeakTopics(owner);
+    const hit = await selectMaterial({ owner, subject: subj.subject, date, weakTopics });
+    if (hit) {
+      console.log(`[questions] ${subj.subject} 命中素材池：${hit.reason}`);
+      return { title: hit.title, url: hit.url, content: hit.content.slice(0, ARTICLE_MAX_CHARS) };
+    }
+  } catch (e) {
+    // 池查询失败不该中断命题：静默降级到 Tavily
+    console.warn(`[questions] 素材池选取失败，降级 Tavily：${(e as Error).message}`);
+  }
+  return fetchArticle(subj.searchQuery);
+}
+
 // 知识库考点锚：按科目关键词在笔记路径里筛候选，随机取几篇（每天自然轮换）。
 // GitHub 未配置 / 无命中 / 读取失败 → 空串（命题 prompt 降级为高考高频考点）
 async function pickNoteAnchors(keywords: string[]): Promise<string> {
@@ -352,9 +380,9 @@ async function generateOneSubject(
     if (exist) return { subject: subj.subject, status: 'skipped', detail: '已存在' };
   }
 
-  // 采集：外部时文（可降级 AI 自拟）+ 知识库考点锚（可空）
+  // 采集：素材池优先（可降级 Tavily 现抓，再降级 AI 自拟）+ 知识库考点锚（可空）
   const [article, noteAnchors] = await Promise.all([
-    fetchArticle(subj.searchQuery),
+    pickMaterial(owner, date, subj),
     pickNoteAnchors(subj.noteKeywords),
   ]);
 

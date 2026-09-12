@@ -5,6 +5,10 @@
       "schedule": "0 20 * * *"
     },
     {
+      "path": "/api/cron/collect",
+      "schedule": "0 19 * * *"
+    },
+    {
       "path": "/api/cron/questions",
       "schedule": "20 20 * * *"
     },
