@@ -2,6 +2,7 @@ import { chatCompletion, parseJsonLoose } from '@/lib/llm';
 import { requireAdminEnv, supabaseAdmin } from '@/lib/supabaseAdmin';
 import { fetchRepoTree, fetchRawFile, isGithubConfigured } from '@/lib/github';
 import { QUESTION_SUBJECTS, type QuestionSubject } from '@/lib/questionSubjects';
+import { buildUserPrompt } from '@/lib/promptBudget';
 
 /**
  * 备课流水线核心：从 cron route 抽出，供 Vercel Cron 与管理台「手动触发」共用。
@@ -235,9 +236,12 @@ export async function generateWeekly(opts: { force?: boolean } = {}): Promise<{ 
 // 科目清单与命题规格见 lib/questionSubjects.ts（新增科目只加一条定义）
 // ============================================================
 
-const ARTICLE_MAX_CHARS = 6000; // 命题素材截断：高考阅读语料 350-1500 字，留足余量控 token
+const ARTICLE_MAX_CHARS = 6000; // 命题素材抓取阶段截断（字符口径，预算装配前粗筛）
 const NOTE_ANCHOR_CHARS = 2000; // 单篇知识库锚点截断
 const NOTE_ANCHOR_COUNT = 3; // 每次最多取 3 篇笔记作考点锚
+const QUESTION_PROMPT_BUDGET = 6000; // 命题 user prompt 总预算（tokens，≈12000 字符）：
+// 优先级注入（提示词预算模型）：材料 priority=2 先占预算，知识库锚点 priority=1 用剩余空间，
+// 预算不足时锚点先被截断/丢弃而材料保全——材料是命题根基，锚点只是辅助定向
 
 interface FetchedArticle {
   title: string;
@@ -353,26 +357,32 @@ async function generateOneSubject(
     pickNoteAnchors(subj.noteKeywords),
   ]);
 
-  const materialBlock = article
-    ? `命题材料（真实时文，题目须严格基于此文）：
-标题：${article.title}
-${article.content}`
-    : `今日未抓取到合格外部素材。请自拟一篇符合以下口径的命题材料（350-800 字），连同材料一起放进返回 JSON 的 material 字段，另附材料标题在 material_title 字段。选材口径：${subj.sourceLabel}。`;
+  const specAndContract =
+    `${subj.questionSpec}\n\nJSON 字段契约：` +
+    `questions 数组每项 {type, stem, options?, answer?, analysis}；结尾 tip 为今日考点点评（60 字内）。`;
 
-  const anchorBlock = noteAnchors
-    ? `\n\n知识库考点锚（命题时优先贴合这些笔记覆盖的考点）：\n${noteAnchors}`
-    : '\n\n知识库未提供考点锚，按高考高频考点命题。';
+  // 提示词预算装配（promptBudget）：外部素材原文是不可截断核心输入；AI 自拟指令进 prefix；
+  // 知识库锚点按剩余预算注入，超预算先截锚点保材料（材料是命题根基）
+  const fallbackNote = noteAnchors ? '' : '\n\n知识库未提供考点锚，按高考高频考点命题。';
+  const prefix = article
+    ? `${specAndContract}\n\n命题材料（真实时文，题目须严格基于此文）\n标题：${article.title}`
+    : `${specAndContract}\n\n今日未抓取到合格外部素材。请自拟一篇符合以下口径的命题材料（350-800 字），` +
+      `连同材料一起放进返回 JSON 的 material 字段，另附材料标题在 material_title 字段。选材口径：${subj.sourceLabel}。` +
+      fallbackNote;
+
+  const prompt = buildUserPrompt({
+    prefix,
+    input: article ? article.content : '',
+    sections: noteAnchors
+      ? [{ key: 'noteAnchors', priority: 1, content: `知识库考点锚（命题时优先贴合这些笔记覆盖的考点）：\n${noteAnchors}` }]
+      : [],
+    maxTokens: QUESTION_PROMPT_BUDGET,
+  });
 
   const raw = await chatCompletion(
     [
       { role: 'system', content: subj.systemPrompt },
-      {
-        role: 'user',
-        content:
-          `${subj.questionSpec}\n\nJSON 字段契约：` +
-          `questions 数组每项 {type, stem, options?, answer?, analysis}；结尾 tip 为今日考点点评（60 字内）。` +
-          `${materialBlock}${anchorBlock}`,
-      },
+      { role: 'user', content: prompt.text },
     ],
     { temperature: 0.6 }
   );

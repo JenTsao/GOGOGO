@@ -1,6 +1,8 @@
 // L4 跨模块调度：6 大核心工具（蓝皮书第四章）
-// 写操作（addTask/setReminder）必须经确认卡片 → aiStore.confirmToolCall 才执行
+// 审批门控：工具按风险分级（TOOL_RISK），结合 settingsStore.approvalPolicy 由 needsApproval 决策
+// （原 WRITE_TOOLS 二元分类已升级为三级风险模型，见 lib/agentPolicy.ts）
 import { ToolDef } from './llm';
+import type { RiskLevel } from './agentPolicy';
 import { useTaskStore } from '@/store/taskStore';
 import { useReminderStore, localDateStr } from '@/store/reminderStore';
 import { useFocusStore } from '@/store/focusStore';
@@ -93,7 +95,23 @@ export const TOOL_SCHEMAS: ToolDef[] = [
   },
 ];
 
-export const WRITE_TOOLS: ReadonlySet<string> = new Set(['addTask', 'setReminder']);
+// 工具风险分级（对齐 Codex 审批模型：读=low、写/外部副作用=medium；本应用无 high 级工具——
+// 沙盒代码执行由 WebView 熔断机制独立管控，不经 LLM 工具调度触发）
+// - low：queryStats / correctCode（本地只读）
+// - medium：searchWeb（外部请求 + 消耗 Tavily 额度）、exportNote（触发服务端编译 + 云端写入）、
+//   addTask / setReminder（修改本地数据，原 WRITE_TOOLS 集合）
+export const TOOL_RISK: Record<AiToolName, RiskLevel> = {
+  queryStats: 'low',
+  correctCode: 'low',
+  searchWeb: 'medium',
+  exportNote: 'medium',
+  addTask: 'medium',
+  setReminder: 'medium',
+};
+
+export function toolRisk(name: string): RiskLevel {
+  return TOOL_RISK[name as AiToolName] ?? 'medium'; // 未知工具按中风险兜底（fail-safe）
+}
 
 // 确认卡片文案：把参数翻译成人话
 export function describeToolCall(name: string, args: Record<string, unknown>): string {

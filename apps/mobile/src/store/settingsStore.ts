@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { storage } from './storage';
 import type { ThemeMode } from '@/theme';
+import type { ApprovalPolicy } from '@/lib/agentPolicy';
 
 // 用户配置（Tab 4 我的）：持久化到 MMKV
 export interface Settings {
@@ -33,6 +34,7 @@ export interface Settings {
   visionBaseUrl: string; // 视觉模型（错题图片识别）：默认智谱，OpenAI 兼容
   visionApiKey: string;
   visionModel: string; // GLM-4.6V-Flash（免费额度）
+  approvalPolicy: ApprovalPolicy; // AI 工具审批策略：auto 全自动 / suggest 中风险以上确认（默认）/ ask 一律确认
 }
 
 const SETTINGS_KEY = 'settings';
@@ -66,6 +68,7 @@ const DEFAULTS: Settings = {
   visionBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
   visionApiKey: '',
   visionModel: 'glm-4.6v-flash',
+  approvalPolicy: 'suggest',
 };
 
 function loadSettings(): Settings {

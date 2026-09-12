@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { Audio, AVPlaybackStatus } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { chatWithLlmStream, ChatMessage, imageTextContent } from '@/lib/llm';
-import { TOOL_SCHEMAS, WRITE_TOOLS, executeTool, describeToolCall, AiToolName } from '@/lib/aiTools';
+import { TOOL_SCHEMAS, executeTool, describeToolCall, toolRisk, AiToolName } from '@/lib/aiTools';
+import { needsApproval, truncateToolOutput, pushToolAudit, argsHint } from '@/lib/agentPolicy';
 import { transcribeAudio } from '@/lib/stt';
 import { synthesizeSpeech, speakableText } from '@/lib/tts';
 import { gaokaoExamDate, useSettingsStore } from './settingsStore';
@@ -238,7 +239,8 @@ export const useAiStore = create<AiState>((set, get) => ({
         let readExecuted = false;
         let writePending = false;
         for (const call of reply.toolCalls) {
-          if (WRITE_TOOLS.has(call.name)) {
+          // 审批决策：按工具风险 + 用户审批策略（原 WRITE_TOOLS 二元判断升级为三级风险模型）
+          if (needsApproval(useSettingsStore.getState().approvalPolicy, toolRisk(call.name))) {
             writePending = true;
             get().pushMessage({
               role: 'assistant',
@@ -261,11 +263,12 @@ export const useAiStore = create<AiState>((set, get) => ({
                   : 'thinking'
             );
             const result = await executeTool(call.name, call.args);
+            pushToolAudit({ tool: call.name, decision: 'auto', argsHint: argsHint(call.args), ok: result.ok });
             get().pushMessage({ role: 'assistant', content: result.text, tool: call.name as AiTool });
-            // 工具结果截断回传：防止长输出（如整页搜索结果）撑爆上下文
+            // 工具结果截断回传：token 预算驱动（原硬编码 2000 字符），防止长输出撑爆上下文
             llmMessages.push({
               role: 'tool',
-              content: result.text.slice(0, 2000),
+              content: truncateToolOutput(result.text).text,
               tool_call_id: call.id,
             });
             readExecuted = true;
@@ -332,6 +335,7 @@ export const useAiStore = create<AiState>((set, get) => ({
     get().setStatus('generating');
     const { name, args } = msg.toolCall;
     const result = await executeTool(name, args);
+    pushToolAudit({ tool: name, decision: 'confirmed', argsHint: argsHint(args), ok: result.ok });
     get().pushMessage({ role: 'assistant', content: result.text });
     get().setStatus(result.ok ? 'done' : 'error');
   },
@@ -341,6 +345,10 @@ export const useAiStore = create<AiState>((set, get) => ({
         m.toolCall?.id === callId ? { ...m, toolCall: { ...m.toolCall, state: 'cancelled' as const } } : m
       ),
     }));
+    const msg = get().messages.find((m) => m.toolCall?.id === callId);
+    if (msg?.toolCall) {
+      pushToolAudit({ tool: msg.toolCall.name, decision: 'rejected', argsHint: argsHint(msg.toolCall.args) });
+    }
     get().pushMessage({ role: 'assistant', content: '好的，已取消该操作。' });
     get().setStatus('done');
   },

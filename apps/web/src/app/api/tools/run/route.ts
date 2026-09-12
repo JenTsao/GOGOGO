@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTool, buildSystemPrompt, DEFAULT_MAX_INPUT_CHARS } from '@/lib/aiTools/registry';
+import { clipToBudget } from '@/lib/promptBudget';
 import { chatCompletion } from '@/lib/llm';
 import { isAdminRequest, adminUnauthorized } from '@/lib/access';
 
@@ -33,9 +34,10 @@ export async function POST(req: NextRequest) {
   }
 
   const maxChars = tool.maxInputChars ?? DEFAULT_MAX_INPUT_CHARS;
+  // 字符上限 → token 预算（≈2 字符/token，口径同 promptBudget.countTokens）：
+  // 超限保留头部 + 显式截断标记，truncated 由前端提示（知识密度通常前高后低，与工坊精炼同策略）
+  const clipped = clipToBudget(input, Math.ceil(maxChars / 2)).text;
   const truncated = input.length > maxChars;
-  // 超长静默截断保留开头（与工坊精炼同策略：知识点密度通常前高后低），truncated 由前端提示
-  const clipped = input.slice(0, maxChars);
 
   const options =
     body.options && typeof body.options === 'object' && !Array.isArray(body.options)
