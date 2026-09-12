@@ -81,7 +81,7 @@ body::after { width: 480px; height: 480px; bottom: -160px; left: -160px; backgro
 
 .shell { display: flex; min-height: 100vh; position: relative; z-index: 1; }
 
-/* ---------- 侧边栏：玻璃面板 ---------- */
+/* ---------- 侧边栏：玻璃面板（折叠态宽度见文末折叠态区块） ---------- */
 .sidebar {
   width: 224px;
   padding: 24px 14px;
@@ -92,21 +92,47 @@ body::after { width: 480px; height: 480px; bottom: -160px; left: -160px; backgro
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border-right: 1px solid var(--border);
+  transition: width 0.2s ease, padding 0.2s ease;
 }
 .sidebar nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
-.logo { font-size: 17px; font-weight: 800; margin: 0 8px 22px; color: var(--text); display: flex; align-items: center; gap: 8px; }
-.logo::before { content: ''; width: 12px; height: 12px; border-radius: 4px; background: linear-gradient(135deg, var(--primary), #a78bfa); box-shadow: 0 2px 6px rgba(124, 58, 237, 0.4); }
+
+/* 顶部：logo 与折叠开关同排（折叠态改纵向堆叠） */
+.sidebar-top { display: flex; align-items: center; gap: 8px; margin: 0 8px 22px; }
+.logo { font-size: 17px; font-weight: 800; margin: 0; color: var(--text); display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; }
+.logo::before { content: ''; width: 12px; height: 12px; border-radius: 4px; background: linear-gradient(135deg, var(--primary), #a78bfa); box-shadow: 0 2px 6px rgba(124, 58, 237, 0.4); flex: none; }
+
+.collapse-toggle {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.collapse-toggle:hover { background: var(--primary-soft); color: var(--primary-deep); border-color: var(--primary); }
+.collapse-toggle svg { transition: transform 0.2s ease; }
 
 .nav-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 12px;
   border-radius: var(--r-sm);
   color: var(--text2);
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
+  white-space: nowrap;
   transition: background 0.15s, color 0.15s;
 }
+.nav-icon { flex: none; width: 20px; text-align: center; font-size: 15px; line-height: 1; }
 .nav-item:hover { background: var(--primary-soft); color: var(--primary-deep); }
 .nav-active { background: var(--primary); color: var(--on-primary); box-shadow: 0 4px 12px rgba(124, 58, 237, 0.28); }
 .nav-active:hover { background: var(--primary); color: var(--on-primary); }
@@ -339,3 +365,19 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); box-sh
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .theme-toggle:hover { background: var(--primary-soft); color: var(--primary-deep); border-color: var(--primary); }
+
+/* ---------- 侧边栏折叠态：仅图标窄栏 ----------
+   html[data-sidebar] 由预绘制脚本（SIDEBAR_BOOTSTRAP）在首屏前回填，
+   宽度/文字显隐纯 CSS 驱动，React 水合不参与首帧布局，故无展开宽度闪烁。 */
+html[data-sidebar='collapsed'] .sidebar { width: 68px; padding-left: 10px; padding-right: 10px; }
+html[data-sidebar='collapsed'] .sidebar-top { flex-direction: column; gap: 10px; margin: 0 0 18px; }
+html[data-sidebar='collapsed'] .logo { display: none; }
+html[data-sidebar='collapsed'] .collapse-toggle { width: 100%; height: 32px; }
+html[data-sidebar='collapsed'] .collapse-toggle svg { transform: rotate(180deg); }
+html[data-sidebar='collapsed'] .nav-item { justify-content: center; gap: 0; padding: 10px 0; }
+html[data-sidebar='collapsed'] .theme-toggle { justify-content: center; gap: 0; padding: 10px 0; }
+html[data-sidebar='collapsed'] .sidebar-collapsed-hide { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar, .collapse-toggle svg { transition: none; }
+}
