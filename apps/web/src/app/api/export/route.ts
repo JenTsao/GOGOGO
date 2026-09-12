@@ -3,7 +3,7 @@ import { getUserByAccessKey } from '@/lib/access';
 import { requireAdminEnv, supabaseAdmin } from '@/lib/supabaseAdmin';
 import { fetchRawFile, isGithubConfigured } from '@/lib/github';
 import { buildApkg } from '@/lib/apkg';
-import { renderMarkdown, stripFrontmatter } from '@/lib/markdown';
+import { extractHeadings, renderMarkdown, stripFrontmatter } from '@/lib/markdown';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -113,11 +113,21 @@ function parseCards(docs: { path: string; content: string }[]) {
   return cards;
 }
 
+// 目录：≥3 个标题才生成（短笔记放目录纯属噪声）；锚点 id 与引擎的 heading_open 规则同源，可直接跳转
+function buildTocHtml(markdown: string): string {
+  const headings = extractHeadings(markdown, 3);
+  if (headings.length < 3) return '';
+  const items = headings
+    .map((h) => `<li class="md-toc-l${h.level}"><a href="#${h.id}">${escapeHtml(h.text)}</a></li>`)
+    .join('');
+  return `<nav class="md-toc"><div class="md-toc-title">目录</div><ol>${items}</ol></nav>`;
+}
+
 // A4 打印视图（与 compile 页 print 视图同款风格）
 function printableHtml(docs: { path: string; content: string }[]): string {
   // 正文交给 Markdown 引擎（内部已剥离 frontmatter 并做 Obsidian 语法降级），不再手工逐行转义
   const body = docs
-    .map((d) => `<h1>${escapeHtml(d.path)}</h1>${renderMarkdown(d.content)}`)
+    .map((d) => `<h1>${escapeHtml(d.path)}</h1>${buildTocHtml(d.content)}${renderMarkdown(d.content)}`)
     .join('<div class="pagebreak"></div>');
   return `<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>高考复习资料</title>
 <style>
@@ -150,6 +160,18 @@ mark { background: #fff3bf; padding: 0 2px; border-radius: 3px; }
 math[display="block"] { display: block; text-align: center; margin: 10px 0; }
 .md-embed { color: #4b5563; background: #f2f4f7; border-radius: 3px; padding: 0 4px; font-size: 10.5pt; }
 .md-fn-ref { color: #2563eb; font-size: 8.5pt; }
+.md-toc { border: 1px solid #ddd; background: #fafafa; border-radius: 6px; padding: 8px 14px; margin: 8px 0 14px; font-size: 11pt; break-inside: avoid; page-break-inside: avoid; }
+.md-toc-title { font-weight: 700; margin-bottom: 4px; }
+.md-toc ol { margin: 0; padding-left: 18px; }
+.md-toc li { margin: 1px 0; }
+.md-toc a { color: #1a4d8f; text-decoration: none; }
+.md-toc-l2 { margin-left: 14px; }
+.md-toc-l3 { margin-left: 28px; }
+/* 打印断页：标题不与正文分离、块级元素不跨页切断 */
+h1, h2, h3, h4 { break-after: avoid; page-break-after: avoid; }
+table, pre, blockquote, .md-callout, img { break-inside: avoid; page-break-inside: avoid; }
+/* 外链在纸上无法点击：把 URL 附在链接后（屏幕预览同样可见，便于核对） */
+a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 8.5pt; color: #8a8a8a; word-break: break-all; }
 li.md-task-item { list-style: none; }
 li.md-task-item input[type="checkbox"] { margin-right: 6px; }
 .md-tag { color: #7c3aed; font-size: 10.5pt; }

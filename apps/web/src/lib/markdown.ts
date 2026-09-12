@@ -32,7 +32,12 @@ const CALLOUT_ICON: Record<string, string> = {
 };
 
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // 代码围栏内的内容不参与预处理：注释/脚注正则不能改写代码示例
@@ -337,6 +342,55 @@ function renderFence(code: string, lang: string): string {
   return `<pre class="md-code">${label}<code>${html}</code></pre>\n`;
 }
 
+// ---------- 标题锚点（供 PDF 目录跳转与书签使用） ----------
+/**
+ * 标题 → id：只保留中英文数字下划线，其余（空格、标点、markdown 标记）压成连字符。
+ * 中文直接留在 id 里（HTML5 允许），比转拼音/编码更可读，也便于 TOC 的 href 对齐。
+ */
+function slugify(text: string): string {
+  return text
+    .trim()
+    .replace(/[^\w\u4e00-\u9fff]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
+/** 同篇内重复标题追加序号：渲染与 extractHeadings 必须用同一套顺序，否则锚点对不上 */
+function uniqueSlug(base: string, seen: Map<string, number>): string {
+  const n = (seen.get(base) ?? 0) + 1;
+  seen.set(base, n);
+  return n === 1 ? base : `${base}-${n}`;
+}
+
+export interface HeadingItem {
+  level: number;
+  text: string;
+  id: string;
+}
+
+/**
+ * 提取标题结构（供 PDF 目录）。
+ * 判定与 renderer 的 heading_open 规则严格一致——同样只扫围栏外内容、同样的 slug 与去重顺序，
+ * 因此生成的 id 能精确对上正文锚点。
+ */
+export function extractHeadings(md: string, maxLevel = 3): HeadingItem[] {
+  const seen = new Map<string, number>();
+  const out: HeadingItem[] = [];
+  transformOutsideFences(stripFrontmatter(md), (seg) => {
+    // 必须与 renderMarkdown 走同一套预处理：注释剥离会决定标题行是否存续，漏掉就会产出死锚点
+    for (const m of preprocess(seg).matchAll(/^(#{1,6})\s+(.+)$/gm)) {
+      const level = m[1].length;
+      if (level > maxLevel) continue;
+      const text = m[2].trim();
+      const base = slugify(text);
+      if (!base) continue;
+      out.push({ level, text, id: uniqueSlug(base, seen) });
+    }
+    return seg;
+  });
+  return out;
+}
+
 function createRenderer(breaks: boolean): MarkdownIt {
   // html: false —— 笔记里的原始 HTML 一律转义，避免产物 HTML（打印页）出现注入面
   const md = new MarkdownIt({ html: false, linkify: true, breaks, typographer: false });
@@ -381,6 +435,17 @@ function createRenderer(breaks: boolean): MarkdownIt {
     const info = (tokens[idx].info || '').trim().split(/\s+/)[0] ?? '';
     return renderFence(tokens[idx].content, info);
   };
+  // 标题锚点：id 记在 env 上（每次 render 传入全新 env），同篇内去重、跨篇不串号
+  md.renderer.rules.heading_open = (tokens, idx, options, env, self) => {
+    const inline = tokens[idx + 1];
+    const base = slugify(inline?.type === 'inline' ? inline.content : '');
+    if (base) {
+      const store = env as { __headingIds?: Map<string, number> };
+      const seen = (store.__headingIds ??= new Map<string, number>());
+      tokens[idx].attrSet('id', uniqueSlug(base, seen));
+    }
+    return self.renderToken(tokens, idx, options);
+  };
   taskListPlugin(md);
   calloutPlugin(md);
   return md;
@@ -397,5 +462,10 @@ export interface RenderOptions {
 /** Obsidian Markdown → HTML（服务端：导出打印视图 / Anki 卡片背面） */
 export function renderMarkdown(md: string, opts: RenderOptions = {}): string {
   const renderer = opts.breaks === false ? RENDERERS.soft : RENDERERS.br;
-  return renderer.render(transformOutsideFences(stripFrontmatter(md), preprocess));
+  try {
+    return renderer.render(transformOutsideFences(stripFrontmatter(md), preprocess));
+  } catch {
+    // 引擎内部异常（畸形输入）不能让整篇导出失败：降级为转义后的纯文本
+    return `<pre>${escapeHtml(md)}</pre>`;
+  }
 }
