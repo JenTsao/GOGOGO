@@ -2,12 +2,22 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { cardShadow, themedStyles, usePalette, useScheme } from '@/theme';
+import type { Palette } from '@/theme';
 import type { ToolEntry } from './shared';
 import { BaseConverter } from './BaseConverter';
 import { QuadraticSolver } from './QuadraticSolver';
 import { PrimeFactor } from './PrimeFactor';
 import { PermComb } from './PermComb';
 import { FractionCalc } from './FractionCalc';
+
+// 网格图标软色底：语义色 key → 对应浅底 key（Palette 完整键，类型安全）
+const SOFT: Record<ToolEntry['color'], keyof Palette> = {
+  primary: 'primarySoft',
+  green: 'greenSoft',
+  orange: 'orangeSoft',
+  blue: 'blueSoft',
+  red: 'redSoft',
+};
 
 // 工具箱容器：网格入口 → 工具详情（带返回）。新增工具 = TOOLS 注册表加一行 + 对应组件文件
 const TOOLS: ToolEntry[] = [
@@ -43,11 +53,11 @@ export function Toolbox() {
   return (
     <View>
       <Text style={styles.gridTitle}>数学工具</Text>
-      {/* 软色底映射：每渲染建一次供五个 cell 共用（模板字符串索引 Palette 类型不安全，显式枚举） */}
+      {/* 软色底映射（SOFT）：类型安全枚举，避免模板字符串索引 Palette */}
       <View style={styles.grid}>
         {TOOLS.map((t) => (
           <TouchableOpacity key={t.id} style={styles.cell} onPress={() => setActive(t)} activeOpacity={0.85}>
-            <View style={[styles.cellIcon, { backgroundColor: soft[t.color] }]}>
+            <View style={[styles.cellIcon, { backgroundColor: C[SOFT[t.color]] }]}>
               <Ionicons name={t.icon as keyof typeof Ionicons.glyphMap} size={20} color={C[t.color]} />
             </View>
             <View style={styles.cellBody}>
