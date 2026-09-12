@@ -28,6 +28,9 @@ const SIZE = 220;
 const CX = SIZE / 2;
 const RR = 78;
 
+// 雷达学科轴上限：维度过多会让 220px 圆上的标签拥挤；超出的科目仍在卡片下方明细 chip 中列出
+const MAX_SUBJECT_AXES = 5;
+
 function radarPoint(i: number, total: number, r: number): { x: number; y: number } {
   // 从正上方开始，顺时针分布
   const angle = (Math.PI * 2 * i) / total - Math.PI / 2;
@@ -74,13 +77,40 @@ export default function DashboardScreen() {
     return [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [mistakes]);
 
-  // 学科掌握度：已记录重做结果的错题正确率（0-100）+ 已判题数，一次 memo 供两处使用
-  const { masteryRate, gradedCount } = useMemo(() => {
-    const graded = mistakes.filter((m) => m.correct);
-    const right = graded.filter((m) => m.correct === 'right').length;
+  // 学科掌握度：错题重做的整体正确率 + 按科目细分（供雷达每科一轴 + 明细 chip）。
+  // 一次 memo 输出三份口径，避免多处在 mistakes 上重复 filter 聚合。
+  const { masteredBySubject, masteryRate, gradedCount } = useMemo(() => {
+    const bySubject = new Map<string, { graded: number; right: number; total: number }>();
+    let graded = 0;
+    let right = 0;
+    for (const m of mistakes) {
+      const s = bySubject.get(m.subject) ?? { graded: 0, right: 0, total: 0 };
+      s.total += 1;
+      if (m.correct) {
+        s.graded += 1;
+        graded += 1;
+        if (m.correct === 'right') {
+          s.right += 1;
+          right += 1;
+        }
+      }
+      bySubject.set(m.subject, s);
+    }
+    // 只保留有重做记录的科目（未判题科目的正确率无意义）；重做题数降序，同数按科目名稳定排序
+    const masteredBySubject = [...bySubject.entries()]
+      .filter(([, v]) => v.graded > 0)
+      .map(([subject, v]) => ({
+        subject,
+        rate: (v.right / v.graded) * 100,
+        right: v.right,
+        graded: v.graded,
+        total: v.total,
+      }))
+      .sort((a, b) => b.graded - a.graded || a.subject.localeCompare(b.subject));
     return {
-      masteryRate: graded.length ? (right / graded.length) * 100 : 0,
-      gradedCount: graded.length,
+      masteredBySubject,
+      masteryRate: graded ? (right / graded) * 100 : 0,
+      gradedCount: graded,
     };
   }, [mistakes]);
 
@@ -165,7 +195,9 @@ export default function DashboardScreen() {
     return { todayMin, streak: start === 0 ? Math.max(1, n) : n };
   }, [dayMinutes]);
 
-  // 六维评分（上限 100）
+  // 雷达维度（上限 100）：5 项固定能力 + 学科掌握。
+  // 学科掌握按科目细分：有重做记录的科目各占一轴（最多 MAX_SUBJECT_AXES 个）；
+  // 无任何记录时退回单一「学科掌握」轴并置 0，提示用户去错题本标记重做结果。
   const dims = useMemo<RadarDim[]>(() => {
     const week = dailyMinutes.slice(-7);
     const weekMin = week.reduce((s, d) => s + d.min, 0);
@@ -174,16 +206,20 @@ export default function DashboardScreen() {
     const fresh = sessMeta.filter((m) => m.fresh);
     const avgMin = fresh.length ? fresh.reduce((sum, m) => sum + m.min, 0) / fresh.length : 0;
     const doneRatio = top3.length ? (top3.filter((t) => t.status === 'done').length / top3.length) * 100 : 0;
-    return [
+    const base: RadarDim[] = [
       { label: '专注投入', score: Math.min(100, (weekMin / 300) * 100) },
       { label: '专注深度', score: Math.min(100, (avgMin / 45) * 100) },
       { label: '坚持天数', score: (activeDays / 7) * 100 },
       { label: '任务执行', score: doneRatio },
       { label: '知识积累', score: Math.min(100, ((knowledgeCount + snippetCount) / 20) * 100) },
-      // 学科掌握：错题重做正确率（重做越多越准；未记录重做结果时为 0 并提示）
-      { label: '学科掌握', score: masteryRate },
     ];
-  }, [dailyMinutes, sessMeta, top3, knowledgeCount, snippetCount, masteryRate]);
+    const subjectAxes = masteredBySubject
+      .slice(0, MAX_SUBJECT_AXES)
+      .map((s) => ({ label: `${s.subject}掌握`, score: s.rate }));
+    return subjectAxes.length > 0
+      ? [...base, ...subjectAxes]
+      : [...base, { label: '学科掌握', score: 0 }];
+  }, [dailyMinutes, sessMeta, top3, knowledgeCount, snippetCount, masteredBySubject]);
 
   // 派生标量收进 memo：纵轴刻度与优势/短板各只算一次（此前每次重渲染都排序 + 展开分配）
   const maxDaily = useMemo(() => Math.max(30, ...dailyMinutes.map((d) => d.min)), [dailyMinutes]);
@@ -453,6 +489,24 @@ export default function DashboardScreen() {
         <Text style={styles.dimScores}>
           {dims.map((d) => `${d.label} ${Math.round(d.score)}`).join('　')}
         </Text>
+        {/* 学科明细：每个有重做记录的科目一行（含未进入雷达轴的科目），正确率 + 正确/已判题数 */}
+        {masteredBySubject.length > 0 ? (
+          <View style={styles.subjectRow}>
+            {masteredBySubject.map((s) => (
+              <View key={s.subject} style={styles.subjectChip}>
+                <Text style={styles.subjectChipName}>{s.subject}</Text>
+                <Text style={styles.subjectChipRate}>{Math.round(s.rate)}%</Text>
+                <Text style={styles.subjectChipCount}>
+                  {s.right}/{s.graded}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          mistakes.length > 0 && (
+            <Text style={styles.dimScores}>在错题本标记重做结果（✅/❌）后，这里按科目细分正确率</Text>
+          )
+        )}
       </View>
 
       <View style={styles.titleRow}>
@@ -665,12 +719,15 @@ export default function DashboardScreen() {
                 </View>
                 <View style={styles.adviceBody}>
                   <Text style={styles.adviceLabel}>{d.label}</Text>
-                  <Text style={styles.adviceText}>{ADVICE[d.label]}</Text>
+                  <Text style={styles.adviceText}>{ADVICE[d.label] ?? ADVICE['学科掌握']}</Text>
                 </View>
               </View>
             ))}
             <Text style={styles.placeholder}>
-              学科掌握 = 错题重做正确率，已在错题本记录 {gradedCount} 题{gradedCount === 0 ? '（去错题本标记重做结果吧）' : ''}
+              学科掌握 = 错题重做正确率（按科目细分，雷达每科一轴）
+              {gradedCount > 0
+                ? `；已记录 ${gradedCount} 题，总正确率 ${Math.round(masteryRate)}%`
+                : '；去错题本标记重做结果（✅/❌）后即可按科目细分'}
             </Text>
           </View>
 
@@ -695,14 +752,15 @@ export default function DashboardScreen() {
   );
 }
 
-// 六维一句话建议（全屏画像详情用）
+// 雷达各维一句话建议（全屏画像详情用）。学科轴 label 为动态的「X掌握」，
+// 取不到时由调用处回退到「学科掌握」的通用建议。
 const ADVICE: Record<string, string> = {
   专注投入: '每天保证 30–50 分钟专注，总量决定基础盘',
   专注深度: '尝试单次 45 分钟不间断，深度比时长更重要',
   坚持天数: '连续打卡比单日爆发更有效，先保 5 天/周',
   任务执行: '三件事当日清空，避免任务滚雪球',
   知识积累: '多在沙盒跑代码、按需下载笔记，持续积累弹药',
-  学科掌握: '错题隔天重做并记录结果，重做越多掌握度越可信',
+  学科掌握: '错题隔天重做并记录结果；按科目看，正确率最低的那科优先补',
 };
 
 const STYLES = themedStyles((CLR) => ({
@@ -722,6 +780,20 @@ const STYLES = themedStyles((CLR) => ({
   strength: { color: CLR.green, fontWeight: '700' },
   weakness: { color: CLR.red, fontWeight: '700' },
   dimScores: { fontSize: 11, color: CLR.text3, marginTop: 8, textAlign: 'center' },
+  // 学科掌握明细 chip：科目 + 正确率 + 正确/已判题数
+  subjectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12, justifyContent: 'center' },
+  subjectChip: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+    backgroundColor: CLR.primarySoft,
+    borderRadius: RAD.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  subjectChipName: { fontSize: 12, fontWeight: '700', color: CLR.primaryDeep },
+  subjectChipRate: { fontSize: 13, fontWeight: '800', color: CLR.primaryDeep, fontVariant: ['tabular-nums'] },
+  subjectChipCount: { fontSize: 10, color: CLR.text3, fontVariant: ['tabular-nums'] },
   signalRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   moodTrailRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 8 },
   moodTrailEmoji: { fontSize: 16 },

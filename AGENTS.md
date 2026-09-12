@@ -81,10 +81,10 @@ APK 打包：GitHub Actions「Build APK」workflow（手动 dispatch 或推送 `
 - ✅ 驾驶舱消费 daily_learning：知识点翻转卡 + 每日一题（显示答案 / AI讲题，复用 aiStore.ask）；移动端经 `get_daily_by_key` RPC 免登录读取（profiles.access_key 设备密钥，security definer，不放宽 RLS）
 - ✅ L4 工具调度：`src/lib/aiTools.ts` 6 大工具 schema + 执行器（addTask/setReminder 写操作走确认卡片 aiStore.confirmToolCall；searchWeb/queryStats/correctCode 直读直返；exportNote 接通管理台 `/api/export` 服务端编译：fetchRawFile 采集 → 大纲/打印HTML/真.apkg → Storage compilations 公开桶 → knowledge_compilations 记录 → 返回下载 URL；笔记从知识库已下载缓存定位，pdf 产物为 A4 打印 HTML 开箱调起打印）；LLM 层支持 OpenAI 兼容 tool_calls
 - ✅ 编译与输出：`/compile` 资源池勾选（笔记+错题）→ 纯文本大纲 / **真 .apkg**（`lib/apkg.ts` sql.js wasm 构建 SQLite schema ver 11 + jszip，guid=内容哈希去重，失败自动降级 TSV，依赖 serverComponentsExternalPackages）/ PDF（浏览器打印视图 A4，错题照片 `<img>` 内嵌；Anki 背面同样嵌图），历史最近 10 次 localStorage
-- ✅ 画像系统：仪表盘 react-native-svg 六维雷达（专注投入/深度/坚持天数/任务执行/知识积累/学科掌握）+ 近 7 天专注柱状 + 心流热力 + 完成率折线 + Tavily 横向对标（目标大学分数线）
+- ✅ 画像系统：仪表盘 react-native-svg 能力雷达（5 项固定：专注投入/深度/坚持天数/任务执行/知识积累 + 按科目细分的学科掌握轴，有重做记录的科目各占一轴、最多 5 轴，附正确率明细 chip）+ 近 7 天专注柱状 + 心流热力 + 完成率折线 + Tavily 横向对标（目标大学分数线）
 - ✅ 后台唤醒：`src/lib/background.ts` expo-background-fetch（15 分钟级）+ expo-notifications（当日提醒去重通知）+ 每日备课内容预取 MMKV（驾驶舱云失败时兜底）；Expo Go 下 Android 不支持 background fetch，需构建版
 - ✅ 错题本（Phase 4）：弹药库第3子Tab `MistakeView`（拍照/相册 → image-manipulator 压缩 1080px/JPEG → 学科/标签/语音反思 expo-av → 本地 MMKV 优先）；云同步经管理台 `/api/mistakes` 代理（x-access-key 反查 profiles.access_key，service role 写 Storage `mistakes` 桶，无匿名写策略）；画像接入危险学科 + 卡壳词云（mistakeStore tags）；编译资源池 `/api/mistakes/pool`（OWNER 归属元数据）
-- ✅ 错题重做结果：detail 标记 ✅正确/❌仍错 → 雷达第 6 维「学科掌握」（重做正确率）；云端 `mistakes.is_mastered`（POST 携带 / PATCH 回写）
+- ✅ 错题重做结果：detail 标记 ✅正确/❌仍错 → 雷达「学科掌握」按科目细分（有重做记录的科目各占一轴，最多 5 轴 + 明细 chip）；云端 `mistakes.is_mastered`（POST 携带 / PATCH 回写）
 - ✅ 知识库 [[双链]] 跳转：wikilink → `wiki:` 链接，onLinkPress 按精确路径/后缀/文件名三级解析跳转，未命中提示
 - ✅ 语音转文字 + 错题 AI 讲解：`src/lib/stt.ts`（OpenAI 兼容 /audio/transcriptions，中文锁定；DeepSeek 无 ASR，settingsStore 提供 sttBaseUrl/sttApiKey/sttModel 独立配置，留空回退 LLM 配置）；转写结果存 mistake.transcript（AI 讲解上下文 + 仪表盘情绪信号：countNegativeWords 消极词扫描「搞不懂即时加权」）；MistakeView 详情页 🤖 AI 讲解入口（优先视觉读图，未配置回退文本）
 - ✅ 视觉讲解：GLM-4.6V-Flash 接入（settingsStore visionBaseUrl/visionApiKey/visionModel，默认智谱 OpenAI 兼容）；llm.ts 支持 OpenAI 视觉 content 数组（ChatContentPart + imageTextContent）；aiStore.askVision（不传工具，历史文本照带）；MistakeView AI 讲解优先读图（本地图 → base64 data URL），未配 Key 回退文本讲解
