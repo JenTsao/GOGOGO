@@ -406,9 +406,10 @@ function createRenderer(breaks: boolean): MarkdownIt {
   md.inline.ruler.before('escape', 'md_math', mathRule);
   md.renderer.rules.md_mark = (tokens, idx) => `<mark>${escapeHtml(tokens[idx].content)}</mark>`;
   md.renderer.rules.md_tag = (tokens, idx) => `<span class="md-tag">#${escapeHtml(tokens[idx].content)}</span>`;
+  // data-target 携带原始目标：知识库阅读区据此做库内跳转；导出产物多一个 data 属性无副作用
   md.renderer.rules.md_wikilink = (tokens, idx) => {
     const [target, alias] = tokens[idx].content.split('|');
-    return `<span class="md-wikilink">${escapeHtml((alias ?? target).trim())}</span>`;
+    return `<span class="md-wikilink" data-target="${escapeHtml(target.trim())}">${escapeHtml((alias ?? target).trim())}</span>`;
   };
   md.renderer.rules.md_callout_tag = (tokens, idx) => {
     const type = tokens[idx].content;

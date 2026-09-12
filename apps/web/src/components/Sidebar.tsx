@@ -9,7 +9,9 @@ import { currentSidebarCollapsed, setSidebarCollapsed } from '@/lib/webSidebar';
 const MENUS = [
   { href: '/', label: '总览', icon: '🏠' },
   { href: '/workshop', label: '知识工坊', icon: '✍️' },
+  { href: '/library', label: '知识库', icon: '📚' },
   { href: '/search', label: '语义检索', icon: '🔍' },
+  { href: '/tools', label: 'AI 工具区', icon: '🧰' },
   { href: '/compile', label: '编译输出', icon: '📦' },
   { href: '/mistakes', label: '错题本', icon: '📕' },
   { href: '/insights', label: '画像大屏', icon: '📈' },
